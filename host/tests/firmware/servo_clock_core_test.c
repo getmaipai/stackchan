@@ -64,9 +64,32 @@ int main(void)
     (void)run(90, 1000, vmax, 0, &peak);
     CHECK(peak <= (float)vmax * 1.05f + 1.0f);
     CHECK(msc_vmax_tenth_dps(0) == 0 && msc_vmax_tenth_dps(150) == 4000);
-    CHECK(msc_limit_step(100, 100, 0, 0.02f) == 100 || msc_limit_step(100, 100, 0, 0.02f) == 100);
+    CHECK(msc_limit_step(100, 100, 0, 0.02f) == 100);
     /* a stall is not a jump: dt never exceeds 50 ms */
-    CHECK(msc_dt_s(5000) == 0.05f && msc_dt_s(1) == 0.02f);
+    CHECK(msc_dt_s(5000) == 0.05f && msc_dt_s(1) == 0.01f);
+    /* a 20 ms task that wakes 0.1 to 1.6 ms late by a changing amount still steps on (nearly) every wake: the gate is 15 ms */
+    {
+        uint32_t last = 0, steps = 0;
+        for (int i = 1; i <= 50; i++) {
+            const uint32_t jitter_tenths = (uint32_t)((i * 7) % 16) + 1; /* 0.1 to 1.6 ms */
+            const uint32_t now_ms_t = (uint32_t)(i * 20) + (jitter_tenths >= 10 ? 1u : 0u);
+            uint32_t e;
+            if (msc_due(now_ms_t, last, &e)) { steps++; last = now_ms_t; }
+        }
+        CHECK(steps >= 48);
+    }
+    /* the end of a move: the command trails the animation, and reaches the target at the same ceiling, never in one jump */
+    {
+        int cmd = 640; /* 64 degrees short of 1280 */
+        int most = 0, n = 0;
+        while (cmd != 1280 && n < 1000) {
+            const int next = msc_limit_step(cmd, 1280, msc_vmax_tenth_dps(100), 0.02f);
+            if (next - cmd > most) most = next - cmd;
+            cmd = next;
+            n++;
+        }
+        CHECK(cmd == 1280 && most <= 4000 * 20 / 1000 + 1 && n >= 8);
+    }
     if (failures) return 1;
     printf("servo clock ok\n");
     return 0;

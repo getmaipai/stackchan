@@ -256,6 +256,16 @@ int main(void)
             }
         }
     }
+    /* a reading taken while the head's pitch moves is held, not used: the band stays upright, and the data stays fresh */
+    {
+        mml_t h;
+        mml_init(&h);
+        mml_orient_feed(&h, 1000, 0.0f, 9.8f, 0.0f, 0.0f);
+        CHECK(mml_orient(&h, 1000) == MML_O_UPRIGHT);
+        for (uint32_t t = 1020; t < 2000; t += 20) mml_orient_hold(&h, t); /* tilted readings would have come here */
+        CHECK(mml_orient(&h, 2000) == MML_O_UPRIGHT && h.orient_raw == MML_O_UPRIGHT);
+        CHECK(!strcmp(mml_state_name_of(MML_USB), "usb_limited") && !strcmp(mml_state_name_of(MML_FREE), "free"));
+    }
     STALE = 0; vec(0, 0);
     if (failures) { printf("%d failure(s)\n", failures); return 1; }
     printf("all passed\n");

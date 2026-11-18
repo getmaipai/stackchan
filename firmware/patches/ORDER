@@ -285,3 +285,4 @@ SF30-mouth-cues-append.patch
 SF31-servo-task-and-limiter-applied.patch
 SF32-hello-mouth-cues-append.patch
 SF33-link-psk-tls-client.patch
+SF34-head-limiter-barge-bench.patch

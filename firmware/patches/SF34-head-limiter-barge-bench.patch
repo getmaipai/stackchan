@@ -1,0 +1,525 @@
+# Intent: Head and talk-over round after the bench windows. The servo step gate is 15 ms, so a 20 ms task that wakes a little early still takes its step; a move that ends with the command behind the animation reaches the target at the same speed ceiling, never in one jump; steps are also counted per second of animation (steps_per_anim_s) and the limiter status names the state and age of the applied block. A pitch reading taken within 400 ms of a pitch move is not used for the orientation band. A timer that rings while muted is silent. The first wake hit of one reply is cleared when the unit leaves the speaking state. The announced mouth_cues_append feature follows the switch that builds the tool. Bench tools: self.bench.say_test (a long canned reply through the real playback path, with no_barge), self.bench.heap_info (a map of internal RAM), self.bench.inject can be called again while it plays, and a "MaipaiBarge silence_ms=" line when the speaker goes quiet after an interruption.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/application.cc and protocols/websocket_protocol.cc (nested tree, MIT); firmware/main/hal and stackchan/motion (ours)
+# Check after a flash: self.bench.servo_rate over a move reports steps_per_anim_s near 50 and a median interval of 20 ms; the dance peak speed stays under 400 deg/s times the scale in both USB rules; a timer ringing while muted makes no sound; say_test plus two inject calls within a second stops the speech and prints the MaipaiBarge silence_ms line.
+# Kconfig: none new (the bench tools are under CONFIG_MAIPAI_SERIAL_TOOLS)
+
+diff --git a/firmware/main/hal/maipai_servo_clock_core.h b/firmware/main/hal/maipai_servo_clock_core.h
+--- a/firmware/main/hal/maipai_servo_clock_core.h
++++ b/firmware/main/hal/maipai_servo_clock_core.h
+@@ -14,7 +14,8 @@
+ 
+ #include <stdint.h>
+ 
+-#define MSC_MIN_MS 20u
++#define MSC_GATE_MS 15u /* a step is due after this long: a 20 ms task that wakes a little early still steps */
++#define MSC_MIN_MS 10u  /* the shortest advance of one step */
+ #define MSC_MAX_MS 50u
+ #define MSC_VMAX_TENTH_DPS 4000 /* 400 degrees per second at the limiter's scale of 100 percent */
+ 
+@@ -23,10 +24,10 @@ static inline int msc_due(uint32_t now, uint32_t last_step, uint32_t* elapsed)
+ {
+     const uint32_t e = (uint32_t)(now - last_step);
+     *elapsed = e;
+-    return e >= MSC_MIN_MS;
++    return e >= MSC_GATE_MS;
+ }
+ 
+-/* The animation advance for a step, in seconds: the real elapsed time, never less than 20 ms and never more than 50 ms (a stall is not a jump). */
++/* The animation advance for a step, in seconds: the real elapsed time, never less than 10 ms and never more than 50 ms (a stall is not a jump). */
+ static inline float msc_dt_s(uint32_t elapsed_ms)
+ {
+     const uint32_t e = elapsed_ms < MSC_MIN_MS ? MSC_MIN_MS : (elapsed_ms > MSC_MAX_MS ? MSC_MAX_MS : elapsed_ms);
+diff --git a/firmware/main/stackchan/motion/servo.cpp b/firmware/main/stackchan/motion/servo.cpp
+--- a/firmware/main/stackchan/motion/servo.cpp
++++ b/firmware/main/stackchan/motion/servo.cpp
+@@ -37,6 +37,8 @@ static SpringOptions_t _default_spring_options = {
+ // Patch SF27 (bench): how often the servo update was called and how often it advanced the animation (each advance is a fixed 20 ms of animation).
+ std::atomic<uint32_t> g_servo_update_calls{0};
+ std::atomic<uint32_t> g_servo_anim_steps{0};
++// Total animation time of those steps, in ms: steps per animated second is steps / anim_ms, not steps per wall-clock second (the head rests between moves).
++std::atomic<uint32_t> g_servo_anim_ms{0};
+ // Patch SF31 (bench): the last 256 times between two calls of the same servo's update, in ms (clamped to 255).
+ std::atomic<uint32_t> g_servo_interval_n{0};
+ uint8_t g_servo_intervals[256];
+@@ -94,6 +96,7 @@ void Servo::update()
+         maipai_pickup_own_activity();  // patch TB04: the head is moving itself: the body is not read as a lift for 1.5 s
+ #if CONFIG_MAIPAI_SERIAL_TOOLS
+         g_servo_anim_steps.fetch_add(1, std::memory_order_relaxed);
++        g_servo_anim_ms.fetch_add(elapsed_ms, std::memory_order_relaxed);
+ #endif
+         const float step_dt = msc_dt_s(elapsed_ms);
+         _angle_anim.updateWithDelta(step_dt);
+@@ -109,9 +112,19 @@ void Servo::update()
+ 
+     // Snap to target angle when animation ends
+     else if (_snap_to_target_on_rest) {
+-        _prev_command_valid = false;
+-        _snap_to_target_on_rest = false;
+-        set_angle_impl(_angle_anim.end);
++        // The command may still trail the animation (the ceiling held it back): reach the target at the same ceiling, not in one jump.
++        int command = _angle_anim.end;
++        if (_prev_command_valid) {
++            command = msc_limit_step(_prev_command, command, msc_vmax_tenth_dps(maipai_motion_scale()), msc_dt_s(elapsed_ms));
++        }
++        _prev_command = command;
++        if (command == static_cast<int>(_angle_anim.end)) {
++            _prev_command_valid = false;
++            _snap_to_target_on_rest = false;
++        } else {
++            _prev_command_valid = true;
++        }
++        set_angle_impl(command);
+     }
+ 
+     // Auto release torque on rest
+diff --git a/firmware/main/hal/maipai_bench.cc b/firmware/main/hal/maipai_bench.cc
+--- a/firmware/main/hal/maipai_bench.cc
++++ b/firmware/main/hal/maipai_bench.cc
+@@ -12,6 +12,10 @@
+ #include <hal/maipai_lat.h>
+ #include <mcp_server.h>
+ #include <hal/maipai_firstrun_wire.h>
++#include <hal/maipai_barge.h>
++#include <application.h>
++#include <esp_heap_caps.h>
++#include <esp_timer.h>
+ #include <algorithm>
+ #include <atomic>
+ #include <cstring>
+@@ -34,9 +38,11 @@ extern const int16_t g_bench_clips[];
+ namespace stackchan::motion {
+ extern std::atomic<uint32_t> g_servo_update_calls;  // stackchan/motion/servo.cpp (patch SF27)
+ extern std::atomic<uint32_t> g_servo_anim_steps;
++extern std::atomic<uint32_t> g_servo_anim_ms;
+ }  // namespace stackchan::motion
+ using stackchan::motion::g_servo_update_calls;
+ using stackchan::motion::g_servo_anim_steps;
++using stackchan::motion::g_servo_anim_ms;
+ namespace stackchan::motion {
+ extern std::atomic<uint32_t> g_servo_interval_n;
+ extern uint8_t g_servo_intervals[256];
+@@ -165,7 +171,9 @@ void maipai_bench_register_tools() {
+     // than the spring settings say. This starts an optional move and counts update calls and animation steps for window_ms.
+     mcp.AddTool("self.bench.servo_rate",
+                 "Bench only: starts a head move (yaw, pitch in degrees, -9999 none) and counts, over window_ms, how many times the servo update was called and how many "
+-                "animation steps it took (each step is 20 ms of animation): steps per second below 50 means the head moves slower than designed. Answers {calls_per_s, steps_per_s}.",
++                "animation steps it took. A step is counted only while a move is animating, so steps_per_s over the whole window includes the time the head rested; "
++                "steps_per_anim_s is steps per second of animation (about 50 for a 20 ms task) and anim_ms is the animation time inside the window. "
++                "Answers {calls_per_s, steps_per_s, steps, anim_ms, steps_per_anim_s, interval_ms, servo_task_stack_min}.",
+                 PropertyList({Property("yaw", kPropertyTypeInteger, -9999, -9999, 128), Property("pitch", kPropertyTypeInteger, -9999, -9999, 90),
+                               Property("speed", kPropertyTypeInteger, 1000, 100, 1000), Property("window_ms", kPropertyTypeInteger, 1000, 200, 5000)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+@@ -175,6 +183,7 @@ void maipai_bench_register_tools() {
+                     stackchan::motion::g_servo_interval_n.store(0);
+                     const uint32_t calls0 = g_servo_update_calls.load();
+                     const uint32_t steps0 = g_servo_anim_steps.load();
++                    const uint32_t anim_ms0 = g_servo_anim_ms.load();
+                     {
+                         LvglLockGuard lock;
+                         auto& motion = GetStackChan().motion();
+@@ -184,6 +193,7 @@ void maipai_bench_register_tools() {
+                     vTaskDelay(pdMS_TO_TICKS(window));
+                     const uint32_t calls = g_servo_update_calls.load() - calls0;
+                     const uint32_t steps = g_servo_anim_steps.load() - steps0;
++                    const uint32_t anim_ms = g_servo_anim_ms.load() - anim_ms0;
+                     // inter-call times of one servo's update over the window: min, median, p95, max in ms (a fixed 20 ms task shows 20 with little spread)
+                     uint8_t iv[256];
+                     const uint32_t have_n = stackchan::motion::g_servo_interval_n.load();
+@@ -197,11 +207,12 @@ void maipai_bench_register_tools() {
+                         p95 = iv[(have * 95) / 100 < have ? (have * 95) / 100 : have - 1];
+                         mx = iv[have - 1];
+                     }
+-                    char out[240];
++                    char out[320];
+                     snprintf(out, sizeof(out),
+-                             "{\"ok\":true,\"calls_per_s\":%.1f,\"steps_per_s\":%.1f,\"interval_ms\":{\"n\":%d,\"min\":%d,\"median\":%d,\"p95\":%d,\"max\":%d},"
++                             "{\"ok\":true,\"calls_per_s\":%.1f,\"steps_per_s\":%.1f,\"steps\":%u,\"anim_ms\":%u,\"steps_per_anim_s\":%.1f,\"interval_ms\":{\"n\":%d,\"min\":%d,\"median\":%d,\"p95\":%d,\"max\":%d},"
+                              "\"servo_task_stack_min\":%u}",
+-                             calls * 1000.0 / window, steps * 1000.0 / window, have, mn, md, p95, mx, maipai_servo_task_stack_min());
++                             calls * 1000.0 / window, steps * 1000.0 / window, static_cast<unsigned>(steps), static_cast<unsigned>(anim_ms),
++                             anim_ms ? steps * 1000.0 / anim_ms : 0.0, have, mn, md, p95, mx, maipai_servo_task_stack_min());
+                     return std::string(out);
+                 });
+     mcp.AddTool("self.bench.firstrun_loop",
+@@ -227,16 +238,118 @@ void maipai_bench_register_tools() {
+                     s_noise.active.store(true);
+                     return std::string("{\"ok\":true}");
+                 });
++    mcp.AddTool("self.bench.heap_info",
++                "Bench only: a map of the internal RAM heap. free: the largest free blocks [address, size]; used: the used blocks of min_used bytes or more "
++                "[address, size, owner] sorted by address (owner is the task whose stack the block is, else empty); tasks: [name, stack_bytes]; "
++                "largest_free and total_free. Use it to see what splits the heap: a small used block sitting between large free ones. Answers JSON.",
++                PropertyList({Property("min_used", kPropertyTypeInteger, 1024, 256, 65536)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    struct Blk { uintptr_t a; uint32_t n; };
++                    struct Walk { Blk used[96]; int nu; Blk freeb[16]; int nf; size_t min_used; size_t total_free; size_t largest; } *w =
++                        static_cast<Walk*>(heap_caps_calloc(1, sizeof(Walk), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++                    if (!w) return std::string("{\"ok\":false,\"error\":\"no memory for the map: try again\"}");
++                    w->min_used = static_cast<size_t>(properties["min_used"].value<int>());
++                    heap_caps_walk(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT, [](walker_heap_into_t, walker_block_info_t b, void* u) -> bool {
++                        Walk* k = static_cast<Walk*>(u);
++                        if (b.used) {
++                            if (b.size >= k->min_used && k->nu < 96) k->used[k->nu++] = {reinterpret_cast<uintptr_t>(b.ptr), static_cast<uint32_t>(b.size)};
++                        } else {
++                            k->total_free += b.size;
++                            if (b.size > k->largest) k->largest = b.size;
++                            int at = k->nf;
++                            if (at == 16) { if (b.size <= k->freeb[15].n) return true; at = 15; } else { k->nf++; }
++                            k->freeb[at] = {reinterpret_cast<uintptr_t>(b.ptr), static_cast<uint32_t>(b.size)};
++                            for (int i = at; i > 0 && k->freeb[i].n > k->freeb[i - 1].n; i--) { Blk t = k->freeb[i]; k->freeb[i] = k->freeb[i - 1]; k->freeb[i - 1] = t; }
++                        }
++                        return true;
++                    }, w);
++                    std::string out = "{\"ok\":true,\"largest_free\":" + std::to_string(w->largest) + ",\"total_free\":" + std::to_string(w->total_free) + ",\"free\":[";
++                    char buf[96];
++                    for (int i = 0; i < w->nf; i++) {
++                        snprintf(buf, sizeof(buf), "%s[\"%x\",%u]", i ? "," : "", static_cast<unsigned>(w->freeb[i].a), static_cast<unsigned>(w->freeb[i].n));
++                        out += buf;
++                    }
++                    out += "],\"tasks\":[";
++                    const UBaseType_t nt = uxTaskGetNumberOfTasks();
++                    TaskStatus_t* ts = static_cast<TaskStatus_t*>(heap_caps_calloc(nt + 4, sizeof(TaskStatus_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++                    int got = 0;
++                    if (ts) got = static_cast<int>(uxTaskGetSystemState(ts, nt + 4, nullptr));
++                    for (int i = 0; i < got; i++) {
++                        snprintf(buf, sizeof(buf), "%s[\"%s\",\"%x\"]", i ? "," : "", ts[i].pcTaskName, static_cast<unsigned>(reinterpret_cast<uintptr_t>(ts[i].pxStackBase)));
++                        out += buf;
++                    }
++                    out += "],\"used\":[";
++                    for (int i = 0; i < w->nu; i++) {
++                        const char* owner = "";
++                        for (int j = 0; j < got; j++) {
++                            const uintptr_t sb = reinterpret_cast<uintptr_t>(ts[j].pxStackBase);
++                            if (sb >= w->used[i].a && sb < w->used[i].a + w->used[i].n) { owner = ts[j].pcTaskName; break; }
++                        }
++                        snprintf(buf, sizeof(buf), "%s[\"%x\",%u,\"%s\"]", i ? "," : "", static_cast<unsigned>(w->used[i].a), static_cast<unsigned>(w->used[i].n), owner);
++                        out += buf;
++                    }
++                    out += "]}";
++                    heap_caps_free(ts);
++                    heap_caps_free(w);
++                    return out;
++                });
++    mcp.AddTool("self.bench.say_test",
++                "Bench only: makes the unit speak a long canned reply through the real playback path (the speech state, the open speech, the playback queue, "
++                "the loopback and the echo canceller), without a person or a host: the stored question clips are played one after another for seconds "
++                "(1 to 120). no_barge=1 marks it as a sentence that says the wake phrase (wake hits are ignored while it plays). "
++                "Ends by itself, or when the unit leaves the speaking state (an interruption). Answers {ok}.",
++                PropertyList({Property("seconds", kPropertyTypeInteger, 20, 1, 120), Property("no_barge", kPropertyTypeInteger, 0, 0, 1)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    static std::atomic<bool> busy{false};
++                    if (busy.exchange(true)) {
++                        return std::string("{\"ok\":false,\"error\":\"running\"}");
++                    }
++                    struct Args { int seconds; bool no_barge; };
++                    auto* a = new Args{properties["seconds"].value<int>(), properties["no_barge"].value<int>() != 0};
++                    const BaseType_t rc = xTaskCreate([](void* arg) {
++                        Args* args = static_cast<Args*>(arg);
++                        auto& app = Application::GetInstance();
++                        auto& audio = app.GetAudioService();
++                        maipai_barge_tts_start();
++                        audio.SetSpeechOpen(true);
++                        app.SetDeviceState(kDeviceStateSpeaking);
++                        if (args->no_barge) maipai_barge_no_barge(static_cast<uint32_t>(args->seconds) * 1000u);
++                        const int64_t end_us = esp_timer_get_time() + static_cast<int64_t>(args->seconds) * 1000000;
++                        int q = 1;
++                        while (esp_timer_get_time() < end_us && app.GetDeviceState() == kDeviceStateSpeaking) {
++                            if (g_bench_clip_count > 1 && audio.PlayPcm(&g_bench_clips[g_bench_clip_off[q]], g_bench_clip_len[q], 16000)) {
++                                q = q + 1 < g_bench_clip_count - 1 ? q + 1 : 1;
++                            } else {
++                                vTaskDelay(pdMS_TO_TICKS(100));
++                            }
++                        }
++                        if (app.GetDeviceState() == kDeviceStateSpeaking) {
++                            while (!audio.IsPlaybackIdle()) vTaskDelay(pdMS_TO_TICKS(100));
++                            audio.SetSpeechOpen(false);
++                            app.SetDeviceState(kDeviceStateIdle);
++                        }
++                        delete args;
++                        busy.store(false);
++                        vTaskDelete(nullptr);
++                    }, "bench_say", 4096, a, 3, nullptr);
++                    if (rc != pdPASS) {
++                        delete a;
++                        busy.store(false);
++                        return std::string("{\"ok\":false,\"error\":\"no memory for the test task: try again after the unit is idle\"}");
++                    }
++                    return std::string("{\"ok\":true}");
++                });
+     mcp.AddTool("self.bench.inject",
+                 "Bench only: plays the wake phrase (wake=1), a gap, question clip q (1 to 5, or 0 for none) and "
+-                "silence into the microphone path. Answers at once; the log shows the timing.",
++                "silence into the microphone path. Answers at once; the log shows the timing. A call while a run plays starts the new run over it.",
+                 PropertyList({Property("q", kPropertyTypeInteger, 1, 0, 5), Property("wake", kPropertyTypeInteger, 1, 0, 1),
+                               Property("gap_ms", kPropertyTypeInteger, 1800, 0, 10000),
+                               Property("tail_ms", kPropertyTypeInteger, 9000, 0, 30000),
+                               Property("gain_pct", kPropertyTypeInteger, 100, 1, 300)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     if (s_run.active.load()) {
+-                        return std::string("{\"ok\":false,\"error\":\"running\"}");
++                        // A second call while one plays starts the new run over the old one (a second wake phrase within a second of the first).
++                        s_run.active.store(false);
+                     }
+                     const int q = properties["q"].value<int>();
+                     s_run.wake_len = properties["wake"].value<int>() ? g_bench_clip_len[0] : 0;
+diff --git a/firmware/main/hal/maipai_motion_limit.cc b/firmware/main/hal/maipai_motion_limit.cc
+--- a/firmware/main/hal/maipai_motion_limit.cc
++++ b/firmware/main/hal/maipai_motion_limit.cc
+@@ -28,6 +28,7 @@ uint32_t s_power_at = 0;
+ int s_level = -1;
+ int s_cable = 0;
+ float s_acc[3] = {0.0f, 9.8f, 0.0f};  // the low-passed pull, fed by the IMU task
++volatile uint32_t s_pitch_moved_ms = 0; // when the pitch command last changed (a reading just after it is not used for the orientation)
+ volatile int s_pitch_deg10 = 0;       // the head's pitch, tenths of a degree, from the servo layer
+ constexpr const char* kNs = "mp_motion";  // its own namespace
+ constexpr const char* kKey = "usb_limit";
+@@ -54,11 +55,18 @@ void maipai_motion_feed_accel(float ax, float ay, float az)
+     s_acc[0] += 0.2f * (ax - s_acc[0]);
+     s_acc[1] += 0.2f * (ay - s_acc[1]);
+     s_acc[2] += 0.2f * (az - s_acc[2]);
++    if (now_ms() - s_pitch_moved_ms < 400u) {
++        mml_orient_hold(&s_mml, now_ms());  // the head's pitch moved just now: the reading is not used
++        return;
++    }
+     mml_orient_feed(&s_mml, now_ms(), s_acc[0], s_acc[1], s_acc[2], static_cast<float>(s_pitch_deg10) / 10.0f);
+ }
+ 
+ void maipai_motion_note_pitch(int angle_tenths)
+ {
++    if (angle_tenths != s_pitch_deg10) {
++        s_pitch_moved_ms = now_ms();
++    }
+     s_pitch_deg10 = angle_tenths;
+ }
+ 
+@@ -104,6 +112,8 @@ int maipai_motion_scale()
+ namespace {
+ int s_app_angle_in = 0, s_app_angle_out = 0, s_app_scale = 100;
+ int s_app_speed_in = 0, s_app_speed_out = 0, s_app_speed_pct = 100;
++uint32_t s_app_at = 0;
++int s_app_state = 0;
+ }  // namespace
+ 
+ int maipai_motion_angle(int angle)
+@@ -113,6 +123,8 @@ int maipai_motion_angle(int angle)
+     s_app_angle_in = angle;
+     s_app_angle_out = out;
+     s_app_scale = mml_scale(&s_mml);
++    s_app_at = now_ms();
++    s_app_state = mml_state(&s_mml);
+     if (out != angle) {
+         s_mml.limited++;
+     }
+@@ -165,7 +177,8 @@ void maipai_motion_register_tools()
+                 "moves more gently as the battery runs low) or carried (held or carried: no movement). Also reasons, usb, carried, "
+                 "battery_band (none, mild, limited, minimal, hold), scale (percent of the excursion), speed_cap (0 to 1000), "
+                 "dance_max (0 to 4), refused_count, limited_count and applied: the angle and speed the servo layer last handed to the limiter and got back, "
+-                "with the scale and speed percent used (what is applied, not only what the state says).",
++                "with the scale and speed percent used and the state at that moment (state) and how long ago (age_ms): the head command is last limited at that time, "
++                "so after the USB cable or the choice changes the applied block shows the old values until the next move.",
+                 PropertyList(), [](const PropertyList&) -> ReturnValue {
+                     ensure();
+                     char reason[120];
+@@ -182,16 +195,17 @@ void maipai_motion_register_tools()
+                     else if (orient == MML_O_UNKNOWN) add("no orientation reading");
+                     if (s_mml.usb && s_mml.usb_limit) add("on a USB cable");
+                     if (!s_mml.usb && s_mml.band > 0) add("the battery is low");
+-                    char out[720];
++                    char out[800];
+                     snprintf(out, sizeof(out),
+                              "{\"ok\":true,\"state\":\"%s\",\"reasons\":\"%s\",\"usb\":%s,\"carried\":%s,\"orientation\":\"%s\",\"tilt_deg\":%d,\"usb_limit\":\"%s\","
+                              "\"battery\":%d,\"battery_band\":\"%s\",\"scale\":%d,\"speed_cap\":%d,\"dance_max\":%d,"
+                              "\"refused_count\":%u,\"limited_count\":%u,"
+-                             "\"applied\":{\"angle_in\":%d,\"angle_out\":%d,\"scale\":%d,\"speed_in\":%d,\"speed_out\":%d,\"speed_pct\":%d}}",
++                             "\"applied\":{\"state\":\"%s\",\"age_ms\":%u,\"angle_in\":%d,\"angle_out\":%d,\"scale\":%d,\"speed_in\":%d,\"speed_out\":%d,\"speed_pct\":%d}}",
+                              mml_state_name(&s_mml), reason, s_mml.usb ? "true" : "false", s_mml.carried ? "true" : "false", mml_orient_name(orient), static_cast<int>(s_mml.tilt_deg),
+                              s_mml.usb_limit ? "limited" : "off", s_mml.level, mml_band_name(&s_mml), mml_scale(&s_mml),
+                              mml_speed_cap(&s_mml), mml_dance_max(&s_mml), static_cast<unsigned>(s_mml.refused),
+-                             static_cast<unsigned>(s_mml.limited), s_app_angle_in, s_app_angle_out, s_app_scale, s_app_speed_in, s_app_speed_out, s_app_speed_pct);
++                             static_cast<unsigned>(s_mml.limited), s_app_at ? mml_state_name_of(s_app_state) : "none",
++                             s_app_at ? static_cast<unsigned>(now_ms() - s_app_at) : 0u, s_app_angle_in, s_app_angle_out, s_app_scale, s_app_speed_in, s_app_speed_out, s_app_speed_pct);
+                     return std::string(out);
+                 });
+     mcp.AddTool("self.motion.set",
+diff --git a/firmware/main/hal/maipai_motion_limit_core.h b/firmware/main/hal/maipai_motion_limit_core.h
+--- a/firmware/main/hal/maipai_motion_limit_core.h
++++ b/firmware/main/hal/maipai_motion_limit_core.h
+@@ -156,6 +156,15 @@ static inline void mml_orient_feed(mml_t* m, uint32_t now, float ax, float ay, f
+     }
+ }
+ 
++/* A reading taken while the head's own pitch is moving says nothing about how the unit stands (the head's push moves the sensor): keep the band as it is
++ * and count the reading as fresh, so a fast nod never reads as a tilt. */
++static inline void mml_orient_hold(mml_t* m, uint32_t now)
++{
++    m->acc_ms = now ? now : 1u;
++    m->orient_raw = m->orient == MML_O_UNKNOWN ? m->orient_raw : m->orient;
++    m->orient_at = now;
++}
++
+ /* The band now: unknown when no reading came in the last 2 s. */
+ static inline int mml_orient(const mml_t* m, uint32_t now)
+ {
+@@ -258,9 +267,9 @@ static inline float mml_stiffness(const mml_t* m, float k)
+     return k > cap ? cap : k;
+ }
+ 
+-static inline const char* mml_state_name(const mml_t* m)
++static inline const char* mml_state_name_of(int st)
+ {
+-    switch (mml_state(m)) {
++    switch (st) {
+         case MML_CARRIED: return "carried";
+         case MML_USB: return "usb_limited";
+         case MML_BATTERY: return "battery_limited";
+@@ -268,6 +277,7 @@ static inline const char* mml_state_name(const mml_t* m)
+         default: return "free";
+     }
+ }
++static inline const char* mml_state_name(const mml_t* m) { return mml_state_name_of(mml_state(m)); }
+ static inline const char* mml_orient_name(int o)
+ {
+     static const char* const n[5] = {"upright", "tilted", "side", "inverted", "unknown"};
+diff --git a/firmware/main/hal/maipai_barge.cc b/firmware/main/hal/maipai_barge.cc
+--- a/firmware/main/hal/maipai_barge.cc
++++ b/firmware/main/hal/maipai_barge.cc
+@@ -11,6 +11,7 @@
+ #include <esp_timer.h>
+ #include <cmath>
+ #include <cstdio>
++#include <atomic>
+ #include <mutex>
+ 
+ namespace {
+@@ -18,6 +19,10 @@ const char* const kTag = "MaipaiBarge";
+ std::mutex s_mu;
+ mbg_t s_barge;
+ 
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++std::atomic<int64_t> s_int_us{0};  // when the last interruption was decided (0 none)
++int s_quiet_frames = 0;
++#endif
+ uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
+ }  // namespace
+ 
+@@ -26,7 +31,13 @@ int maipai_barge_wake_hit(bool speaking)
+     std::lock_guard<std::mutex> lock(s_mu);
+     mbg_speaking(&s_barge, speaking ? 1 : 0);
+     const mbg_verdict_t v = mbg_wake_hit(&s_barge, now_ms());
+-    if (v == MBG_ABORT) ESP_LOGW(kTag, "interrupted: the second wake hit while speaking");
++    if (v == MBG_ABORT) {
++        ESP_LOGW(kTag, "interrupted: the second wake hit while speaking");
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++        s_int_us.store(esp_timer_get_time());  // the bench measures how long the speaker keeps playing after this
++        s_quiet_frames = 0;
++#endif
++    }
+     return static_cast<int>(v);
+ }
+ 
+@@ -42,6 +53,12 @@ void maipai_barge_tts_start()
+     mbg_tts_start(&s_barge);
+ }
+ 
++void maipai_barge_left_speaking()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    mbg_speaking(&s_barge, 0);
++}
++
+ bool maipai_barge_frame_ok()
+ {
+     std::lock_guard<std::mutex> lock(s_mu);
+@@ -71,6 +88,26 @@ void maipai_aec_trace_in(const int16_t* interleaved, size_t count, int channels)
+ {
+     if (channels < 2) return;
+     std::lock_guard<std::mutex> lock(s_trace_mu);
++    // Time to silence: the loopback channel (what the speaker plays) stays under a small level for 60 ms after an interruption.
++    const int64_t t0 = s_int_us.load();
++    if (t0 != 0) {
++        double sq = 0;
++        size_t n = 0;
++        for (size_t f = 0; f + 1 < count; f += static_cast<size_t>(channels)) {
++            sq += static_cast<double>(interleaved[f + 1]) * interleaved[f + 1];
++            n++;
++        }
++        const double rms = n ? std::sqrt(sq / static_cast<double>(n)) : 0.0;
++        s_quiet_frames = rms < 40.0 ? s_quiet_frames + static_cast<int>(n) : 0;
++        if (s_quiet_frames >= 960) {  // 60 ms at 16 kHz
++            const int64_t t1 = esp_timer_get_time();
++            std::printf("MaipaiBarge silence_ms=%d\n", static_cast<int>((t1 - t0) / 1000) - 60);
++            s_int_us.store(0);
++        } else if (esp_timer_get_time() - t0 > 10000000) {
++            std::printf("MaipaiBarge silence_ms=-1\n");  // still playing 10 s after the interruption
++            s_int_us.store(0);
++        }
++    }
+     for (size_t f = 0; f + 1 < count; f += static_cast<size_t>(channels)) {
+         s_sq_mic += static_cast<double>(interleaved[f]) * interleaved[f];
+         s_sq_ref += static_cast<double>(interleaved[f + 1]) * interleaved[f + 1];
+diff --git a/firmware/main/hal/maipai_barge.h b/firmware/main/hal/maipai_barge.h
+--- a/firmware/main/hal/maipai_barge.h
++++ b/firmware/main/hal/maipai_barge.h
+@@ -12,6 +12,8 @@ void maipai_barge_no_barge(uint32_t duration_ms);
+ // A tts start: the frames of a new reply are good again. After an interruption the frames of the old turn are dropped until this.
+ void maipai_barge_tts_start();
+ bool maipai_barge_frame_ok();
++// The unit left the Speaking state: the first-hit and no_barge marks are cleared.
++void maipai_barge_left_speaking();
+ #if CONFIG_MAIPAI_SERIAL_TOOLS
+ // Bench: one trace line a second, "AEC mic=<rms> ref=<rms> out=<rms>" (microphone 1, the loopback, the cleaned output).
+ void maipai_aec_trace_in(const int16_t* interleaved, size_t count, int channels);
+@@ -22,4 +24,5 @@ inline int maipai_barge_wake_hit(bool) { return 3; }
+ inline void maipai_barge_no_barge(uint32_t) {}
+ inline void maipai_barge_tts_start() {}
+ inline bool maipai_barge_frame_ok() { return true; }
++inline void maipai_barge_left_speaking() {}
+ #endif
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -1173,6 +1173,9 @@ void Application::HandleStateChangedEvent() {
+     auto led = board.GetLed();
+     led->OnStateChanged();
+ 
++    if (new_state != kDeviceStateSpeaking) {
++        maipai_barge_left_speaking();  // patch SF34: a first wake hit of one reply never counts toward the next
++    }
+     if (new_state != kDeviceStateSpeaking && !maipai_timers_ringing() && !maipai_games_active()) {
+         audio_service_.SetStopWordArmed(false);
+     }
+diff --git a/firmware/main/hal/maipai_timers.cc b/firmware/main/hal/maipai_timers.cc
+--- a/firmware/main/hal/maipai_timers.cc
++++ b/firmware/main/hal/maipai_timers.cc
+@@ -7,6 +7,7 @@
+ #include <sdkconfig.h>
+ #include "maipai_timers_core.h"
+ #include "hal.h"
++#include "maipai_privacy.h"
+ #include "device_events.h"
+ #include "board/hal_bridge.h"
+ #include <apps/common/common.h>
+@@ -233,7 +234,9 @@ void maipai_timers_tick()
+     }
+     if (poll == MT_POLL_CHIME) {
+         hal_bridge::power_keep_awake();
+-        hal_bridge::app_play_sound(OGG_NEW_NOTIFICATION);
++        if (!(maipai_privacy_bits() & kPrivMute)) {  // patch SF34: muted when it rings is silent, whenever the timer was set
++            hal_bridge::app_play_sound(OGG_NEW_NOTIFICATION);
++        }
+     }
+     if (ms - s_last_pulse_ms >= 200) {
+         s_last_pulse_ms = ms;
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -482,7 +482,7 @@ std::string WebsocketProtocol::GetHelloMessage() {
+     cJSON_AddBoolToObject(features, "aec", true);
+ #endif
+     cJSON_AddBoolToObject(features, "mcp", true);
+-#if CONFIG_MAIPAI_FACE_FLUID
++#if CONFIG_MAIPAI_FACE_THINKING
+     cJSON_AddBoolToObject(features, "mouth_cues_append", true);  // patch SF32: self.face.mouth_cues takes an append flag (patch SF30)
+ #endif
+     cJSON_AddItemToObject(root, "features", features);
