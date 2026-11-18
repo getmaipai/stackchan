@@ -14,6 +14,8 @@ _SECRETS = (
     re.compile(r"\b(?:password|passcode|passphrase|api[ _-]?key|secret|token|bearer|authorization)\b", re.I),
     re.compile(r"\b(?:sk|ghp|gho|tskey|xox[abprs])[-_][A-Za-z0-9_-]{8,}"),
     re.compile(r"\b[A-Za-z0-9+/_-]{32,}={0,2}"),
+    re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{12,}\b"),  # a cloud access key id is only 20 characters
+    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\."),  # a signed token
 )
 _PATH_OR_URL = re.compile(r"(?:https?://|ftp://|~/|\\\\|\b[A-Za-z]:\\|(?<![\w.])/[\w.-]+/)")
 
@@ -50,5 +52,7 @@ def clean_text(text: object, limit: int = MAX_LINE) -> str | None:
 
 
 def clean_project(name: object) -> str:
+    if isinstance(name, str) and (".." in name or "/" in name or "\\" in name or name.strip().startswith(("~", "."))):
+        return ""  # a project name is a plain name, never a path
     cleaned = clean_text(name, MAX_PROJECT)
     return cleaned or ""

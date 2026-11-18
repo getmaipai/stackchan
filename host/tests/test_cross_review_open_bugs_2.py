@@ -54,14 +54,12 @@ def _release(tmp_path, last_text=None, number=2, out="r", stale=None):
                            "--signing-key", str(key), "--output", str(tmp_path / out), "--last-build-file", str(last)], capture_output=True, text=True)
 
 
-@bug
 def test_a_damaged_last_build_file_stops_a_real_release_instead_of_switching_the_rollback_check_off(tmp_path):
     """owner: app (scripts/release.sh). A last-build file that holds no number ("oops", or empty) makes `[ "$NUMBER" -le "" ]` fail with 'integer expression expected', the test counts as false, and the release goes ahead and then overwrites the file with its own number: the monotonic build number is silently reset."""
     result = _release(tmp_path, last_text="oops\n", number=1)
     assert result.returncode == 2, (result.returncode, result.stderr[-200:])
 
 
-@bug
 def test_a_release_folder_that_already_holds_files_is_refused_or_emptied(tmp_path):
     """owner: app (scripts/release.sh). `mkdir -p "$OUT"` reuses an existing folder, so a leftover signature or header from an earlier release stays beside the new files and can be published with them."""
     result = _release(tmp_path, last_text="1\n", number=2, stale="old-release.sig")
@@ -69,7 +67,6 @@ def test_a_release_folder_that_already_holds_files_is_refused_or_emptied(tmp_pat
     assert result.returncode != 0 or not leftover
 
 
-@bug
 @needs_node
 def test_the_flasher_page_does_not_flash_a_release_list_from_another_site():
     """owner: app (flasher/flasher.js). `?manifest=` is read from the page address and fetched as it is: a link to the real page with `?manifest=https://other.example/flash-manifest.json` flashes that site's images (their own list names their own hashes). The core must resolve the list against the page and refuse another origin."""
@@ -81,7 +78,6 @@ try { core.resolveManifestUrl('https://other.example/flash-manifest.json', 'http
     assert out == "refused", out
 
 
-@bug
 @needs_node
 def test_the_flasher_checks_the_release_list_signature_before_it_writes_anything():
     """owner: app (flasher/flasher-core.js). parseManifest only reports `signed: Boolean(manifest.signature)`; nothing verifies the Ed25519 signature, so whoever serves the page can serve a list and images that agree with each other and are flashed."""
@@ -92,7 +88,6 @@ console.log(typeof core.verifyManifestSignature);
     assert out == "function", out
 
 
-@bug
 @needs_node
 def test_a_release_list_with_two_parts_at_the_same_flash_address_is_refused():
     """owner: app (flasher/flasher-core.js). parseManifest checks each part alone; two parts at one offset (or one inside another) are accepted and the second overwrites the first."""
@@ -132,7 +127,6 @@ try {{ parseManifest({{ builds: [{{ chipFamily: 'ESP32-S3', parts: [{{ path: 'a.
 
 # ---- key exchange and update header, host side (owner: app) -----------------------------------------------------
 
-@bug
 def test_the_hosts_update_check_refuses_build_number_zero_like_the_unit_does(tmp_path):
     """owner: app (firmware/update_header.py). The unit core refuses a header with build 0 (MUH_BUILD_ZERO); verify_package with no installed build accepts it, so the host can offer an update the unit then rejects."""
     from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
@@ -147,7 +141,6 @@ def test_the_hosts_update_check_refuses_build_number_zero_like_the_unit_does(tmp
     assert not verify_package(sign_package(header, key), image, pub, installed_build=None).ok
 
 
-@bug
 def test_a_pairing_exchange_nobody_finished_stops_showing_as_waiting():
     """owner: app (xiaozhi/link_exchange.py). pending_devices() lists every exchange that reached its six digits, and the only expiry is checked when someone types a code: a unit that dropped (or a hostile peer making up units) stays on the owner's pairing card for good."""
     from maipai_body.bodies.stackchan.xiaozhi.link_exchange import EXCHANGE_TTL_S, ExchangeRegistry
@@ -161,7 +154,6 @@ def test_a_pairing_exchange_nobody_finished_stops_showing_as_waiting():
     assert registry.pending_devices() == []
 
 
-@bug
 def test_a_second_pairing_exchange_for_the_same_unit_does_not_replace_the_one_waiting_for_its_digits():
     """owner: app (xiaozhi/link_exchange.py). begin() overwrites the live exchange of a device id, so any peer that knows the id (it is printed on the unit) can start its own exchange while the owner reads the digits; the owner's correct digits then fail, count as a wrong code, and three of them lock the unit's pairing for ten minutes."""
     from maipai_body.bodies.stackchan.xiaozhi.link_exchange import ExchangeError, ExchangeRegistry, sas
@@ -182,7 +174,6 @@ def test_a_second_pairing_exchange_for_the_same_unit_does_not_replace_the_one_wa
 
 # ---- packages (owner: app) ----------------------------------------------------------------------------------------
 
-@bug
 @pytest.mark.parametrize("text", ["my pw is hunter2", "the wifi passwd is blue42"])
 def test_a_note_with_a_short_word_for_password_is_refused(text):
     """owner: app (memory_notes/admission.py). The refused words list password, passcode, pin and token but not the everyday short forms pw and passwd."""
@@ -190,7 +181,6 @@ def test_a_note_with_a_short_word_for_password_is_refused(text):
         check_note(text)
 
 
-@bug
 @pytest.mark.parametrize("text", ["my social security number is 123 45 6789", "ssn 123456789", "my passport number is X12345678"])
 def test_a_note_with_a_government_id_that_is_not_written_with_dashes_is_refused(text):
     """owner: app (memory_notes/admission.py). Only the dashed nine digit form is caught; spaces, no separators and a passport number are stored."""
@@ -198,15 +188,13 @@ def test_a_note_with_a_government_id_that_is_not_written_with_dashes_is_refused(
         check_note(text)
 
 
-@bug
-@pytest.mark.parametrize("text", ["key is AKIAFAKETESTKEY00000", "bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghijk"])
+@pytest.mark.parametrize("text", ["key is AKIAFAKETESTKEY12345", "bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghijk"])
 def test_a_note_with_a_cloud_key_id_or_a_signed_token_is_refused(text):
     """owner: app (memory_notes/admission.py). Only sk-, ghp-, tskey- and xox prefixes are recognized; an AWS access key id and a JWT are stored and later read into the model's prompt."""
     with pytest.raises(AdmissionError):
         check_note(text)
 
 
-@bug
 def test_a_spoken_this_is_adult_does_not_open_that_adults_notes_to_a_voice_nobody_recognized():
     """owner: app, needs a decision from Jesse (memory_notes/store.py Notes.handle). "this is Sam" from an unidentified speaker holds Sam's notes open for 30 minutes, so a child can say it and then ask what the robot remembers; the notes' own record says a child never has notes and nobody else's notes are read."""
     from maipai_packages.memory_notes.store import Notes, NotesStore
@@ -221,7 +209,6 @@ def test_a_spoken_this_is_adult_does_not_open_that_adults_notes_to_a_voice_nobod
         assert "surprise" not in reply
 
 
-@bug
 def test_the_home_assistant_trigger_must_be_a_whole_word():
     """owner: app (home_assistant/client.py). handle() tests `startswith(trigger)`, so "home assistants are great" is taken as a request ("s are great") and posted to Home Assistant."""
     posted = []
@@ -235,9 +222,9 @@ def test_the_home_assistant_trigger_must_be_a_whole_word():
     assert ha.handle("home assistants are great", speaker="sam") is None
 
 
-@bug
-def test_a_camera_picture_is_read_with_a_size_cap_not_whole_into_memory():
+def test_a_camera_picture_is_read_with_a_size_cap_not_whole_into_memory(monkeypatch):
     """owner: app (home_assistant/client.py). snapshot() calls get() without stream=True and reads `.content` before it compares with the 3 MB limit, so a camera (or anything answering at that address) that sends gigabytes is read in full first."""
+    monkeypatch.setenv("STACKCHAN_HA_TOKEN", "test-token")
     seen = {}
 
     class Resp:
@@ -264,19 +251,16 @@ def test_a_camera_picture_is_read_with_a_size_cap_not_whole_into_memory():
     assert seen.get("stream") is True and not seen.get("read_whole_body")
 
 
-@bug
 def test_a_project_name_that_is_a_relative_path_is_not_shown():
     """owner: app (coding_companion/clean.py). The path check needs a letter or digit before the first slash segment and a non-dot before it, so "../../etc" passes as a project name."""
     assert clean_project("../../etc") == ""
 
 
-@bug
 def test_a_short_cloud_key_id_in_the_request_text_is_not_shown():
     """owner: app (coding_companion/clean.py). The long-token rule starts at 32 characters; an AWS access key id has 20 and is shown on the robot's screen."""
-    assert clean_text("rotate AKIAFAKETESTKEY00000 now") is None
+    assert clean_text("rotate AKIAFAKETESTKEY12345 now") is None
 
 
-@bug
 def test_the_coding_companion_endpoint_drops_a_client_that_sends_nothing():
     """owner: app (coding_companion/server.py). _Handler has no socket timeout, so a local client that opens a connection and sends half a request holds a thread for good (and `rfile.read(length)` waits for a body that never comes)."""
     from maipai_packages.coding_companion.server import _Handler

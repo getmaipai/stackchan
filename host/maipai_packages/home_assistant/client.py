@@ -71,6 +71,9 @@ class HomeAssistant:
         lowered = text.strip().lower()
         if not lowered.startswith(self.trigger):
             return None
+        after = lowered[len(self.trigger):len(self.trigger) + 1]
+        if after and (after.isalnum() or after == "_"):
+            return None  # "home assistants are great" is a sentence, not the trigger followed by a request
         request = text.strip()[len(self.trigger):].lstrip(" ,:;.-").strip()
         if not request:
             return "What should I ask Home Assistant?"
@@ -114,13 +117,22 @@ class HomeAssistant:
         if not _ENTITY.match(entity) or entity not in self.cameras.values():
             raise HomeAssistantError("That camera is not on the list. Add it under cameras in robot.toml.")
         try:
-            response = self._session.get(f"{self.base}/api/camera_proxy/{entity}", headers=self._headers(), timeout=self._timeout)
+            response = self._session.get(f"{self.base}/api/camera_proxy/{entity}", headers=self._headers(), timeout=self._timeout, stream=True)
             response.raise_for_status()
         except HomeAssistantError:
             raise
         except requests.RequestException:
             raise HomeAssistantError("I could not get a picture from that camera. Check that it is on.") from None
-        data = response.content
+        data = b""
+        try:
+            for chunk in response.iter_content(65536):
+                data += chunk
+                if len(data) > MAX_SNAPSHOT_BYTES:  # stop reading at the limit: a camera that sends gigabytes is not read in full
+                    break
+        finally:
+            close = getattr(response, "close", None)
+            if close is not None:
+                close()
         if not data or len(data) > MAX_SNAPSHOT_BYTES or not data.startswith(b"\xff\xd8"):
             raise HomeAssistantError("That camera did not send a usable picture.")
         return data

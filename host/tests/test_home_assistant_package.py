@@ -17,6 +17,10 @@ class Resp:
 
             raise requests.HTTPError("bad")
 
+    def iter_content(self, size):
+        for start in range(0, len(self.content), size):
+            yield self.content[start : start + size]
+
     def json(self):
         return self._payload
 

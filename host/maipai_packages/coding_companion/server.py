@@ -32,6 +32,7 @@ class AgentAuth(SettingsAuth):
 
 class _Handler(BaseHTTPRequestHandler):
     server: AgentServer
+    timeout = 5  # a client that opens a connection and sends nothing is dropped after five seconds
 
     def log_message(self, *_args: object) -> None:
         return
