@@ -11,6 +11,9 @@ from pathlib import Path
 
 VU_FILES = ["vunit.py", "hw.py", "dance_core.py", "dance_sim.py", "scenarios.py", "assets_sim.py", "memory_model.py", "host_away.py", "posixtz.py", "view.py", "memory_walk.py",
             "dance/ladder_sim.c", "dance/reconnect_sim.c", "physics/mjcf.py", "physics/imu.py", "physics/robots/stackchan.robot.json", "physics/THIRD-PARTY-physics-engine.json"]
+# Files the virtual unit gained later (the power model hw.py imports, the offline mumble tools/mumble_sim.py imports): packed when they exist, so this build works on a tree
+# without them and on one with them. A module the unit imports that is in neither list is a missing-file error in the page: add it here.
+OPTIONAL_VU_FILES = ["power_model.py", "mumble.py"]
 HOST_FILES = ["maipai_body/__init__.py", "maipai_body/bodies/__init__.py", "maipai_body/bodies/stackchan/dance.py", "maipai_body/hal/errors.py", "maipai_body/unit_tools.py",
               "maipai_body/bodies/stackchan/dance_ladder.py"]
 
@@ -32,6 +35,9 @@ def main() -> int:
             count += 1
         for f in VU_FILES:
             add(vu / f, "scripts/virtual-unit/" + f)
+        for f in OPTIONAL_VU_FILES:
+            if (vu / f).exists():
+                add(vu / f, "scripts/virtual-unit/" + f)
         for f in sorted((vu / "tools").glob("*.py")):
             add(f, "scripts/virtual-unit/tools/" + f.name)
         for f in sorted((root / "schema").glob("*.json")):
