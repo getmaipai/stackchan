@@ -1,0 +1,47 @@
+# Intent: A unit whose host restarts finds it again within seconds. The reconnect waits start at 0.5 s and double up to a cap that depends on how long the host has been away: 5 s for the first 2 minutes, 15 s up to 5 minutes, 30 s up to 10 minutes, then 120 s. Each wait still carries up to a quarter of jitter and never passes its cap. The soak measured about 30 s from a host restart to the link coming back; this cuts that to the host's downtime plus at most 5 s plus one connect. The 10-minute away notice and the supervisor rules are unchanged.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: restart the host and time the reconnect: the unit's link is back within the host's downtime plus about 6 s (it was about 30 s); the watchdog list still reads no restarts.
+# Kconfig: none
+# Memory cost: none.
+
+diff --git a/firmware/main/hal/maipai_reconnect_core.h b/firmware/main/hal/maipai_reconnect_core.h
+--- a/firmware/main/hal/maipai_reconnect_core.h
++++ b/firmware/main/hal/maipai_reconnect_core.h
+@@ -4,22 +4,32 @@
+  * The host-reconnect rules (patch SF49, owner decision 16). Plain C99; host test host/tests/firmware/reconnect_core_test.c.
+  *   mrc_grow   the next delay: doubled, never above the cap.
+  *   mrc_wait   how long to wait before the next try: the delay plus up to a quarter of it as jitter (`rnd` is any 32 bit random), never above the cap.
+- *   mrc_cap    the cap on the wait: 30 s for the first 10 minutes away, then 120 s, so a unit whose host is gone for hours does not keep the radio busy.
++ *   mrc_cap    the cap on the wait, by time away (patch SF64): 5 s for the first 2 minutes (a host that restarts is found within seconds), 15 s up to 5 minutes, 30 s up to
++ *              10 minutes, then 120 s, so a unit whose host is gone for hours does not keep the radio busy. The delays start at 0.5 s and double: 0.5, 1, 2, 4, 5.
+  *   mrc_notice_due   whether the screen should say plain words now: once after 10 minutes away, then every 30 minutes.
+- * The longest wait is the cap (never more than 120 s), so a host that comes back is found within 120 s plus one connect.
++ * The longest wait is the cap (never more than 120 s); a host that comes back within 2 minutes is found within 5 s plus one connect.
+  */
+ #ifndef MAIPAI_RECONNECT_CORE_H
+ #define MAIPAI_RECONNECT_CORE_H
+ 
+ #include <stdint.h>
+ 
+-#define MRC_INITIAL_MS 1000u
++#define MRC_INITIAL_MS 500u
++#define MRC_CAP_FAST_MS 5000u
++#define MRC_FAST_UNTIL_MS 120000u    /* 2 minutes away */
++#define MRC_CAP_MID_MS 15000u
++#define MRC_MID_UNTIL_MS 300000u     /* 5 minutes away */
+ #define MRC_CAP_NEAR_MS 30000u
+ #define MRC_CAP_FAR_MS 120000u
+ #define MRC_FAR_AFTER_MS 600000u    /* 10 minutes away */
+ #define MRC_NOTICE_EVERY_MS 1800000u /* 30 minutes */
+ 
+-static inline uint32_t mrc_cap(uint32_t away_ms) { return away_ms >= MRC_FAR_AFTER_MS ? MRC_CAP_FAR_MS : MRC_CAP_NEAR_MS; }
++static inline uint32_t mrc_cap(uint32_t away_ms)
++{
++    if (away_ms < MRC_FAST_UNTIL_MS) return MRC_CAP_FAST_MS;
++    if (away_ms < MRC_MID_UNTIL_MS) return MRC_CAP_MID_MS;
++    return away_ms >= MRC_FAR_AFTER_MS ? MRC_CAP_FAR_MS : MRC_CAP_NEAR_MS;
++}
+ 
+ static inline uint32_t mrc_grow(uint32_t delay_ms, uint32_t cap_ms)
+ {

@@ -1,0 +1,22 @@
+# Intent: The "Can't reach Home" notice after ten minutes away stays on the banner row for 30 seconds (it was 9, easy to miss in a snapshot), and the unit reports an event, ws_away_notice with away_s, each time it shows it, so the bench and the host can tell the notice was shown whatever the screen looked like. The rule is unchanged: once after ten minutes away (within 30 s of the ten minutes, since waits are at most 30 s until then), then every thirty minutes.
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/protocols (the stock websocket client, patched by SF49)
+# Check after a flash: stop the host for 11 minutes: a ws_away_notice event with away_s between 600 and 640 is reported when events are delivered, and the banner row shows the notice for 30 s at that moment; the Offline label and the sleepy face show from 3 minutes on as before.
+# Kconfig: none
+# Memory cost: 40 bytes of stack in the reconnect task for one event string.
+
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -499,7 +499,10 @@ void WebsocketProtocol::ReconnectTask(void* arg) {
+         const uint32_t cap_ms = mrc_cap(away_ms);
+         if (mrc_notice_due(away_ms, last_notice_away_ms)) {
+             last_notice_away_ms = away_ms;
+-            hal_bridge::notice("Can't reach Home. Check it is on and on the same Wi-Fi. I keep trying.", 9000);
++            hal_bridge::notice("Can't reach Home. Check it is on and on the same Wi-Fi. I keep trying.", 30000);  // patch SF68: 30 s on the banner row (it was 9 s, easy to miss)
++            char away_extra[40];
++            snprintf(away_extra, sizeof(away_extra), "\"away_s\":%u", static_cast<unsigned>(away_ms / 1000u));
++            device_events_push("ws_away_notice", away_extra);  // patch SF68: the bench and the host can see that the notice was shown, whatever the screen looked like
+         }
+         uint32_t wait_ms = mrc_wait(delay_ms, cap_ms, esp_random());
+         bool stopped = false;

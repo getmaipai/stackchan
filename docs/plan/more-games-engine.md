@@ -148,7 +148,7 @@ Added 2026-11-18 at the owner's request. **Read** means read from the b49 tree; 
 ### 8.4 Head as a joystick: feasibility (research only, no test run)
 
 **What the code allows (read):**
-- The servo layer can switch torque per servo (`EnableTorque`), read torque state, read the position (`ReadPos`: a raw 0 to 4095 count, about 0.09 degrees a step, valid-checked) and bus telemetry (voltage, load 0 to 1000, current, temperature) with one `FeedBack` call, which SF48 uses already.
+- The servo layer can switch torque per servo (`EnableTorque`), read torque state, read the position (`ReadPos`: a raw count, one count is 0.3125 degrees (read from the servo layer's angle mapping), valid range 0 to 4095, valid-checked) and bus telemetry (voltage, load 0 to 1000, current, temperature) with one `FeedBack` call, which SF48 uses already.
 - **The head is already free at rest.** The servo layer has "auto release torque on rest" on (`_auto_torque_release_enabled = true`): after a move finishes it checks every 200 ms and turns torque off. So today a person can already turn the head by hand when it is idle; the stall guard and the limiter act only when the unit drives the servo.
 - Reading the position with torque off works (a read is a bus read; it does not need torque).
 
@@ -165,7 +165,7 @@ Added 2026-11-18 at the owner's request. **Read** means read from the b49 tree; 
 **Recommendation: do the test, as a read-only bench probe first; do not build the game yet.** The head is already free at rest, the position reading exists, and the feature costs nothing in flash or RAM while off. The risk is the push, not the code. The head joystick is worth building only if the test shows a clean, low-noise reading and the owner finds a gentle push natural; otherwise the head pads (the touch strip already gives "pet") and the IMU cover the same games.
 
 **Test plan (silent bench test, with the owner's OK, nobody pushes hard):**
-1. New bench tool `self.bench.head_read {seconds, hz}` (to build, bench only): torque off for both servos, logs `ReadPos` and the load at the rate, returns min, max, noise (standard deviation at rest), the read rate achieved and the bus errors; torque back on at the end at the present angle; aborts and holds on any angle change faster than 300 degrees a second or past 70 percent of travel.
+1. Bench tool `self.bench.head_read {seconds 1-30, hz 5-30}` (patch SF65, bench only; it ends at once and holds the head on a shove over 300 degrees a second or a turn over 20 degrees; the owner must be present): torque off for both servos, logs `ReadPos` and the load at the rate, returns min, max, noise (standard deviation at rest), the read rate achieved and the bus errors; torque back on at the end at the present angle; aborts and holds on any angle change faster than 300 degrees a second or past 70 percent of travel.
 2. Rest: torque off, nobody touching, 10 s: noise and drift of the position (expected a few counts).
 3. Gentle push by the owner within 30 percent of the travel, 10 s each axis: does the reading follow without steps; the latency of one read.
 4. Re-enable torque after a pushed pose: the head must hold the pose, not jump (the one result that decides whether it is safe).

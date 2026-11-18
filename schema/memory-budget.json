@@ -709,6 +709,36 @@
    "freed_when": "when the item is swapped out or the screen that needs it closes",
    "status": "placeholder",
    "source": "docs/plan/installed-set.md B2: loaded on demand; the PSRAM figure comes from the item's own header (psram_bytes), internal RAM is zero"
+  },
+  {
+   "id": "screen.game.connect4",
+   "kind": "screen",
+   "name": "Four in a Row while it plays",
+   "internal": 600,
+   "psram": 300,
+   "flash": 4000,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a game starts",
+   "freed_when": "on exit",
+   "status": "estimate",
+   "source": "patch SF63 (one draw callback, 2 LVGL objects plus the drag bar): about 600 bytes internal estimated, the Grid struct (about 300 bytes) in PSRAM, flash from the measured image growth; measure with two self.bench.heap_info calls"
+  },
+  {
+   "id": "screen.game.match",
+   "kind": "screen",
+   "name": "Memory Match while it plays",
+   "internal": 600,
+   "psram": 300,
+   "flash": 3840,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a game starts",
+   "freed_when": "on exit",
+   "status": "estimate",
+   "source": "patch SF63 (one draw callback, 2 LVGL objects plus the drag bar): about 600 bytes internal estimated, the Grid struct (about 300 bytes) in PSRAM, flash from the measured image growth; measure with two self.bench.heap_info calls"
   }
  ]
 }

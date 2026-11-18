@@ -1,0 +1,698 @@
+# Intent: The grid games run on the unit: Four in a Row (id connect4, against the unit, tap a column) and Memory Match (id match, 16 cards, fewest turns wins). The board is drawn by one LVGL object with a draw callback (cells are drawn with rectangles, so the internal cost is one object, not one per cell), the 30 ms game tick running the unit's sliced search one slice a tick, cues through the sound policy, the best score in the unit's NVS. self.game.start and self.game.scores know both ids, self.game.list shows them with kind builtin (and marks the data packs builtin or installed), the games page lists them. Nothing exists while no grid game runs; a game never moves the head; full quiet, the lock and updates refuse or end it as for every game.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.game.list shows connect4 and match with kind builtin; self.game.start connect4 draws the board, a tap in a column drops an amber disc and the unit answers with a red one within a second; self.game.start match shows 16 face-down cards, two taps turn two cards and a mismatch turns back after about a second; a swipe down from the grabber ends the game; full quiet refuses it.
+# Kconfig: CONFIG_MAIPAI_GAMES (existing)
+# Memory cost: nothing while idle (about 8 KB of flash for the code, measured: the plain image grew 7,840 bytes with the first version). A running game holds the Grid struct (about 0.3 KB) in PSRAM and 2 LVGL objects (the board and the game layer root, plus the drag bar the other games have); the internal cost is estimated at 600 bytes and is measured by two self.bench.heap_info calls (before the start, during the game), still to run on the unit.
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -13,6 +13,7 @@
+ #include "maipai_listen.h"
+ #include "maipai_time_core.h"
+ #include "maipai_games_core.h"
++#include "maipai_grid.h"  // patch SF63: the grid games (Four in a Row, Memory Match)
+ #include "maipai_games_draw.h"
+ #include "maipai_games_input_core.h"
+ #include "maipai_gesture_core.h"
+@@ -772,7 +773,7 @@ const char* say(bool es, const char* en, const char* sp)
+ 
+ bool maipai_games_active()
+ {
+-    return s_active.load();
++    return s_active.load() || maipai_grid_active();
+ }
+ 
+ int maipai_games_count()
+@@ -782,7 +783,7 @@ int maipai_games_count()
+         mg_pack_t p;
+         n += slot_pack(i, &p) ? 1 : 0;
+     }
+-    return n;
++    return n + maipai_grid_count();
+ }
+ 
+ const char* maipai_games_id(int index)
+@@ -796,7 +797,7 @@ const char* maipai_games_id(int index)
+             return ids[i];
+         }
+     }
+-    return "";
++    return maipai_grid_id(index - seen);  // patch SF63: the grid games follow the data packs
+ }
+ 
+ const char* maipai_games_title(int index, bool es)
+@@ -808,7 +809,7 @@ const char* maipai_games_title(int index, bool es)
+             return mg_text_raw(&p, p.title_text, es ? 1 : 0);  // the text is in flash or in the pack's own PSRAM copy
+         }
+     }
+-    return "";
++    return maipai_grid_title(index - seen, es);
+ }
+ 
+ int maipai_games_best(int index)
+@@ -821,7 +822,7 @@ int maipai_games_best(int index)
+             return s_entries[i].best[0];
+         }
+     }
+-    return 0;
++    return maipai_grid_best(index - seen);
+ }
+ 
+ bool maipai_games_lower_is_better(int index)
+@@ -833,7 +834,7 @@ bool maipai_games_lower_is_better(int index)
+             return (p.flags & MG_FLAG_LOWER_BETTER) != 0;
+         }
+     }
+-    return false;
++    return maipai_grid_lower_is_better(index - seen);
+ }
+ 
+ static_assert(static_cast<int>(MAIPAI_GAME_EV_SHAKE) == static_cast<int>(MG_EV_SHAKE) && static_cast<int>(MAIPAI_GAME_EV_PET) == static_cast<int>(MG_EV_PET), "the sensor tasks name events by number");
+@@ -844,13 +845,16 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     if (maipai_lock_locked()) {  // patch LK03
+         return say(es, "The unit is locked. Unlock it with the code on its screen first.", "La unidad esta bloqueada. Desbloqueala primero con el codigo en su pantalla.");
+     }
+-    if (s_game != nullptr) {
++    if (s_game != nullptr || maipai_grid_active()) {
+         return say(es, "A game is already running. Stop it first (swipe down from the bottom edge, or say stop), then start another.",
+                    "Ya hay un juego en marcha. Detenlo primero (desliza hacia abajo desde el borde inferior, o di para), y luego empieza otro.");
+     }
++    if (maipai_grid_known(name)) {
++        return maipai_grid_start_locked(name, source);  // patch SF63: Four in a Row (connect4) and Memory Match (match); it checks full quiet and updates itself
++    }
+     const int slot = slot_by_name(name);
+     if (slot < 0) {
+-        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball or dice.",
++        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4 or match.",
+                    "Ese juego no esta en esta unidad. Pide memory, whack, tictactoe, bopit, rps, eightball o dice.");
+     }
+     if (maipai_quiet()) {
+@@ -943,6 +947,9 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+ 
+ bool maipai_games_stop_locked(const char* how)
+ {
++    if (maipai_grid_stop_locked(how)) {
++        return true;
++    }
+     if (s_game == nullptr) {
+         return false;
+     }
+@@ -952,6 +959,9 @@ bool maipai_games_stop_locked(const char* how)
+ 
+ bool maipai_games_request_stop(const char* how)
+ {
++    if (maipai_grid_request_stop(how)) {
++        return true;
++    }
+     if (!s_active.load()) {
+         return false;
+     }
+@@ -961,6 +971,7 @@ bool maipai_games_request_stop(const char* how)
+ 
+ void maipai_games_touch(int x, int y)
+ {
++    maipai_grid_touch(x, y);  // patch SF63: does nothing unless a grid game runs
+     Game* g = s_game;
+     if (g == nullptr || g->tap_on_release) {
+         return;  // a game that takes its taps when the finger lifts hears the release instead
+@@ -977,6 +988,7 @@ void maipai_games_touch(int x, int y)
+ // still touch as a tap where it began; a swipe down or up is the unit's (stop, quick settings) and never reaches here.
+ void maipai_games_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
+ {
++    maipai_grid_release(x0, y0, x1, y1, held_ms);
+     Game* g = s_game;
+     if (g != nullptr && mg_drag_dismiss(x0, y0, x1, y1, held_ms)) {
+         end_locked("dragbar");  // patch GM02: a swipe down from the drag bar ends the game: sounds, best score, overlays and the screen are released
+@@ -1212,7 +1224,7 @@ void maipai_games_register_tools()
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.game.list",
+                 "List the games on this unit with their best scores (best first, up to five), and which one is playing now. "
+-                "Answers {ok, playing, games:[{id, title, lower_is_better, scores}]}.",
++                "Answers {ok, playing, games:[{id, title, kind (builtin or installed), lower_is_better, scores}]}.",
+                 std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
+                     const bool es = want_spanish();
+                     std::string out = std::string("{\"ok\":true,\"playing\":") + (s_active.load() ? "true" : "false") + ",\"games\":[";
+@@ -1225,8 +1237,15 @@ void maipai_games_register_tools()
+                         out += first ? "" : ",";
+                         first = false;
+                         out += std::string("{\"id\":\"") + p.id + "\",\"title\":\"" +
+-                               json_text(mg_text_raw(&p, p.title_text, es ? 1 : 0)) + "\",\"lower_is_better\":" +
+-                               ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(i) + "}";
++                               json_text(mg_text_raw(&p, p.title_text, es ? 1 : 0)) + "\",\"kind\":\"" + (i < kBuiltIns ? "builtin" : "installed") +
++                               "\",\"lower_is_better\":" + ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(i) + "}";
++                    }
++                    for (int k = 0; k < maipai_grid_count(); k++) {  // patch SF63: the grid games (built in)
++                        out += first ? "" : ",";
++                        first = false;
++                        out += std::string("{\"id\":\"") + maipai_grid_id(k) + "\",\"title\":\"" + json_text(maipai_grid_title(k, es)) +
++                               "\",\"kind\":\"builtin\",\"lower_is_better\":" + (maipai_grid_lower_is_better(k) ? "true" : "false") + ",\"scores\":" +
++                               maipai_grid_scores_json(maipai_grid_id(k)) + "}";
+                     }
+                     return out + "]}";
+                 });
+@@ -1234,7 +1253,8 @@ void maipai_games_register_tools()
+                 "Start a game on the unit's screen: memory (colour memory), whack (whack-a-mole), tictactoe, "
+                 "bopit (Do It: do the move that is shown, or press the big button: tap, swipe, gentle shake, pet or tilt; it gets faster each round), "
+                 "rps (rock paper scissors, best of three), "
+-                "eightball (magic 8 ball: gently shake the unit or tap the ball) or dice (dice and coin: tap or gently shake). "
++                "eightball (magic 8 ball: gently shake the unit or tap the ball), dice (dice and coin: tap or gently shake), "
++                "connect4 (Four in a Row against the unit: tap a column) or match (Memory Match: turn two cards, find the pairs). "
+                 "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
+                 "or by saying stop. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("memory")),
+@@ -1270,10 +1290,19 @@ void maipai_games_register_tools()
+                 PropertyList({Property("name", kPropertyTypeString, std::string("memory"))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     const std::string name = properties["name"].value<std::string>();
++                    if (maipai_grid_known(name.c_str())) {  // patch SF63
++                        const char* gid = name.c_str();
++                        for (int k = 0; k < maipai_grid_count(); k++) {
++                            if (strcasecmp(gid, maipai_grid_id(k)) == 0 || strcasecmp(gid, maipai_grid_title(k, false)) == 0 || strcasecmp(gid, maipai_grid_title(k, true)) == 0) {
++                                return std::string("{\"ok\":true,\"game\":\"") + maipai_grid_id(k) + "\",\"lower_is_better\":" + (maipai_grid_lower_is_better(k) ? "true" : "false") +
++                                       ",\"scores\":" + maipai_grid_scores_json(maipai_grid_id(k)) + "}";
++                            }
++                        }
++                    }
+                     const int slot         = slot_by_name(name.c_str());
+                     mg_pack_t p;
+                     if (slot < 0 || !slot_pack(slot, &p)) {
+-                        return error_json("That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball or dice.");
++                        return error_json("That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4 or match.");
+                     }
+                     return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
+                            ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -0,0 +1,455 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The grid games, device side (patch SF63). See maipai_grid.h. Every function runs on the LVGL task with the LVGL lock held, except the atomics
++ * (maipai_grid_active, maipai_grid_request_stop) which any task may call.
++ */
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_GAMES
++#include "maipai_grid.h"
++#include "maipai_grid_core.h"
++#include "maipai_grid_c4_core.h"
++#include "maipai_grid_mem_core.h"
++#include "maipai_games_draw.h"
++#include "maipai_games_input_core.h"
++#include "maipai_banner.h"
++#include "maipai_face.h"
++#include "maipai_fx.h"
++#include "maipai_privacy.h"
++#include "maipai_sounds.h"
++#include "maipai_timers.h"
++#include "maipai_update.h"
++#include "device_events.h"
++#include "board/hal_bridge.h"
++#include "hal.h"
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_random.h>
++#include <esp_timer.h>
++#include <lvgl.h>
++#include <nvs.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <strings.h>
++
++namespace {
++const char* const kTag = "MAIPAI-GRID";
++constexpr uint32_t kTickMs       = 30;
++constexpr uint32_t kIdleMs       = 10u * 60u * 1000u;  // as the other games: no input for 10 minutes ends it
++constexpr uint32_t kUnitDelayMs  = 450;                // the unit never answers faster than this (it should look like thinking)
++constexpr uint32_t kOverHoldMs   = 3000;               // the result stays on screen this long, then the game ends
++enum { kC4 = 0, kMatch = 1, kKinds = 2 };
++
++struct Info {
++    const char* id;
++    const char* title_en;
++    const char* title_es;
++    bool lower_better;
++};
++const Info kInfo[kKinds] = {
++    {"connect4", "Four in a Row", "Cuatro en raya", false},
++    {"match", "Memory Match", "Parejas", true},
++};
++
++struct Grid {
++    int kind;
++    bool es;
++    char source[8];
++    lv_obj_t* root;
++    lv_timer_t* timer;
++    lv_obj_t* board;  // the one object that draws every cell (patch SF66): 1 LVGL object instead of 17 to 43
++    gr_layout_t lay;
++    gc4_board_t c4;
++    gc4_search_t search;
++    gm_t mem;
++    uint8_t unit_thinking;
++    uint8_t level;
++    uint8_t result;     // GR_*
++    uint32_t unit_ready_at;
++    uint32_t over_at;
++    uint32_t last_input_ms, last_awake_ms;
++    uint32_t seed;
++    int moves;          // the person's moves (Four in a Row) or turns (Memory)
++    int score;
++    bool won;
++};
++
++Grid* s_grid = nullptr;                  // owned by the LVGL task
++std::atomic<bool> s_active{false};
++std::atomic<const char*> s_stop_req{nullptr};
++
++uint32_t now_ms() { return static_cast<uint32_t>(esp_timer_get_time() / 1000); }
++
++bool want_spanish()
++{
++#if CONFIG_MAIPAI_FACE_CONFIG
++    return maipai_face_config().lang == MF_LANG_ES;
++#else
++    return false;
++#endif
++}
++
++int kind_by_name(const char* name)
++{
++    if (name == nullptr || name[0] == '\0') return -1;
++    for (int i = 0; i < kKinds; i++) {
++        if (strcasecmp(name, kInfo[i].id) == 0 || strcasecmp(name, kInfo[i].title_en) == 0 || strcasecmp(name, kInfo[i].title_es) == 0) return i;
++    }
++    return -1;
++}
++
++// ---- the saved best (one number per game, in the unit's own NVS namespace) ----
++int load_best(int kind)
++{
++    nvs_handle_t h;
++    if (nvs_open("mp_grid", NVS_READONLY, &h) != ESP_OK) return 0;
++    int32_t v = 0;
++    if (nvs_get_i32(h, kInfo[kind].id, &v) != ESP_OK) v = 0;
++    nvs_close(h);
++    return v > 0 ? static_cast<int>(v) : 0;
++}
++
++void save_best(int kind, int score)
++{
++    nvs_handle_t h;
++    if (nvs_open("mp_grid", NVS_READWRITE, &h) != ESP_OK) {
++        ESP_LOGW(kTag, "could not save the best score of %s", kInfo[kind].id);
++        return;
++    }
++    if (nvs_set_i32(h, kInfo[kind].id, score) != ESP_OK || nvs_commit(h) != ESP_OK) ESP_LOGW(kTag, "could not write the best score of %s", kInfo[kind].id);
++    nvs_close(h);
++}
++
++bool better(int kind, int a, int b)  // is score a better than b (0 means none)
++{
++    if (b == 0) return a > 0;
++    return kInfo[kind].lower_better ? a < b : a > b;
++}
++
++void banner(const Grid* g, const char* en, const char* es, uint32_t ms)
++{
++    maipai_banner_post(g->es ? es : en, MB_ICON_CHECK, MB_PRIO_NOTICE, MB_TAG_GAME, ms);
++}
++
++void cue(int c)
++{
++    switch (c) {  // the sound policy decides: muted is silent, full quiet never gets here
++        case GR_CUE_TAP: maipai_sounds_play("popup"); break;
++        case GR_CUE_UNIT_MOVE: maipai_sounds_play("popup"); break;
++        case GR_CUE_MATCH:
++        case GR_CUE_WIN: maipai_sounds_play("success"); break;
++        case GR_CUE_MISS:
++        case GR_CUE_BAD:
++        case GR_CUE_LOSE:
++        case GR_CUE_DRAW:
++        default: break;
++    }
++}
++
++lv_color_t rgb(uint32_t c) { return lv_color_hex(c); }
++
++// ---- drawing: one object, one draw callback; a change of the board invalidates it ----
++const uint32_t kSymbolColor[9] = {0x202838, 0xF2B24A, 0x7FC4F0, 0xB4E05A, 0xF08FB0, 0xB89CF0, 0xF2846C, 0x7FE0B8, 0xE8E8E8};
++
++void rect(lv_layer_t* layer, int x, int y, int w, int h, int radius, uint32_t color, lv_opa_t opa = LV_OPA_COVER)
++{
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.bg_color = rgb(color);
++    d.bg_opa   = opa;
++    d.radius   = radius;
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + h - 1)};
++    lv_draw_rect(layer, &d, &a);
++}
++
++// A symbol is its color and its number of dots (1 to 8), so a card is told without a font: dots in a 3 by 3 pattern.
++void card_dots(lv_layer_t* layer, int x, int y, int w, int sym)
++{
++    static const uint8_t pos[8][2] = {{1, 1}, {0, 0}, {2, 2}, {2, 0}, {0, 2}, {1, 0}, {1, 2}, {0, 1}};
++    const int step = w / 4, r = step / 2 - 1 > 3 ? step / 2 - 1 : 3;
++    for (int k = 0; k < sym && k < 8; k++) {
++        rect(layer, x + step / 2 + pos[k][0] * step + step / 2 - r, y + step / 2 + pos[k][1] * step + step / 2 - r, 2 * r, 2 * r, LV_RADIUS_CIRCLE, 0x10141C, LV_OPA_80);
++    }
++}
++
++void draw_cb(lv_event_t* e)
++{
++    Grid* g = static_cast<Grid*>(lv_event_get_user_data(e));
++    if (g == nullptr || g != s_grid) return;
++    lv_layer_t* layer = lv_event_get_layer(e);
++    const int cols = g->lay.cols, rows = g->lay.rows, cw = g->lay.cw, ch = g->lay.ch;
++    if (g->kind == kC4) {
++        rect(layer, g->lay.x0 - 2, g->lay.y0 - 2, cw * cols + 4, ch * rows + 4, 8, 0x1B3F9B);  // the board behind the discs
++        for (int r = 0; r < rows; r++) {
++            for (int c = 0; c < cols; c++) {
++                const uint8_t v = g->c4.b[r * cols + c];
++                rect(layer, g->lay.x0 + c * cw + 3, g->lay.y0 + r * ch + 3, cw - 6, ch - 6, LV_RADIUS_CIRCLE, v == 1 ? 0xF2B24A : (v == 2 ? 0xE04848 : 0x0A1633));
++            }
++        }
++    } else {
++        for (int i = 0; i < g->mem.n; i++) {
++            const uint8_t v = g->mem.card[i];
++            const bool up = (v & (GM_FACE_UP | GM_MATCHED)) != 0;
++            const int sym = v & GM_SYMBOL_MASK;
++            const int x = g->lay.x0 + (i % cols) * cw + 3, y = g->lay.y0 + (i / cols) * ch + 3;
++            rect(layer, x, y, cw - 6, ch - 6, 8, up ? kSymbolColor[sym] : 0x2C3E7A, (v & GM_MATCHED) ? LV_OPA_60 : LV_OPA_COVER);
++            if (up) card_dots(layer, x, y, cw - 6, sym);
++        }
++    }
++}
++
++void build(Grid* g)
++{
++    g->root = lv_obj_create(lv_layer_top());
++    lv_obj_remove_style_all(g->root);
++    lv_obj_remove_flag(g->root, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(g->root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(g->root, 320, 240);
++    lv_obj_set_pos(g->root, 0, 0);
++    lv_obj_set_style_bg_color(g->root, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(g->root, LV_OPA_COVER, 0);
++    g->board = lv_obj_create(g->root);  // every cell is drawn by this one object
++    lv_obj_remove_style_all(g->board);
++    lv_obj_remove_flag(g->board, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(g->board, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(g->board, 320, 240);
++    lv_obj_set_pos(g->board, 0, 0);
++    lv_obj_add_event_cb(g->board, draw_cb, LV_EVENT_DRAW_MAIN, g);
++    mgd::build_drag_bar(g->root);  // the grabber every game has: a swipe down from it ends the game
++}
++
++void redraw(Grid* g)
++{
++    if (g->board != nullptr) lv_obj_invalidate(g->board);
++}
++
++void end_locked(const char* how)
++{
++    Grid* g = s_grid;
++    if (g == nullptr) return;
++    s_grid = nullptr;
++    if (g->timer != nullptr) lv_timer_delete(g->timer);
++    if (g->root != nullptr) lv_obj_delete(g->root);  // every cell is its child
++    char extra[96];
++    snprintf(extra, sizeof(extra), "\"game\":\"%s\",\"how\":\"%s\",\"score\":%d,\"rank\":%d", kInfo[g->kind].id, how, g->score, g->won ? 0 : -1);
++    ESP_LOGI(kTag, "game %s ended (%s), score %d", kInfo[g->kind].id, how, g->score);
++    heap_caps_free(g);
++    s_stop_req.store(nullptr);
++    s_active.store(false);
++    if (!maipai_timers_ringing()) hal_bridge::stop_word_arm(false);
++    device_events_push("game_ended", extra);
++}
++
++void finish(Grid* g, int result)
++{
++    g->result = static_cast<uint8_t>(result);
++    g->over_at = now_ms();
++    if (g->kind == kC4) {
++        g->won = result == GR_PERSON_WON;
++        g->score = g->won ? (43 - g->moves) : 0;  // a faster win scores more: at most 40 (four moves), at least 22
++    } else {
++        g->won = true;
++        g->score = g->mem.turns;
++    }
++    const int best = load_best(g->kind);
++    const bool record = g->score > 0 && better(g->kind, g->score, best);
++    if (record) save_best(g->kind, g->score);
++    char en[40], es[40];
++    if (g->kind == kC4) {
++        snprintf(en, sizeof(en), result == GR_PERSON_WON ? (record ? "You win! New best %d" : "You win!") : (result == GR_UNIT_WON ? "I win!" : "A draw"), g->score);
++        snprintf(es, sizeof(es), result == GR_PERSON_WON ? (record ? "Ganas! Nuevo record %d" : "Ganas!") : (result == GR_UNIT_WON ? "Gano yo!" : "Empate"), g->score);
++    } else {
++        snprintf(en, sizeof(en), record ? "All pairs! New best %d" : "All pairs in %d turns", g->score);
++        snprintf(es, sizeof(es), record ? "Todas! Nuevo record %d" : "Todas en %d turnos", g->score);
++    }
++    banner(g, en, es, 3000);
++    if (result == GR_PERSON_WON || g->kind == kMatch) {
++        cue(GR_CUE_WIN);
++        (void)maipai_fx_celebrate(record ? 2 : 1);
++        hal_bridge::react_face("happy", record ? 4000 : 3000);
++    }
++}
++
++void unit_move(Grid* g)
++{
++    const int col = g->search.best_col;
++    g->unit_thinking = 0;
++    if (col < 0 || gc4_drop(&g->c4, col, 2) < 0) {  // never expected: the search only returns legal columns; a full board ends the game
++        finish(g, gc4_full(&g->c4) ? GR_DRAW : GR_PLAYING);
++        return;
++    }
++    cue(GR_CUE_UNIT_MOVE);
++    const int res = gc4_result(&g->c4);
++    redraw(g);
++    if (res != GR_PLAYING) finish(g, res);
++}
++
++void tick_cb(lv_timer_t*)
++{
++    Grid* g = s_grid;
++    if (g == nullptr) return;
++    if (const char* how = s_stop_req.exchange(nullptr)) {
++        end_locked(how);
++        return;
++    }
++    if (maipai_quiet()) {  // full quiet wins over everything
++        end_locked("quiet");
++        return;
++    }
++    if (maipai_update_active()) {
++        end_locked("update");
++        return;
++    }
++    const uint32_t now = now_ms();
++    if (now - g->last_input_ms >= kIdleMs) {
++        end_locked("idle");
++        return;
++    }
++    if (now - g->last_awake_ms >= 1000) {
++        g->last_awake_ms = now;
++        hal_bridge::power_keep_awake();
++    }
++    if (g->result != GR_PLAYING) {
++        if (now - g->over_at >= kOverHoldMs) end_locked("finished");
++        return;
++    }
++    if (g->kind == kMatch) {
++        if (gm_tick(&g->mem, now)) redraw(g);
++        return;
++    }
++    if (g->unit_thinking) {
++        if (!g->search.done) gc4_ai_step(&g->search, GR_SLICE_NODES);  // one slice a tick: well under the 5 ms budget
++        if (g->search.done && static_cast<int32_t>(now - g->unit_ready_at) >= 0) unit_move(g);
++    }
++}
++
++const char* say(bool es, const char* en, const char* sp) { return es ? sp : en; }
++}  // namespace
++
++bool maipai_grid_known(const char* name) { return kind_by_name(name) >= 0; }
++bool maipai_grid_active() { return s_active.load(); }
++
++const char* maipai_grid_start_locked(const char* name, const char* source)
++{
++    const bool es = want_spanish();
++    const int kind = kind_by_name(name);
++    if (kind < 0) return say(es, "That game is not on this unit.", "Ese juego no esta en esta unidad.");
++    if (s_grid != nullptr) {
++        return say(es, "A game is already running. Stop it first (swipe down from the bottom edge, or say stop), then start another.",
++                   "Ya hay un juego en marcha. Detenlo primero (desliza hacia abajo desde el borde inferior, o di para), y luego empieza otro.");
++    }
++    if (maipai_quiet()) {
++        return say(es, "The unit is in full quiet, so no game starts. Turn full quiet off, then ask again.",
++                   "La unidad esta en silencio total, asi que no empieza ningun juego. Quita el silencio total y pidelo otra vez.");
++    }
++    if (maipai_update_active()) {
++        return say(es, "The unit is installing an update. Ask again when it has restarted.", "La unidad esta instalando una actualizacion. Pidelo otra vez cuando se reinicie.");
++    }
++    Grid* g = static_cast<Grid*>(heap_caps_calloc(1, sizeof(Grid), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (g == nullptr) return say(es, "The unit is low on memory. Restart it and try again.", "La unidad tiene poca memoria. Reiniciala e intentalo otra vez.");
++    g->kind = kind;
++    g->es = es;
++    snprintf(g->source, sizeof(g->source), "%s", source != nullptr ? source : "tool");
++    g->seed = esp_random();
++    g->level = 2;
++    if (kind == kC4) {
++        gr_layout(&g->lay, GC4_COLS, GC4_ROWS, 0);
++        gc4_clear(&g->c4);
++    } else {
++        gm_init(&g->mem, 16, g->seed);
++        gr_layout(&g->lay, 4, 4, 1);
++    }
++    build(g);
++    g->last_input_ms = g->last_awake_ms = now_ms();
++    s_grid = g;
++    s_active.store(true);
++    s_stop_req.store(nullptr);
++    g->timer = lv_timer_create(tick_cb, kTickMs, nullptr);
++    if (!maipai_mic_blocked()) hal_bridge::stop_word_arm(true);  // best effort: the stop word ends a game
++    hal_bridge::power_keep_awake();
++    redraw(g);
++    const int best = load_best(kind);
++    if (best > 0) {
++        char t[32];
++        snprintf(t, sizeof(t), es ? "Mejor %d" : "Best %d", best);
++        maipai_banner_post(t, MB_ICON_CHECK, MB_PRIO_NOTICE, MB_TAG_GAME, 2500);
++    }
++    char extra[48];
++    snprintf(extra, sizeof(extra), "\"game\":\"%s\",\"source\":\"%s\"", kInfo[kind].id, g->source);
++    device_events_push("game_started", extra);
++    ESP_LOGI(kTag, "game %s started (%s)", kInfo[kind].id, g->source);
++    return "";
++}
++
++bool maipai_grid_stop_locked(const char* how)
++{
++    if (s_grid == nullptr) return false;
++    end_locked(how != nullptr ? how : "stopped");
++    return true;
++}
++
++bool maipai_grid_request_stop(const char* how)
++{
++    if (!s_active.load()) return false;
++    s_stop_req.store(how);
++    return true;
++}
++
++void maipai_grid_touch(int x, int y)
++{
++    Grid* g = s_grid;
++    if (g == nullptr || mg_drag_press_dead(y) || g->result != GR_PLAYING) return;
++    const uint32_t now = now_ms();
++    g->last_input_ms = now;
++    if (g->kind == kC4) {
++        if (g->unit_thinking) return;  // the unit's turn
++        const int col = gr_col_at(&g->lay, x, y);
++        if (col < 0) return;
++        if (gc4_drop(&g->c4, col, 1) < 0) {
++            cue(GR_CUE_BAD);  // a full column
++            return;
++        }
++        g->moves++;
++        cue(GR_CUE_TAP);
++        redraw(g);
++        const int res = gc4_result(&g->c4);
++        if (res != GR_PLAYING) {
++            finish(g, res);
++            return;
++        }
++        gc4_ai_start(&g->search, &g->c4, g->level, g->seed + static_cast<uint32_t>(g->moves));
++        g->unit_thinking = 1;
++        g->unit_ready_at = now + kUnitDelayMs;
++    } else {
++        const int idx = gr_cell_at(&g->lay, x, y);
++        const int r = gm_tap(&g->mem, idx, now);
++        if (r == GM_IGNORED) return;
++        cue(r == GM_MATCH || r == GM_DONE ? GR_CUE_MATCH : (r == GM_MISS ? GR_CUE_MISS : GR_CUE_TAP));
++        redraw(g);
++        if (r == GM_DONE) finish(g, GR_PERSON_WON);
++    }
++}
++
++void maipai_grid_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
++{
++    if (s_grid != nullptr && mg_drag_dismiss(x0, y0, x1, y1, held_ms)) end_locked("dragbar");  // a swipe down from the grabber ends the game
++}
++
++int maipai_grid_count() { return kKinds; }
++const char* maipai_grid_id(int index) { return index >= 0 && index < kKinds ? kInfo[index].id : ""; }
++const char* maipai_grid_title(int index, bool es) { return index >= 0 && index < kKinds ? (es ? kInfo[index].title_es : kInfo[index].title_en) : ""; }
++int maipai_grid_best(int index) { return index >= 0 && index < kKinds ? load_best(index) : 0; }
++bool maipai_grid_lower_is_better(int index) { return index >= 0 && index < kKinds && kInfo[index].lower_better; }
++
++const char* maipai_grid_scores_json(const char* id)
++{
++    static char out[24];
++    const int kind = kind_by_name(id);
++    const int best = kind >= 0 ? load_best(kind) : 0;
++    if (best > 0) snprintf(out, sizeof(out), "[%d]", best);
++    else snprintf(out, sizeof(out), "[]");
++    return out;
++}
++#endif
+diff --git a/firmware/main/hal/maipai_grid.h b/firmware/main/hal/maipai_grid.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid.h
+@@ -0,0 +1,48 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The grid games, device side (patch SF63): Four in a Row ("connect4") and Memory Match ("match"). The rules, the unit's search and the geometry are the pure
++ * cores maipai_grid_core.h, maipai_grid_c4_core.h and maipai_grid_mem_core.h; this file draws a board with LVGL objects, runs the 30 ms game tick, plays
++ * the cues through the sound policy and keeps the best score in the unit's NVS. Nothing exists while no grid game runs: no task, no timer, no object, no memory
++ * (a running game holds about 1.2 KB in PSRAM). A game never moves the head. Called from games.cc, which owns the one-game-at-a-time rule.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_GAMES
++#include <stdbool.h>
++#include <stdint.h>
++
++// The grid game ids: "connect4" and "match". Case-insensitive; the English and Spanish titles also match.
++bool maipai_grid_known(const char* name);
++bool maipai_grid_active();
++// The caller holds the LVGL lock and has checked lock, update and that no other game runs. Returns "" or a plain sentence saying what is wrong.
++const char* maipai_grid_start_locked(const char* name, const char* source);
++bool maipai_grid_stop_locked(const char* how);
++bool maipai_grid_request_stop(const char* how);
++// A touch inside the play area (LVGL task, lock held), and the finger lifting (for the drag bar's swipe down).
++void maipai_grid_touch(int x, int y);
++void maipai_grid_release(int x0, int y0, int x1, int y1, uint32_t held_ms);
++// The list of grid games for the games page and self.game.list.
++int maipai_grid_count();
++const char* maipai_grid_id(int index);
++const char* maipai_grid_title(int index, bool es);
++int maipai_grid_best(int index);
++bool maipai_grid_lower_is_better(int index);
++// {"scores":[...]} content for one game id: "[]" or "[n]".
++const char* maipai_grid_scores_json(const char* id);
++#else
++inline bool maipai_grid_known(const char*) { return false; }
++inline bool maipai_grid_active() { return false; }
++inline const char* maipai_grid_start_locked(const char*, const char*) { return ""; }
++inline bool maipai_grid_stop_locked(const char*) { return false; }
++inline bool maipai_grid_request_stop(const char*) { return false; }
++inline void maipai_grid_touch(int, int) {}
++inline void maipai_grid_release(int, int, int, int, unsigned) {}
++inline int maipai_grid_count() { return 0; }
++inline const char* maipai_grid_id(int) { return ""; }
++inline const char* maipai_grid_title(int, bool) { return ""; }
++inline int maipai_grid_best(int) { return 0; }
++inline bool maipai_grid_lower_is_better(int) { return false; }
++inline const char* maipai_grid_scores_json(const char*) { return "[]"; }
++#endif

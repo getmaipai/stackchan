@@ -309,6 +309,70 @@ What it must fake, with the same JSON shapes as B5:
 3. A download or a write goes through the 6 KB transient task of `task.game_pack` in `schema/memory-budget.json` and then to flash; the pack never sits whole in RAM on either side of that task.
 4. Each pack kind states in its budget row what it holds while in use (internal, PSRAM, largest block) and what while only installed (flash only, so zero RAM). A pack kind with no row is refused by the landing check.
 
+## G. The content-addressed asset store (firmware track, 2026-11-18; owner: one shared store for every kind of asset)
+
+Generalizes B. The numbers come from `scripts/asset-dedupe-report.py` over the real assets (b49 tree and `firmware/games`).
+
+### G1. What the real assets say first (measured)
+
+| Where | Held more than once today | Reading |
+|---|---:|---|
+| The 7 game packs (17,828 bytes in all) | 738 bytes at best, record by record (4.2 percent of the records; texts 712, the rest under 20 bytes) | no whole file repeats; sharing is not where the games' bytes are |
+| The assets partition (21 items, 4,462,248 bytes: wake-word models 2,469,827, the stock font 1,287,460, seven icons of 84,612, the rest small) | 0 bytes: no two items are identical | the seven icons share a size but not their content |
+| The sound files in the image (2 files, 7,822 bytes) | 0 bytes | the game and system sounds are made in code (tones), not stored |
+| The face tables and overlays | not countable by hash: they are code tables (the look rows, the confetti and fireworks code), not files | see `docs/plan/face-parts.md` (the playground) |
+
+**Conclusion: a shared bank of common bytes saves almost nothing today.** The real space is elsewhere: about 1.88 MB of the assets partition is two unused stock items (the font and the icons, see `docs/plan/optimization.md`). So the first implementation keeps only what is cheap and what later work needs: **hash keys, typed headers, manifest dependencies, license ids and reference counts derived from the directory**. No shared bank is built until a second consumer needs the same bytes (decision rule: build the sharing when a measured duplicate exists).
+
+### G2. The asset header, generalized (extends B4; the 128 bytes stay)
+
+| Field | Where | Note |
+|---|---|---|
+| **id** | the body's SHA-256 (offset 16, already there); the directory key is its first 8 bytes (`sha8`), the full hash is checked on load | the same bytes are the same asset everywhere: two packs that ship the same sound list the same id |
+| **kind** | offset 56 | extended list: sprite (sheet or icon), sound, **effect**, font, palette, string pack (language), table (words, puzzles, mazes), face part, overlay, style (recipe), picture face, game pack, wake model |
+| **format version** | offset 57 | per kind; a consumer refuses a newer format than it knows and says which |
+| **author, license id** | the 40 byte name field keeps the name; two new fields in the reserved 8 bytes: license id (u16, an index into `schema/licenses.json`: the SPDX id and a text) and author id (u16, an index into the manifest's author table) | a check (`check.sh`) fails on an asset with license id 0; the manifest lists every license; the license travels with the asset through the bundle |
+| **size, memory class** | offsets 12, 112, 116 and a 2-bit class in the flags: 0 flash in place (read through the mapped partition: fonts, models, big tables), 1 PSRAM arena (small data loaded once: sprites in use, sound clips, effects), 2 internal (never for packs) | the class is per kind and fixed by the kind table, not by the asset |
+| **dependencies** | the manifest, not the header: a bundle's manifest lists each asset and the ids it needs | the unit checks that every dependency is installed before activating the consumer |
+
+**Data only, no code:** every kind has a validator (a pure C core with a host test, like `mg_parse`): a sprite is pixels, a sound is samples, an **effect** is a table the engine interprets (ring light pattern: steps of color, time and easing; particle or confetti: counts, speeds, colors, lifetime; screen transition: a type and a duration), a font is a font, a table is rows of fixed records. A validator rejects out of range numbers, bad lengths and unknown opcodes; an asset that does not pass is never loaded.
+
+### G3. Consumers today, and the migration order (smallest first, no big bang)
+
+| Order | Consumer | Today | Step |
+|---|---|---|---|
+| 1 | **Game packs** (the proof) | 7 packs compiled into the image (17,828 bytes), loaded from flash by `maipai_games.cc` | give each pack its sha8 id and a manifest; installed packs (decision 17) use the store; the 7 built-ins keep working; the games page lists both. Size: tiny, one kind, one loader |
+| 2 | Sounds and notification sounds | tones made in code (`maipai_games_sfx_core.h`, the sound policy) and two ogg files in the image | the quiet-hours chime, the game tones and the notification sounds become `sound` assets with ids; a game references "tap, win, lose" by id from the common set |
+| 3 | Effects | confetti and fireworks as code in `maipai_fx.cc`, the ring light colors as numbers in the game player, the dance ring patterns in `beat_dance.h` | one `effect` kind (tables); the game rule "celebrate 1 or 2", the dance and the overlay engine run the same tables; the first migration is the confetti |
+| 4 | Language tables | the six baked first-run tables, language packs in the pack cache | string packs by id and code; the pack cache becomes the store's directory |
+| 5 | Picture faces | the look packs in the pack cache (owner-made, hash and length only) | the same directory, kind picture face |
+| 6 | Face styles and parts | the look rows in `maipai_look_core.h` (three base styles stay in the image), classic and eyes only as installable style recipes | `style` assets that name `face part` assets (see `docs/plan/face-parts.md`) |
+| 7 | Fonts and wake-word models | in the assets partition, read in place | typed headers and ids; no data change |
+
+Each step lands as its own SF patch with its own host test and a bench look; nothing in a later step is built before the earlier one is on a unit.
+
+### G4. Directory, reference counts and removal (power-cut safe)
+
+The directory stays the B1 directory (a sector ring, the newest valid sequence number wins), with the 8 byte key in each entry and a **dependency list in the entry** (up to 4 ids). **Reference counts are never stored:** the count of an asset is the number of directory entries (and the active consumers) that list its id, computed when the directory is read (at most 42 entries per sector, so the scan is cheap). That removes the drift a stored counter would have. Removing a pack writes **one new directory sector** that drops the pack and every dependency whose count falls to zero: the directory flip is the last step, so a power cut leaves either the old directory (everything still there) or the new one (nothing dangling). Space frees at the next install (no erase on removal).
+
+### G5. Integrity, signing and compatibility
+
+- Every asset is hash-checked when it is loaded (in place assets: the first time per boot, in the background, as B6 proposes); a mismatch marks it damaged and the consumer uses its fallback.
+- A **bundle** (a game with its sounds and effects, a style with its parts) has a manifest: the list of `(id, kind, size, license)` and the dependency ids. **The release signature covers the manifest**, so the dependency hashes are signed; the host installer fetches only the assets the unit does not already hold (it asks `self.assets.list`: the ids are in the answer) and the unit checks each body against its listed id.
+- **Compatibility:** the manifest carries the minimum bank format version; a pack that needs a newer common-asset format than the unit knows is refused with a plain sentence (install the update first).
+
+### G6. Memory
+
+One load per asset: a loaded asset is held once (PSRAM arena, or read in place from the mapped flash when its format allows) with a count of running consumers; the last consumer's release frees it. Never copy a pack into PSRAM wholesale (see "The PSRAM rule for packs" above). `schema/memory-budget.json` gets one row per **kind** (the cost while in use: internal, PSRAM, largest block; flash only while installed), and the dedupe report runs over every kind (the report already reads the game packs, the assets partition and the sound files; the picture-face, string and effect kinds are added as each consumer migrates).
+
+### G7. The dashboard library
+
+One catalog on the host dashboard, listed by kind (sprites, sounds, effects, fonts, palettes, string packs, tables, parts, styles, picture faces, games, wake models), each row with its license, size, memory class and the consumers that use it; the app track builds it from the manifests. The unit only reports ids and states (`assets_state`).
+
+### G8. First implementation (small)
+
+The directory entry gains the key and the dependency ids; `maipai_assets_core.h` gets the header parse with the license and kind check; game packs are the first consumer; the dedupe report and the license check run in `check.sh`. Nothing else is built before a measured duplicate asks for it.
+
 ## Numbers still to measure
 
 1. Compiled sizes: `LV_USE_BIDI`, Arabic forms, `LV_USE_FONT_COMPRESSED`.

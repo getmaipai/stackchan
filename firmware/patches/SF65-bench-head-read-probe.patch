@@ -1,0 +1,144 @@
+# Intent: A bench tool, self.bench.head_read {seconds, hz}, that answers whether the unit can read the head's angles while a person turns it gently by hand with the torque off (the feasibility test for a head joystick, docs/plan/more-games-engine.md section 8.4). A person must be at the unit. It turns both head servos' torque off, reads their positions, sends no motion command, ends at once on a shove (over 300 degrees a second) or a turn over 20 degrees from the start, then holds the head where it is (the servo's own present position is commanded before the torque comes back, so it has no old target to run to) and reports whether it jumped. Refused while the unit is carried.
+# Placement: unit (bench only)
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: with the owner present, self.bench.head_read {seconds 10, hz 20} while the owner turns the head gently: both servos report samples near 200, abort none, jump_counts 0 to 2, restored true; at rest noise_counts is under 3.
+# Kconfig: CONFIG_MAIPAI_SERIAL_TOOLS (bench images only)
+# Memory cost: none outside a call (small stack use in one tool call, no allocation kept); two tiny servo helpers in the plain image (under 100 bytes).
+
+diff --git a/firmware/main/hal/hal_servo.cpp b/firmware/main/hal/hal_servo.cpp
+--- a/firmware/main/hal/hal_servo.cpp
++++ b/firmware/main/hal/hal_servo.cpp
+@@ -346,6 +346,23 @@ bool maipai_servo_telemetry(int servo_id, int* volts_tenths, int* load, int* cur
+     return true;
+ }
+ 
++// Patch SF65 (bench head_read): torque off for a servo, and the other way round with a hold at the present position. Each call is one bus transaction; the caller
++// holds the servo layer's lock (servo_bus_mutex). `maipai_servo_hold_here` first commands the servo's own present position and only then enables torque, so
++// the servo has no old target to run to. Returns false when the servo does not answer.
++bool maipai_servo_set_torque(int servo_id, bool on)
++{
++    return _scs_bus.EnableTorque(servo_id, on ? 1 : 0) >= 0;
++}
++
++bool maipai_servo_hold_here(int servo_id)
++{
++    if (_scs_bus.FeedBack(servo_id) < 0) return false;
++    const int pos = _scs_bus.ReadPos(-1);
++    if (pos < 0 || pos > 4095) return false;
++    _scs_bus.WritePos(servo_id, static_cast<u16>(pos), 20, 0);
++    return _scs_bus.EnableTorque(servo_id, 1) >= 0;
++}
++
+ void Hal::servo_init()
+ {
+     mclog::tagInfo("HAL-Servo", "init");
+diff --git a/firmware/main/hal/maipai_powerprobe.cc b/firmware/main/hal/maipai_powerprobe.cc
+--- a/firmware/main/hal/maipai_powerprobe.cc
++++ b/firmware/main/hal/maipai_powerprobe.cc
+@@ -19,10 +19,15 @@
+ #include <esp_heap_caps.h>
+ #include <freertos/FreeRTOS.h>
+ #include <freertos/task.h>
++#include <algorithm>
++#include <cmath>
+ #include <cstdio>
+ #include <string>
+ 
+ extern bool maipai_servo_telemetry(int servo_id, int* volts_tenths, int* load, int* current, int* temp, int* pos);
++extern bool maipai_servo_set_torque(int servo_id, bool on);
++extern bool maipai_servo_hold_here(int servo_id);
++extern bool maipai_pickup_held();
+ 
+ namespace {
+ const char* const kVerdict[4] = {"unknown", "healthy", "weak", "poor"};
+@@ -145,5 +150,90 @@ void maipai_powerprobe_register_tools()
+                     std::snprintf(head, sizeof(head), "{\"ok\":true,\"interval_s\":%d,\"columns\":14,\"rows\":", interval);
+                     return std::string(head) + rows + "}";
+                 });
++
++    // Patch SF65 (bench only): can the unit read the head's angles while a person turns it gently by hand? Docs: docs/plan/more-games-engine.md, section 8.4. THE OWNER MUST BE
++    // PRESENT: this call turns the torque of both servos off. It sends no motion command. It stops and holds the head at once on a shove (over 300 degrees a second) or a
++    // turn of more than 20 degrees from where it started.
++    mcp.AddTool("self.bench.head_read",
++                "Bench only, a person must be at the unit: turns the torque of both head servos OFF for `seconds` (1 to 30), reads both positions `hz` times a second (5 to 30) while the person "
++                "turns the head gently by hand, then holds the head where it is and turns the torque on. Sends no motion command. Ends at once, holding the head, on a shove (over 300 "
++                "degrees a second) or a turn of more than 20 degrees from the start. Refuses while the unit is carried. Answers per servo (1 yaw, 2 pitch): start_raw, last_raw, min_raw, "
++                "max_raw, max_delta_deg, noise_counts (standard deviation of the first 10 readings, taken at rest), max_speed_dps, samples, errors; and achieved_hz, abort (none, shove, "
++                "travel, error), jump_counts (the position change when the torque came back on: 0 to 2 means the head held without a jump; one count is 0.3125 degrees), restored (true when "
++                "both servos are holding again).",
++                PropertyList({Property("seconds", kPropertyTypeInteger, 10, 1, 30), Property("hz", kPropertyTypeInteger, 20, 5, 30)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const int seconds = properties["seconds"].value<int>();
++                    const int hz      = properties["hz"].value<int>();
++                    if (maipai_pickup_held()) return std::string("{\"ok\":false,\"error\":\"The unit is being carried. Put it down on a table, then run the head read again.\"}");
++                    struct Track { int start, last, mn, mx, errors, samples; double sum, sum2; int n_rest; float max_speed; int jump; bool ok; } t[2] = {};
++                    bool torque_off[2] = {false, false};
++                    const char* abort_why = "none";
++                    const int period_ms = 1000 / hz;
++                    // the starting pose (torque is whatever it is now; the auto release has usually turned it off at rest)
++                    for (int i = 0; i < 2; i++) {
++                        Servo s = read_servo(i + 1);
++                        if (!s.ok) return std::string("{\"ok\":false,\"error\":\"A head servo did not answer on the bus. Check the head cable and try again.\"}");
++                        t[i].start = t[i].last = t[i].mn = t[i].mx = s.pos;
++                    }
++                    for (int i = 0; i < 2; i++) {
++                        std::lock_guard<std::recursive_mutex> lock(stackchan::motion::servo_bus_mutex());
++                        torque_off[i] = maipai_servo_set_torque(i + 1, false);
++                    }
++                    const int64_t t0 = esp_timer_get_time();
++                    int samples_total = 0;
++                    int64_t last_t = t0;
++                    while ((esp_timer_get_time() - t0) < static_cast<int64_t>(seconds) * 1000000 && abort_why[0] == 'n') {
++                        const int64_t now = esp_timer_get_time();
++                        for (int i = 0; i < 2; i++) {
++                            Servo s = read_servo(i + 1);
++                            if (!s.ok || s.pos < 0 || s.pos > 4095) { t[i].errors++; continue; }
++                            const double dt = static_cast<double>(now - last_t) / 1e6;
++                            if (samples_total > 0 && dt > 0.0) {
++                                const float dps = static_cast<float>(abs(s.pos - t[i].last) * 0.3125 / dt);
++                                if (dps > t[i].max_speed) t[i].max_speed = dps;
++                                if (dps > 300.0f) abort_why = "shove";
++                            }
++                            if (abs(s.pos - t[i].start) * 0.3125 > 20.0) abort_why = "travel";
++                            if (t[i].samples < 10) { t[i].sum += s.pos; t[i].sum2 += static_cast<double>(s.pos) * s.pos; t[i].n_rest++; }
++                            t[i].last = s.pos;
++                            if (s.pos < t[i].mn) t[i].mn = s.pos;
++                            if (s.pos > t[i].mx) t[i].mx = s.pos;
++                            t[i].samples++;
++                        }
++                        last_t = now;
++                        samples_total++;
++                        if (t[0].errors + t[1].errors > 5) abort_why = "error";
++                        vTaskDelay(pdMS_TO_TICKS(period_ms));
++                    }
++                    const double elapsed = static_cast<double>(esp_timer_get_time() - t0) / 1e6;
++                    bool restored = true;
++                    for (int i = 0; i < 2; i++) {  // hold where the head is, then read again to see whether it jumped
++                        Servo before = read_servo(i + 1);
++                        {
++                            std::lock_guard<std::recursive_mutex> lock(stackchan::motion::servo_bus_mutex());
++                            restored = maipai_servo_hold_here(i + 1) && restored;
++                        }
++                        vTaskDelay(pdMS_TO_TICKS(150));
++                        Servo after = read_servo(i + 1);
++                        t[i].jump = (before.ok && after.ok) ? abs(after.pos - before.pos) : -1;
++                    }
++                    std::string out = "{\"ok\":true,\"servo\":[";
++                    for (int i = 0; i < 2; i++) {
++                        double sd = 0.0;
++                        if (t[i].n_rest > 1) {
++                            const double m = t[i].sum / t[i].n_rest;
++                            sd = std::sqrt(std::max(0.0, t[i].sum2 / t[i].n_rest - m * m));
++                        }
++                        char b[300];
++                        std::snprintf(b, sizeof(b), "%s{\"id\":%d,\"torque_was_turned_off\":%s,\"start_raw\":%d,\"last_raw\":%d,\"min_raw\":%d,\"max_raw\":%d,\"max_delta_deg\":%.1f,\"noise_counts\":%.2f,\"max_speed_dps\":%.0f,\"samples\":%d,\"errors\":%d,\"jump_counts\":%d}",
++                                      i ? "," : "", i + 1, torque_off[i] ? "true" : "false", t[i].start, t[i].last, t[i].mn, t[i].mx,
++                                      std::max(abs(t[i].mx - t[i].start), abs(t[i].start - t[i].mn)) * 0.3125, sd, t[i].max_speed, t[i].samples, t[i].errors, t[i].jump);
++                        out += b;
++                    }
++                    char tail[160];
++                    std::snprintf(tail, sizeof(tail), "],\"achieved_hz\":%.1f,\"abort\":\"%s\",\"restored\":%s}", elapsed > 0 ? samples_total / elapsed : 0.0, abort_why, restored ? "true" : "false");
++                    return out + tail;
++                });
+ }
+ #endif

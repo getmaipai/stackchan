@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 154,
+ "count": 155,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -15,6 +15,7 @@
   "self.bench.barge_test": "SF42-bench-barge-test-silent.patch",
   "self.bench.firstrun": "SF26-bench-slot-firstrun-tool.patch",
   "self.bench.firstrun_loop": "SF27-bench-servo-rate-firstrun-loop.patch",
+  "self.bench.head_read": "SF65-bench-head-read-probe.patch",
   "self.bench.heap_info": "SF34-head-limiter-barge-bench.patch",
   "self.bench.heap_trace": "SF39-limiter-failclosed-peak-heap.patch",
   "self.bench.i2c_scan": "SF50-bench-ir-nfc-probes.patch",
@@ -214,6 +215,10 @@
   },
   "self.bench.firstrun_loop": {
    "n": "integer"
+  },
+  "self.bench.head_read": {
+   "seconds": "integer",
+   "hz": "integer"
   },
   "self.bench.heap_info": {
    "min_used": "integer"

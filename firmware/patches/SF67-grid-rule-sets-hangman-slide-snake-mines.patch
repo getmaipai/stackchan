@@ -1,0 +1,543 @@
+# Intent: Four more rule sets for the grid game engine, as pure cores with host tests: Hangman (a word table, 26 keys in 3 rows, seven misses), the 2048-style slider (4 by 4, seeded tiles, merge once per slide, won at 2048), Snake (10 by 8 board, steer by direction, speeds up with each food, dies on a wall or itself) and Mine Finder (8 by 8, 10 mines, the first reveal is never a mine, flood fill, flags). Nothing draws or starts them yet: the device layer, and the inputs Snake and the slider need (swipe up and down), follow. A game never moves the head.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: nothing to check on the unit yet (the cores are not used by any device file); host/tests/firmware/grid_games2_test.c is the check.
+# Kconfig: none
+# Memory cost: none yet (headers only). Planned per running game, in PSRAM: Hangman 50 bytes, slider 30, Snake about 220, Mines 70; nothing while no game runs.
+
+diff --git a/firmware/main/hal/maipai_grid_core.h b/firmware/main/hal/maipai_grid_core.h
+--- a/firmware/main/hal/maipai_grid_core.h
++++ b/firmware/main/hal/maipai_grid_core.h
+@@ -23,8 +23,8 @@
+ #define GR_AREA_Y1 224
+ #define GR_SLICE_NODES 1000 /* the node budget of one game tick; a node costs about 0.2 us on a laptop and an estimated 3 to 5 us on the unit, so a slice is about 3 to 5 ms (to measure on the unit) */
+ 
+-enum { GR_RULES_NONE = 0, GR_RULES_CONNECT4, GR_RULES_MEMORY, GR_RULES_COUNT };
+-static const char* const GR_RULES_NAMES[GR_RULES_COUNT] = {"", "connect4", "memory"};
++enum { GR_RULES_NONE = 0, GR_RULES_CONNECT4, GR_RULES_MEMORY, GR_RULES_HANGMAN, GR_RULES_SLIDE, GR_RULES_SNAKE, GR_RULES_MINES, GR_RULES_COUNT };
++static const char* const GR_RULES_NAMES[GR_RULES_COUNT] = {"", "connect4", "memory", "hangman", "slide", "snake", "mines"};
+ 
+ /* The result of one event, the same for every rule set. */
+ enum { GR_PLAYING = 0, GR_PERSON_WON, GR_UNIT_WON, GR_DRAW };
+diff --git a/firmware/main/hal/maipai_grid_hangman_core.h b/firmware/main/hal/maipai_grid_hangman_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid_hangman_core.h
+@@ -0,0 +1,105 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Hangman, the rule set (patch SF67): a word of 3 to 12 letters A to Z, a person guessing one letter at a time, at most `max_miss` wrong guesses (default 7). The word comes from the
++ * pack's word table (the caller picks the index from a seed). Plain C99, no allocation, no clock. The 26 keys are laid out by the engine (3 rows of 9, 9 and 8).
++ */
++#ifndef MAIPAI_GRID_HANGMAN_CORE_H
++#define MAIPAI_GRID_HANGMAN_CORE_H
++
++#include "maipai_grid_core.h"
++
++#define GH_WORD_MAX 12
++#define GH_WORD_MIN 3
++#define GH_MAX_MISS 7
++
++enum { GH_BAD = 0, GH_HIT, GH_MISS, GH_REPEAT };
++
++typedef struct {
++    char word[GH_WORD_MAX + 1]; /* upper case A to Z */
++    uint8_t len;
++    uint32_t guessed;           /* bit 0 = A */
++    uint8_t misses, max_miss;
++    uint8_t result;             /* GR_PLAYING, GR_PERSON_WON (word found) or GR_UNIT_WON (hanged) */
++} gh_t;
++
++static inline int gh_init(gh_t* h, const char* word, int max_miss)
++{
++    memset(h, 0, sizeof(*h));
++    size_t n = word == NULL ? 0 : strlen(word);
++    if (n < GH_WORD_MIN || n > GH_WORD_MAX || max_miss < 1 || max_miss > GH_MAX_MISS) {
++        return 0;
++    }
++    for (size_t i = 0; i < n; i++) {
++        char c = word[i];
++        if (c >= 'a' && c <= 'z') {
++            c = (char)(c - 'a' + 'A');
++        }
++        if (c < 'A' || c > 'Z') {
++            return 0;
++        }
++        h->word[i] = c;
++    }
++    h->len = (uint8_t)n;
++    h->max_miss = (uint8_t)max_miss;
++    return 1;
++}
++
++/* A letter: 'A' to 'Z' or 'a' to 'z'. */
++static inline int gh_guess(gh_t* h, char letter)
++{
++    if (letter >= 'a' && letter <= 'z') {
++        letter = (char)(letter - 'a' + 'A');
++    }
++    if (letter < 'A' || letter > 'Z' || h->result != GR_PLAYING) {
++        return GH_BAD;
++    }
++    const uint32_t bit = 1u << (letter - 'A');
++    if (h->guessed & bit) {
++        return GH_REPEAT;
++    }
++    h->guessed |= bit;
++    int hit = 0;
++    for (int i = 0; i < h->len; i++) {
++        hit |= h->word[i] == letter;
++    }
++    if (!hit) {
++        h->misses++;
++        if (h->misses >= h->max_miss) {
++            h->result = GR_UNIT_WON;
++        }
++        return GH_MISS;
++    }
++    int all = 1;
++    for (int i = 0; i < h->len; i++) {
++        all &= (h->guessed >> (h->word[i] - 'A')) & 1u;
++    }
++    if (all) {
++        h->result = GR_PERSON_WON;
++    }
++    return GH_HIT;
++}
++
++/* The word as shown: guessed letters, '_' for the rest (all letters once the game is over). */
++static inline void gh_shown(const gh_t* h, char* out, size_t cap)
++{
++    size_t k = 0;
++    for (int i = 0; i < h->len && k + 1 < cap; i++) {
++        out[k++] = (h->result != GR_PLAYING || ((h->guessed >> (h->word[i] - 'A')) & 1u)) ? h->word[i] : '_';
++    }
++    if (cap > 0) {
++        out[k] = '\0';
++    }
++}
++
++/* The key grid: 3 rows (9, 9 and 8 keys); key index 0..25 is the letter. Returns the letter under key cell (col, row) or 0 (the 27th cell). */
++static inline char gh_key_letter(int col, int row)
++{
++    const int i = row * 9 + col;
++    return (col < 0 || col > 8 || row < 0 || row > 2 || i > 25) ? 0 : (char)('A' + i);
++}
++
++/* Score: more points for fewer misses and a longer word; 0 for a lost game. */
++static inline int gh_score(const gh_t* h) { return h->result == GR_PERSON_WON ? h->len * 10 + (h->max_miss - h->misses) * 5 : 0; }
++
++#endif /* MAIPAI_GRID_HANGMAN_CORE_H */
+diff --git a/firmware/main/hal/maipai_grid_slide_core.h b/firmware/main/hal/maipai_grid_slide_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid_slide_core.h
+@@ -0,0 +1,132 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The 2048-style slider, the rule set (patch SF67): a 4 by 4 board of tiles holding powers of two (a cell stores the exponent: 0 empty, 1 is 2, 2 is 4, up to 11 is 2048). A slide in one of
++ * four directions moves every tile as far as it goes and merges equal neighbours once per slide; a new tile (2 with probability 9 in 10, else 4) appears in a random empty cell when anything
++ * moved. The score adds the value of every merge. The game is won at 2048 and over when no slide moves anything. Seeded, so a test and a replay get the same game. Plain C99, no allocation.
++ */
++#ifndef MAIPAI_GRID_SLIDE_CORE_H
++#define MAIPAI_GRID_SLIDE_CORE_H
++
++#include "maipai_grid_core.h"
++
++#define GS_N 4
++#define GS_WIN_EXP 11
++
++enum { GS_LEFT = 0, GS_RIGHT, GS_UP, GS_DOWN };
++
++typedef struct {
++    uint8_t t[GS_N * GS_N]; /* row-major exponents */
++    uint32_t score;
++    uint32_t rng;
++    uint8_t won;            /* a 2048 tile was made (the game may go on) */
++} gsl_t;
++
++static inline int gsl_empty_count(const gsl_t* g)
++{
++    int n = 0;
++    for (int i = 0; i < GS_N * GS_N; i++) {
++        n += g->t[i] == 0;
++    }
++    return n;
++}
++
++static inline void gsl_spawn(gsl_t* g)
++{
++    const int e = gsl_empty_count(g);
++    if (e == 0) {
++        return;
++    }
++    int k = (int)(gr_rand(&g->rng) % (uint32_t)e);
++    const uint8_t v = (gr_rand(&g->rng) % 10u) == 0 ? 2 : 1;
++    for (int i = 0; i < GS_N * GS_N; i++) {
++        if (g->t[i] == 0 && k-- == 0) {
++            g->t[i] = v;
++            return;
++        }
++    }
++}
++
++static inline void gsl_init(gsl_t* g, uint32_t seed)
++{
++    memset(g, 0, sizeof(*g));
++    g->rng = seed != 0 ? seed : 1u;
++    gsl_spawn(g);
++    gsl_spawn(g);
++}
++
++/* One line (4 cells) slid toward index 0; returns the points gained and whether anything changed through *moved. */
++static inline uint32_t gsl_line(uint8_t* a, int* moved)
++{
++    uint8_t out[GS_N] = {0, 0, 0, 0};
++    int k = 0, last_merged = 0;
++    uint32_t pts = 0;
++    for (int i = 0; i < GS_N; i++) {
++        if (a[i] == 0) {
++            continue;
++        }
++        if (k > 0 && out[k - 1] == a[i] && !last_merged) {
++            out[k - 1]++;
++            pts += 1u << out[k - 1];
++            last_merged = 1;
++        } else {
++            out[k++] = a[i];
++            last_merged = 0;
++        }
++    }
++    for (int i = 0; i < GS_N; i++) {
++        if (a[i] != out[i]) {
++            *moved = 1;
++        }
++        a[i] = out[i];
++    }
++    return pts;
++}
++
++/* A slide. Returns 1 when anything moved (and a tile was added), 0 otherwise (a slide that moves nothing is not a move and adds no tile). */
++static inline int gsl_slide(gsl_t* g, int dir)
++{
++    if (dir < 0 || dir > GS_DOWN) {
++        return 0;
++    }
++    int moved = 0;
++    for (int l = 0; l < GS_N; l++) {
++        uint8_t line[GS_N];
++        for (int i = 0; i < GS_N; i++) {
++            const int idx = (dir == GS_LEFT) ? l * GS_N + i : (dir == GS_RIGHT) ? l * GS_N + (GS_N - 1 - i) : (dir == GS_UP) ? i * GS_N + l : (GS_N - 1 - i) * GS_N + l;
++            line[i] = g->t[idx];
++        }
++        g->score += gsl_line(line, &moved);
++        for (int i = 0; i < GS_N; i++) {
++            const int idx = (dir == GS_LEFT) ? l * GS_N + i : (dir == GS_RIGHT) ? l * GS_N + (GS_N - 1 - i) : (dir == GS_UP) ? i * GS_N + l : (GS_N - 1 - i) * GS_N + l;
++            g->t[idx] = line[i];
++            if (line[i] >= GS_WIN_EXP) {
++                g->won = 1;
++            }
++        }
++    }
++    if (moved) {
++        gsl_spawn(g);
++    }
++    return moved;
++}
++
++static inline int gsl_can_move(const gsl_t* g)
++{
++    if (gsl_empty_count(g) > 0) {
++        return 1;
++    }
++    for (int r = 0; r < GS_N; r++) {
++        for (int c = 0; c < GS_N; c++) {
++            const uint8_t v = g->t[r * GS_N + c];
++            if ((c + 1 < GS_N && g->t[r * GS_N + c + 1] == v) || (r + 1 < GS_N && g->t[(r + 1) * GS_N + c] == v)) {
++                return 1;
++            }
++        }
++    }
++    return 0;
++}
++
++static inline int gsl_result(const gsl_t* g) { return gsl_can_move(g) ? GR_PLAYING : (g->won ? GR_PERSON_WON : GR_UNIT_WON); }
++
++#endif /* MAIPAI_GRID_SLIDE_CORE_H */
+diff --git a/firmware/main/hal/maipai_grid_snake_core.h b/firmware/main/hal/maipai_grid_snake_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid_snake_core.h
+@@ -0,0 +1,128 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Snake, the rule set (patch SF67): a 10 by 8 board (28 by 24 pixel cells), a snake that moves one cell a step, grows when it eats, dies on a wall or itself. The person steers with
++ * a direction (a swipe, a tilt or a head pad: the input is the caller's); a reverse turn is ignored. The step interval shortens with the length (the caller reads gsn_interval_ms; the
++ * engine tick is 30 ms, so a step is every 4 to 10 ticks). Seeded food, a ring buffer of cells for the body. Plain C99, no allocation.
++ */
++#ifndef MAIPAI_GRID_SNAKE_CORE_H
++#define MAIPAI_GRID_SNAKE_CORE_H
++
++#include "maipai_grid_core.h"
++
++#define GSN_COLS 10
++#define GSN_ROWS 8
++#define GSN_CELLS (GSN_COLS * GSN_ROWS)
++#define GSN_START_LEN 3
++
++enum { GSN_UP = 0, GSN_RIGHT, GSN_DOWN, GSN_LEFT };
++enum { GSN_MOVED = 0, GSN_ATE, GSN_DIED, GSN_WON };
++
++typedef struct {
++    uint8_t body[GSN_CELLS]; /* ring buffer of cell indices, tail first */
++    uint8_t head_i, len;     /* index of the head in the ring */
++    uint8_t occ[GSN_CELLS];  /* 1 where the snake is */
++    uint8_t dir, next_dir;
++    uint8_t food;            /* cell index, 255 none */
++    uint32_t rng;
++    uint8_t alive;
++    uint16_t score;
++} gsn_t;
++
++static inline int gsn_head(const gsn_t* s) { return s->body[s->head_i]; }
++
++static inline void gsn_place_food(gsn_t* s)
++{
++    const int free_cells = GSN_CELLS - s->len;
++    if (free_cells <= 0) {
++        s->food = 255;
++        return;
++    }
++    int k = (int)(gr_rand(&s->rng) % (uint32_t)free_cells);
++    for (int i = 0; i < GSN_CELLS; i++) {
++        if (!s->occ[i] && k-- == 0) {
++            s->food = (uint8_t)i;
++            return;
++        }
++    }
++}
++
++static inline void gsn_init(gsn_t* s, uint32_t seed)
++{
++    memset(s, 0, sizeof(*s));
++    s->rng = seed != 0 ? seed : 1u;
++    s->alive = 1;
++    s->dir = s->next_dir = GSN_RIGHT;
++    const int row = GSN_ROWS / 2;
++    for (int i = 0; i < GSN_START_LEN; i++) { /* tail at column 1, head at column 3, pointing right */
++        const int cell = row * GSN_COLS + 1 + i;
++        s->body[i] = (uint8_t)cell;
++        s->occ[cell] = 1;
++    }
++    s->len = GSN_START_LEN;
++    s->head_i = GSN_START_LEN - 1;
++    gsn_place_food(s);
++}
++
++/* The wanted direction for the next step; a reverse of the current direction is ignored. */
++static inline void gsn_turn(gsn_t* s, int dir)
++{
++    if (dir < 0 || dir > GSN_LEFT || ((dir + 2) & 3) == s->dir) {
++        return;
++    }
++    s->next_dir = (uint8_t)dir;
++}
++
++/* One step: GSN_MOVED, GSN_ATE, GSN_DIED or GSN_WON (the board is full). */
++static inline int gsn_step(gsn_t* s)
++{
++    if (!s->alive) {
++        return GSN_DIED;
++    }
++    s->dir = s->next_dir;
++    const int h = gsn_head(s);
++    int r = h / GSN_COLS, c = h % GSN_COLS;
++    if (s->dir == GSN_UP) r--;
++    else if (s->dir == GSN_DOWN) r++;
++    else if (s->dir == GSN_LEFT) c--;
++    else c++;
++    if (r < 0 || r >= GSN_ROWS || c < 0 || c >= GSN_COLS) {
++        s->alive = 0;
++        return GSN_DIED;
++    }
++    const int cell = r * GSN_COLS + c;
++    const int eats = cell == s->food;
++    const int tail_i = (s->head_i + GSN_CELLS - s->len + 1) % GSN_CELLS; /* the tail's ring index */
++    const int tail_cell = s->body[tail_i];
++    if (s->occ[cell] && !(cell == tail_cell && !eats)) { /* the tail cell is free again unless the snake grows */
++        s->alive = 0;
++        return GSN_DIED;
++    }
++    if (!eats) {
++        s->occ[tail_cell] = 0;
++    } else {
++        s->len++;
++        s->score++;
++    }
++    s->head_i = (uint8_t)((s->head_i + 1) % GSN_CELLS);
++    s->body[s->head_i] = (uint8_t)cell;
++    s->occ[cell] = 1;
++    if (eats) {
++        if (s->len >= GSN_CELLS) {
++            s->food = 255;
++            return GSN_WON;
++        }
++        gsn_place_food(s);
++        return GSN_ATE;
++    }
++    return GSN_MOVED;
++}
++
++/* The step interval in ms: 300 ms at the start, 80 ms at the fastest (the engine tick is 30 ms), shortening with every food eaten. */
++static inline uint32_t gsn_interval_ms(const gsn_t* s)
++{
++    const uint32_t cut = (uint32_t)s->score * 12u;
++    return cut >= 220u ? 80u : 300u - cut;
++}
++
++#endif /* MAIPAI_GRID_SNAKE_CORE_H */
+diff --git a/firmware/main/hal/maipai_grid_mines_core.h b/firmware/main/hal/maipai_grid_mines_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_grid_mines_core.h
+@@ -0,0 +1,137 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Mine Finder, the rule set (patch SF67): an 8 by 8 board with 10 mines. The first reveal is never a mine (mines are placed after it, away from that cell and its neighbours, from a
++ * seed). A reveal opens the cell, a zero opens its neighbours too (an iterative flood fill, no recursion). A flag marks a suspected mine. Won when every safe cell is open; lost on a mine.
++ * Cell byte: low 4 bits the neighbour mine count (0 to 8), bit 4 mine, bit 5 revealed, bit 6 flagged. Plain C99, no allocation.
++ */
++#ifndef MAIPAI_GRID_MINES_CORE_H
++#define MAIPAI_GRID_MINES_CORE_H
++
++#include "maipai_grid_core.h"
++
++#define GMN_COLS 8
++#define GMN_ROWS 8
++#define GMN_CELLS (GMN_COLS * GMN_ROWS)
++#define GMN_MINES 10
++#define GMN_COUNT 0x0F
++#define GMN_MINE 0x10
++#define GMN_OPEN 0x20
++#define GMN_FLAG 0x40
++
++enum { GMN_IGNORED = 0, GMN_OPENED, GMN_FLAGGED, GMN_UNFLAGGED, GMN_BOOM, GMN_CLEARED };
++
++typedef struct {
++    uint8_t c[GMN_CELLS];
++    uint8_t placed;       /* the mines are on the board (after the first reveal) */
++    uint8_t open_count;
++    uint8_t flags;
++    uint8_t result;       /* GR_PLAYING, GR_PERSON_WON, GR_UNIT_WON */
++    uint32_t rng;
++} gmn_t;
++
++static inline void gmn_init(gmn_t* m, uint32_t seed)
++{
++    memset(m, 0, sizeof(*m));
++    m->rng = seed != 0 ? seed : 1u;
++}
++
++static inline void gmn_place(gmn_t* m, int safe)
++{
++    int placed = 0;
++    while (placed < GMN_MINES) {
++        const int i = (int)(gr_rand(&m->rng) % GMN_CELLS);
++        const int dr = i / GMN_COLS - safe / GMN_COLS, dc = i % GMN_COLS - safe % GMN_COLS;
++        if ((m->c[i] & GMN_MINE) || (dr >= -1 && dr <= 1 && dc >= -1 && dc <= 1)) {
++            continue;
++        }
++        m->c[i] |= GMN_MINE;
++        placed++;
++    }
++    for (int i = 0; i < GMN_CELLS; i++) {
++        int n = 0;
++        for (int dr = -1; dr <= 1; dr++) {
++            for (int dc = -1; dc <= 1; dc++) {
++                const int r = i / GMN_COLS + dr, c = i % GMN_COLS + dc;
++                if ((dr || dc) && r >= 0 && r < GMN_ROWS && c >= 0 && c < GMN_COLS && (m->c[r * GMN_COLS + c] & GMN_MINE)) {
++                    n++;
++                }
++            }
++        }
++        m->c[i] = (uint8_t)((m->c[i] & ~GMN_COUNT) | n);
++    }
++    m->placed = 1;
++}
++
++/* Reveals a cell. A flagged or open cell is ignored. */
++static inline int gmn_reveal(gmn_t* m, int idx)
++{
++    if (idx < 0 || idx >= GMN_CELLS || m->result != GR_PLAYING || (m->c[idx] & (GMN_OPEN | GMN_FLAG))) {
++        return GMN_IGNORED;
++    }
++    if (!m->placed) {
++        gmn_place(m, idx);
++    }
++    if (m->c[idx] & GMN_MINE) {
++        m->c[idx] |= GMN_OPEN;
++        m->result = GR_UNIT_WON;
++        for (int i = 0; i < GMN_CELLS; i++) { /* the game is over: every mine shows */
++            if (m->c[i] & GMN_MINE) {
++                m->c[i] |= GMN_OPEN;
++            }
++        }
++        return GMN_BOOM;
++    }
++    uint8_t stack[GMN_CELLS];
++    int sp = 0;
++    stack[sp++] = (uint8_t)idx;
++    m->c[idx] |= GMN_OPEN;
++    m->open_count++;
++    while (sp > 0) {
++        const int i = stack[--sp];
++        if ((m->c[i] & GMN_COUNT) != 0) {
++            continue;
++        }
++        for (int dr = -1; dr <= 1; dr++) {
++            for (int dc = -1; dc <= 1; dc++) {
++                const int r = i / GMN_COLS + dr, c = i % GMN_COLS + dc;
++                if ((!dr && !dc) || r < 0 || r >= GMN_ROWS || c < 0 || c >= GMN_COLS) {
++                    continue;
++                }
++                const int j = r * GMN_COLS + c;
++                if (m->c[j] & (GMN_OPEN | GMN_MINE)) {
++                    continue;
++                }
++                if (m->c[j] & GMN_FLAG) {
++                    m->c[j] &= (uint8_t)~GMN_FLAG;
++                    m->flags--;
++                }
++                m->c[j] |= GMN_OPEN;
++                m->open_count++;
++                stack[sp++] = (uint8_t)j;
++            }
++        }
++    }
++    if (m->open_count == GMN_CELLS - GMN_MINES) {
++        m->result = GR_PERSON_WON;
++        return GMN_CLEARED;
++    }
++    return GMN_OPENED;
++}
++
++static inline int gmn_flag(gmn_t* m, int idx)
++{
++    if (idx < 0 || idx >= GMN_CELLS || m->result != GR_PLAYING || (m->c[idx] & GMN_OPEN)) {
++        return GMN_IGNORED;
++    }
++    if (m->c[idx] & GMN_FLAG) {
++        m->c[idx] &= (uint8_t)~GMN_FLAG;
++        m->flags--;
++        return GMN_UNFLAGGED;
++    }
++    m->c[idx] |= GMN_FLAG;
++    m->flags++;
++    return GMN_FLAGGED;
++}
++
++#endif /* MAIPAI_GRID_MINES_CORE_H */
