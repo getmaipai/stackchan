@@ -9,6 +9,7 @@ go into every listed adult's turns. Nobody else's notes are ever read into a tur
 from __future__ import annotations
 
 import re
+import unicodedata
 
 MAX_NOTE_CHARS = 300
 MAX_NOTES_PER_PERSON = 200
@@ -22,13 +23,16 @@ _REFUSED = (
 )
 
 
-# Direction-control, zero-width and control characters (they hide text from the person reading the file).
-_UNSAFE_CHARS = re.compile("[\u0000-\u0008\u000b-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]")
+def _hidden(ch: str) -> bool:
+    """Control, format (direction marks, zero-width, soft hyphen), line and paragraph separators, private-use and unassigned characters."""
+    return unicodedata.category(ch)[0] == "C" or unicodedata.category(ch) in ("Zl", "Zp")
 
 
 def scrub_for_prompt(text: str) -> str:
-    """A stored line made safe to hand to the model: no brackets (reply tags), no hidden characters."""
-    return " ".join(_UNSAFE_CHARS.sub("", text.replace("[", "(").replace("]", ")")).split())
+    """A stored line made safe to hand to the model: no brackets (reply tags), no angle brackets (they could close
+    the fence the notes sit in), no hidden characters."""
+    swapped = text.replace("[", "(").replace("]", ")").replace("<", "(").replace(">", ")")
+    return " ".join("".join(ch for ch in swapped if not _hidden(ch)).split())
 
 
 class AdmissionError(ValueError):
@@ -42,9 +46,9 @@ def check_note(text: str) -> str:
         raise AdmissionError("There was nothing to remember. Say what to remember after the word remember.")
     if len(note) > MAX_NOTE_CHARS:
         raise AdmissionError(f"That is longer than {MAX_NOTE_CHARS} characters. Say it in a shorter way.")
-    if "[" in note or "]" in note:
-        raise AdmissionError("I do not keep text in square brackets. Say it in plain words.")
-    if _UNSAFE_CHARS.search(note):
+    if any(ch in note for ch in "[]<>"):
+        raise AdmissionError("I do not keep text in brackets. Say it in plain words.")
+    if any(_hidden(ch) for ch in note):
         raise AdmissionError("That has hidden or control characters. Say it again in plain words.")
     for pattern, what in _REFUSED:
         if pattern.search(note):
