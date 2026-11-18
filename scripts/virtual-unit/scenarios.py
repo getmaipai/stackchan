@@ -10,6 +10,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN = ROOT / "host" / "tests" / "golden" / "face"
 GOLDEN_SCREENS = ROOT / "host" / "tests" / "golden" / "screens"
@@ -60,6 +62,14 @@ SCREENS: dict[str, list] = {
     "dance-session-3-sway": [("call", "self.robot.dance", {"name": "happy"}), ("advance", 10600)],
     "dance-session-4-full": [("call", "self.robot.dance", {"name": "happy"}), ("advance", 16200)],
     "dance-session-5-down": [("call", "self.robot.dance", {"name": "happy"}), ("advance", 38500)],
+    # The unit with its host away (patches 143 and SF49): the Offline label after 45 s, and after 10 minutes the plain-words notice (English in the firmware; the others are drafts).
+    "host-away-offline": BAR + [("raw", "bstatus 80 0 1 0 1"), ("advance", 900)],
+    "host-away-notice-en": BAR + [("raw", "bstatus 80 0 1 0 1"), ("hostaway", "en"), ("advance", 250)],
+    "host-away-notice-es": BAR + [("raw", "bstatus 80 0 1 0 1"), ("hostaway", "es"), ("advance", 250)],
+    "host-away-notice-fr": BAR + [("raw", "bstatus 80 0 1 0 1"), ("hostaway", "fr"), ("advance", 250)],
+    "host-away-notice-de": BAR + [("raw", "bstatus 80 0 1 0 1"), ("hostaway", "de"), ("advance", 250)],
+    "host-away-notice-pt": BAR + [("raw", "bstatus 80 0 1 0 1"), ("hostaway", "pt"), ("advance", 250)],
+    "host-away-notice-it": BAR + [("raw", "bstatus 80 0 1 0 1"), ("hostaway", "it"), ("advance", 250)],
     "first-run-1": [("raw", "frun step 0 0 -1"), ("advance", 400)],
     "first-run-2": [("raw", "frun step 1 0 -1"), ("advance", 400)],
     "first-run-4": [("raw", "frun step 3 0 -1"), ("advance", 400)],
@@ -193,6 +203,14 @@ def run(u, steps) -> None:
             u.advance(step[1])
         elif step[0] == "touch":
             u.touch(*step[1:])
+        elif step[0] == "hostaway":   # the unit has been away from its host for 11 minutes: the notice shows (patch SF49), in this language
+            import host_away
+
+            away = u.host_away
+            away.language = step[1]
+            away.link_lost()
+            u.jump(11 * 60 * 1000)
+            away.tick(u.now_ms)
 
 
 def png_pixels(png: bytes) -> bytes:

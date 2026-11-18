@@ -128,7 +128,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/cross-review-status.md` (45): Cross-review bugs: fixed and still open
 - `docs/dev/dance-entry-points.md` (207): Dance entry points on the real unit, and what each one runs
 - `docs/dev/draft-names.md` (131): Draft names to confirm
-- `docs/dev/e2e-virtual-unit.md` (77): End to end on the virtual unit (the spoken-turn check without hardware)
+- `docs/dev/e2e-virtual-unit.md` (81): End to end on the virtual unit (the spoken-turn check without hardware)
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
@@ -284,6 +284,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/camera-frames-path.md` (50): Camera frames to the host (feature 8g): the path today, where it breaks, the smallest fix
 - `docs/plan/coding-companion-package.md` (36): Coding companion and agent tools (package design, for review before building)
 - `docs/plan/custom-wake-word.md` (42): A wake word the family chooses (feature 8e): what the unit needs
+- `docs/plan/dance-vectors.md` (40): Dance vectors for the host director (from the virtual unit's session, patch SF51)
 - `docs/plan/doc-screenshots.md` (21): Doc screenshots from the virtual unit
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
@@ -2548,7 +2549,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (254): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (272): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/tools/__init__.py` (15): Tool handlers for the virtual unit, one module per group. A handler is registered with @tool("self.x.y") and g
 - `scripts/virtual-unit/tools/apps.py` (203): Clock, game, lock, and timer tools for the virtual unit."""
 - `scripts/virtual-unit/tools/audio.py` (285): Audio, listening, music and unit utility tools for the virtual unit."""
@@ -2570,7 +2571,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/view.html` (280): app{display:flex;height:100%}
 - `scripts/virtual-unit/view.py` (330): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
 - `scripts/virtual-unit/view3d.js` (485): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
-- `scripts/virtual-unit/vunit.py` (336): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
+- `scripts/virtual-unit/vunit.py` (345): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
 - `scripts/wakeword/features.py` (77): Small, dependency-light audio helpers for local wake-word experiments."""

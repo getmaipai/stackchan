@@ -111,6 +111,15 @@ class VirtualUnit:
         self.log.append({"at_ms": self.now_ms, "name": "renderer", "args": {"command": command}, "ok": True, "result": {}})
 
     @property
+    def host_away(self):
+        """What the unit does while its host is away (host_away.py: the Offline label after 45 s, the notice after 10 minutes, the reconnect backoff). Made on first use."""
+        if getattr(self, "_host_away", None) is None:
+            import host_away
+
+            self._host_away = host_away.HostAway(self)
+        return self._host_away
+
+    @property
     def memory(self):
         """The memory model (memory_model.py, decision 15): declared costs from schema/memory-budget.json, what is loaded now, the budget check and the leak canary. Made on first use;
         from then on every renderer command and tool call reports to it."""

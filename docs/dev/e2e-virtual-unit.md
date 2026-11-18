@@ -75,3 +75,7 @@ Open gaps:
 - `idle_jump`: no tool moves the host process's clock (above).
 
 The simulated unit does one thing the real one does not: its tools that answer with a JSON array send them wrapped in an object. The rig unwraps those (`VuFirmware._run_tool`), because the host reads the bare array; before that fix the host never saw a device event from the virtual unit.
+
+### The unit's host-away behavior (patches 143 and SF49), modeled
+
+`scripts/virtual-unit/host_away.py` (`u.host_away`; `link_lost()`, `link_up()`): the Offline label after 45 s without the link, the plain-words notice ("Can't reach Home. Check it is on and on the same Wi-Fi. I keep trying.") after 10 minutes away and every 30 minutes, and the reconnect wait (doubling with jitter, capped at 30 s for ten minutes and 120 s after). The backoff and notice rules are the unit's own core (`maipai_reconnect_core.h` from SF49, compiled). Goldens: `host-away-offline` and `host-away-notice-<lang>` in six languages. The notice is English only in the firmware: the five others are drafts for the firmware track to carry in its language tables (the banner scrolls the line, so a golden shows its start). `host/tests/test_virtual_unit_host_away.py` checks the label time, the notice schedule over two hours and that no wait passes the cap. The supervisor restart rules (the reconnect task beats, 3 minutes silent means a socket close, a replacement, then a restart with the reason `watchdog:ws_reconnect`) run on the unit and are not modeled here.
