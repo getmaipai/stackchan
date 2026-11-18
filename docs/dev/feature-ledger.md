@@ -508,7 +508,6 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 
 | Feature | What it does | Status | % | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|
-| **Host: first_run_name** | The robot's name from the first run (firmware patches SF09 and UX11). | proven virtual | 70 | `host/maipai_body/first_run_name.py` | file exists, a test names it | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
 | **Host: banner_shapes** | The banner functions with the table of the core filled in. | proven virtual | 70 | `host/maipai_body/banner_shapes.py` | file exists, a test names it | doc missing |
 | **Host: bench** | Owner-only local console for exercising a connected StackChan body. | proven on unit | 100 | `host/maipai_body/bench.py` | `bench-b15.md`, `bench-b19.md` | doc missing |
@@ -618,6 +617,7 @@ Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by 
 | **Host: face_shapes** | The shape engine with the table of the core filled in. | proven virtual | 70 | `host/maipai_body/face_shapes.py` | file exists, a test names it | doc missing |
 | **Host: faces** | Session listener: push the saved face settings when a unit connects, never raising. | proven virtual | 70 | `host/maipai_body/faces.py` | file exists, a test names it | doc missing |
 | **Host: fillers** | Play one filler. | proven virtual | 70 | `host/maipai_body/fillers.py` | file exists, a test names it | doc missing |
+| **Host: first_run_name** | The robot's name from the first run (firmware patches SF09 and UX11). | proven virtual | 70 | `host/maipai_body/first_run_name.py` | file exists, a test names it | doc missing |
 | **Host: errors** | Errors the HAL seam raises. | proven virtual | 70 | `host/maipai_body/hal/errors.py` | file exists, a test names it | doc missing |
 | **Host: seam** | The HAL seam every body profile implements. | proven virtual | 70 | `host/maipai_body/hal/seam.py` | file exists, a test names it | doc missing |
 | **Host: hub_host** | Host launcher for a self-contained MaiPai Bot hub sidecar. | proven virtual | 70 | `host/maipai_body/hub_host.py` | file exists, a test names it | doc missing |

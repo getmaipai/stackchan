@@ -1,4 +1,4 @@
-"""The signed update header: version, build number and image hash in 64 bytes, signed with Ed25519; the unit refuses a lower build number."""
+"""The signed update header: build number, image length, image hash and board id in 56 bytes, signed with Ed25519; the unit refuses a lower build number."""
 
 import hashlib
 import json
@@ -37,21 +37,27 @@ def test_the_header_layout_is_56_bytes_little_endian_and_fixed():
     assert len(header) == 56 and header[:8] == b"MPUH1\0\0\0"
     assert int.from_bytes(header[8:12], "little") == 17
     assert int.from_bytes(header[12:16], "little") == len(IMAGE)
-    assert header[16:48] == hashlib.sha256(IMAGE).digest() and header[48:] == bytes(8)
-    assert uh.parse_header(header) == {"build_number": 17, "size": len(IMAGE), "sha256": hashlib.sha256(IMAGE).hexdigest()}
+    assert header[16:48] == hashlib.sha256(IMAGE).digest()
+    assert header[48:] == b"m5cores3"  # the board id: the unit's CONFIG_MAIPAI_BOARD_ID, ASCII, zero padded
+    assert uh.build_header(17, IMAGE, b"m5x")[48:] == b"m5x\0\0\0\0\0"
+    assert uh.parse_header(header) == {"build_number": 17, "size": len(IMAGE), "sha256": hashlib.sha256(IMAGE).hexdigest(), "board_id": "m5cores3"}
 
 
 def test_bad_inputs_are_refused():
     with pytest.raises(ValueError):
         uh.build_header(0, IMAGE)  # build numbers start at 1
     with pytest.raises(ValueError):
-        uh.build_header(2**32, IMAGE)
+        uh.build_header(2**31, IMAGE)  # the unit stores the number as a signed 32-bit value
     with pytest.raises(ValueError):
-        uh.parse_header(b"MPUX1\0\0\0" + bytes(48))
+        uh.build_header(1, IMAGE, b"")  # a board id is 1 to 8 ASCII characters
+    with pytest.raises(ValueError):
+        uh.build_header(1, IMAGE, b"123456789")
+    with pytest.raises(ValueError):
+        uh.parse_header(b"MPUX1\0\0\0" + bytes(48))  # wrong magic
     with pytest.raises(ValueError):
         uh.parse_header(bytes(10))
     with pytest.raises(ValueError):
-        uh.parse_header(uh.build_header(1, IMAGE)[:48] + b"\x01" + bytes(7))  # the reserved field must be zero
+        uh.parse_header(uh.build_header(1, IMAGE)[:48] + bytes(8))  # a board id of all zero is refused
 
 
 def test_a_signed_package_verifies_and_a_changed_image_or_header_does_not(key):
