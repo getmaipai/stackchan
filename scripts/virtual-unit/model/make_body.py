@@ -73,6 +73,9 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('button', (0.83, 0.83, 0.83, 1.0), 0.0, 0.6, None),
     ('port_metal', (0.42, 0.43, 0.46, 1.0), 0.6, 0.4, None),
     ('port_red', (0.45, 0.03, 0.02, 1.0), 0.0, 0.6, None),
+    ('servo_case', (0.012, 0.014, 0.02, 1.0), 0.0, 0.5, None),
+    ('battery', (0.02, 0.09, 0.42, 1.0), 0.0, 0.5, None),
+    ('cable', (0.45, 0.45, 0.47, 1.0), 0.0, 0.6, None),
 ]
 LIGHT_OFF = (0.42, 0.70, 0.72, 1.0)
 LIGHTS = 12
@@ -86,6 +89,10 @@ PITCH_RECOMMENDED_DEG = (5.0, 85.0)  # product page note
 SCREEN_MM = (41.5, 31.6)             # the screen window on the published drawing (a 2.0 inch panel lights about 40.6 x 30.5 of it)
 SCREEN_DROP_MM = 0.3                 # screen center below the head center, read off the published drawing
 CORE_R_MM = 4.0
+SERVO_MM = (23.2, 12.1, 25.25)       # servo data sheet: length, width, height
+SERVO_SHAFT_R = 1.975                # servo data sheet: 20 tooth output, 3.95 mm across; the base and the arm have sockets of this size
+SERVO_SHAFT_INSET = 6.0              # shaft center from the near end of the case (assumed)
+BATTERY_MM = (30.0, 20.0, 8.0)       # a 550 mAh cell of a common size (assumed; only the capacity is published)
 
 
 def world(p):
@@ -324,6 +331,44 @@ def assemble():
     geo['head']['port'] = dots
     # the board under the head top, seen through the open back (position assumed; it clears the servo housing over the whole sweep)
     geo['head']['pcb'] = box((0.0, top - 3.1, (front - 1.5 + head_lo[2] + 9.0) / 2.0), (45.0, 1.2, front - 1.5 - head_lo[2] - 9.0))
+    # the adapter board behind the controller, seen through the open back (assumed: only its schematic is published)
+    geo['head']['pcb'] += box((0.0, cy + 1.0, front - 1.1), (48.0, 46.0, 1.2))
+    # ---- inside the servo holder (assembly mm): two servos of the published size, stacked, and the battery behind the back cover
+    L, W, H = SERVO_MM
+    ax, ay = YAW_X, YAW_Y
+
+    def abox(x0, x1, y0, y1, z0, z1):
+        lo, hi = world((x0, y1, z0)), world((x1, y0, z1))
+        return box([(lo[i] + hi[i]) / 2.0 for i in range(3)], [abs(hi[i] - lo[i]) for i in range(3)])
+
+    def rod(axis, a0, a1, r, seg=16):
+        """A round shaft along assembly X through the nod axis, or along assembly Z through the turn axis."""
+        tris = []
+        for i in range(seg):
+            t0, t1 = 2 * math.pi * i / seg, 2 * math.pi * (i + 1) / seg
+            c0, s0, c1, s1 = r * math.cos(t0), r * math.sin(t0), r * math.cos(t1), r * math.sin(t1)
+            if axis == 'x':
+                q = [(a0, ay + c0, PITCH_Z + s0), (a1, ay + c0, PITCH_Z + s0), (a1, ay + c1, PITCH_Z + s1), (a0, ay + c1, PITCH_Z + s1)]
+            else:
+                q = [(ax + c0, ay + s0, a0), (ax + c1, ay + s1, a0), (ax + c1, ay + s1, a1), (ax + c0, ay + s0, a1)]
+            w = [world(v) for v in q]
+            tris += [w[0] + w[1] + w[2], w[0] + w[2] + w[3], w[0] + w[2] + w[1], w[0] + w[3] + w[2]]   # both sides: thin and half hidden
+        return tris
+    pitch_face = 19.5                                         # the tilt servo's output face, just inside the arm's spline boss
+    servo_pitch = abox(ax + pitch_face - H, ax + pitch_face, ay - SERVO_SHAFT_INSET, ay - SERVO_SHAFT_INSET + L, PITCH_Z - W / 2, PITCH_Z + W / 2)
+    servo_pitch += rod('x', ax + pitch_face, ax + pitch_face + 3.5, SERVO_SHAFT_R)
+    yaw_top = PITCH_Z - W / 2                                 # the pan servo stands under the tilt servo, shaft down into the base socket
+    servo_yaw = abox(ax + SERVO_SHAFT_INSET - L, ax + SERVO_SHAFT_INSET, ay - W / 2, ay + W / 2, yaw_top - H, yaw_top)
+    servo_yaw += rod('z', -26.8 - BASE_DROP + 0.6, yaw_top - H, SERVO_SHAFT_R)
+    bw, bh, bd = BATTERY_MM
+    battery = abox(ax - bw / 2, ax + bw / 2, -301.8 - bd, -301.8, -19.5, -19.5 + bh)
+    cable = []                                                # the flat cable from the holder up toward the head (assumed path)
+    path = [(-300.4, 9.0), (-299.4, 15.5), (-302.5, 20.3), (-308.5, 21.9)]
+    for (y0, z0), (y1, z1) in zip(path, path[1:]):
+        m0, m1 = world((ax + 14.0, y0, z0)), world((ax + 14.0, y1, z1))
+        d = [(m1[i] - m0[i]) / 2.0 for i in range(3)]
+        ln = math.sqrt(d[1] * d[1] + d[2] * d[2])
+        cable += obox([(m0[i] + m1[i]) / 2.0 for i in range(3)], (4.0, 0, 0), (0, d[1] * 1.05, d[2] * 1.05), (0, -d[2] / ln * 0.2, d[1] / ln * 0.2))
     button_c = (-27.3, top - 13.9, side_z)
     otg_c = (-27.03, top - 26.9, side_z)
     port_a_c = (-27.03, top - 41.2, side_z)
@@ -359,6 +404,13 @@ def assemble():
         'type': 'revolute', 'axis': [0.0, -1.0, 0.0], 'positive': "turns the head toward the robot's right", 'limit_deg': list(YAW_LIMIT_DEG), 'rest_deg': 0.0,
         'source': limiter + ': yaw (-1280, 1280)', 'published': '360 degree servo, no angle restriction (product page)'}})
     g.node('neck', yaw, mesh=g.mesh('neck', prims('neck')), extras={'what': 'servo holder that turns with yaw: holder and its two covers'})
+    inside = [('servo_yaw', servo_yaw, 'servo_case', 'pan servo: its case turns with the holder, its shaft sits in the base socket (size from the data sheet, position assumed)'),
+              ('servo_pitch', servo_pitch, 'servo_case', 'tilt servo: its shaft drives the arm on the nod axis (size from the data sheet, position assumed)'),
+              ('battery', battery, 'battery', '550 mAh battery behind the holder back cover (capacity published; size and position assumed)'),
+              ('cable', cable, 'cable', 'flat cable from the holder toward the head (assumed)')]
+    for name, tris, material, what in inside:
+        c = [round(v, 3) for v in [(a0 + b0) / 2.0 for a0, b0 in zip(*bounds(tris))]]
+        g.node(name, yaw, sub(c, YAW_O), g.mesh(name, [g.primitive(tris, c, material)]), {'what': what, 'basis': 'assumed'})
     n_lo, n_hi = bounds([t for m in geo['neck'].values() for t in m])
     g.node('col_neck', yaw, (0.0, (n_lo[1] + n_hi[1]) / 2.0 - YAW_O[1], 0.0),
            extras={'collider': {'shape': 'cylinder', 'radius': 0.023, 'height': mm(n_hi[1] - n_lo[1])}})
@@ -381,6 +433,8 @@ def assemble():
            {'what': "USB-C (OTG) on the controller's right side"})
     g.node('port_a', head, sub(port_a_c, PITCH_O), g.mesh('port_a', [g.primitive(box(port_a_c, (0.1, 10.0, 5.0)), port_a_c, 'port_red')]),
            {'what': "I2C port A on the controller's right side"})
+    board_c = (0.0, top - 3.1, (front - 1.5 + head_lo[2] + 9.0) / 2.0)
+    g.node('board', head, sub(board_c, PITCH_O), extras={'what': 'the boards in the head: one flat under the top, one upright behind the controller; drawn in the head mesh (material pcb), position assumed', 'basis': 'assumed'})
     k = 0.70710678
     light_pos = []
     for i in range(LIGHTS):
@@ -432,6 +486,13 @@ def assemble():
             'usb_c_port_position': val([mm(v) for v in usb_c], 'measured', 'the opening in the back of the base'),
             'light_bar': val([0.005, 0.031, 0.0053], 'measured', 'light guide file; each bar sits in the slanted slot of a top corner of the shell, stem tip flush'),
             'ring_light_spacing': val(0.005, 'assumed'),
+            'servo_size': val([mm(v) for v in SERVO_MM], 'measured', 'servo data sheet: 23.2 x 12.1 x 25.25 mm, both servos'),
+            'servo_shaft_diameter': val(mm(2 * SERVO_SHAFT_R), 'measured', 'servo data sheet: 20 teeth, 3.95 mm; the base socket and the arm socket measure the same'),
+            'servo_positions': val('pan servo upright on the turn axis with its shaft in the base socket; tilt servo lying on top of it with its shaft on the nod axis', 'assumed', 'the shaft axes are measured; where each case ends is not published'),
+            'battery_capacity_mah': val(550, 'measured', 'product page'),
+            'battery_size': val([mm(v) for v in BATTERY_MM], 'assumed', 'no size is published; a common 550 mAh cell, placed behind the holder back cover'),
+            'boards': val('flat plates', 'assumed', 'only the schematics of the adapter, power, ring and touch boards are published'),
+            'cable': val('flat strip', 'assumed'),
             'ring_light_from_pitch_axis': val(light_pos, 'assumed', 'on the bars (measured); order and spacing along each bar assumed'),
         },
         'joints': {

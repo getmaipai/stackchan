@@ -198,7 +198,7 @@ def test_view_script_uses_the_model_nodes_and_no_stand_in_table():
     assert "DIMS" not in js, "the stand-in size table is gone; sizes come from the model"
     assert "/model/stackchan.glb" in js
     for name in re.findall(r"\bN\.([a-z_0-9]+)", js) + re.findall(r"'((?:ring_light|usb_c|power|screen|yaw|pitch)[a-z_0-9]*)'", js):
-        assert name in by or name == "ring_light_", f"view3d.js uses node {name}, which the model does not have"
+        assert name in by or name in ("ring_light_", "yaw", "pitch"), f"view3d.js uses node {name}, which the model does not have"
     assert "geometry_free_deg" in by["pitch_joint"][1]["extras"]["joint"], "the view holds the head inside this range"
     assert "examples/js" not in js and "GLTFLoader" not in js, "the page loads no second script from the network"
 
@@ -220,3 +220,32 @@ def test_view_serves_the_model_bytes():
     finally:
         proc.terminate()
         proc.wait(timeout=10)
+
+
+def test_inside_parts_ride_on_the_right_link_and_are_marked_assumed():
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    yaw_kids, head_kids = descendants(j, by["yaw_joint"][0]), descendants(j, by["head"][0])
+    for name in ("servo_yaw", "servo_pitch", "battery", "cable"):
+        assert name in yaw_kids and name not in head_kids, f"{name} turns with yaw and does not tilt"
+        assert by[name][1]["extras"]["basis"] == "assumed" and "mesh" in by[name][1]
+    assert "board" in head_kids and by["board"][1]["extras"]["basis"] == "assumed"
+    d = json.loads((MODEL / "stackchan.params.json").read_text())["dimensions"]
+    assert d["servo_size"] == {"value": [0.0232, 0.0121, 0.02525], "basis": "measured", "note": "servo data sheet: 23.2 x 12.1 x 25.25 mm, both servos"}
+    assert d["battery_capacity_mah"]["value"] == 550 and d["battery_capacity_mah"]["basis"] == "measured"
+    for key in ("battery_size", "servo_positions", "boards", "cable"):
+        assert d[key]["basis"] == "assumed", f"{key} has no published figure and must say so"
+    # the pan servo's shaft is on the turn axis and the tilt servo's on the nod axis
+    pitch_y = by["pitch_joint"][1]["translation"][1]
+    acc = j["accessors"][j["meshes"][by["servo_pitch"][1]["mesh"]]["primitives"][0]["attributes"]["POSITION"]]
+    t = by["servo_pitch"][1]["translation"]
+    assert t[1] + acc["min"][1] < pitch_y < t[1] + acc["max"][1] and acc["max"][0] + t[0] > 0.019
+
+
+def test_view_has_the_inside_motion_and_demo_controls():
+    html, js = (VU / "view.html").read_text(), (VU / "view3d.js").read_text()
+    for ident in ('id="inside"', 'id="motion"', 'id="vdemo"', 'id="axes"', 'id="vreset"'):
+        assert ident in html, f"{ident} missing from the view"
+    for hook in ("insideOn", "motionOn", "demoDone"):
+        assert hook in html and hook in js
+    assert "demoPose" in js and "applyLook" in js

@@ -100,16 +100,20 @@ class Model:
             walk(r, IDENT, (0.0, 0.0, 0.0))
         return out
 
-    def render(self, angles, azimuth, elevation, size, scale=None, center=(0.0, 0.036, -0.002)):
+    def render(self, angles, azimuth, elevation, size, scale=None, center=(0.0, 0.036, 0.002), hide=()):
         cam = sr.camera(azimuth, elevation)
         cv = sr.Canvas(size, size)
         scale = scale or size / 0.094
         for mat, tris in sorted(self.posed(angles).items(), key=lambda kv: str(kv[0])):
             if mat == 'face':
+                if 'screen' in hide:
+                    continue
                 cv.draw(tris, (245, 245, 245), cam, scale, center, emissive=True)
                 continue
             m = self.doc['materials'][mat]
             name = m['name']
+            if name in hide:
+                continue
             if name == 'screen':
                 cv.draw(tris, (16, 18, 22), cam, scale, center, emissive=True)
             elif name.startswith('ring_light_'):
@@ -152,6 +156,11 @@ def main(argv):
     rest = {'yaw_joint': 0.0, 'pitch_joint': 0.0}
     for name, az, el in VIEWS:
         sr.write_png(os.path.join(out, name + '.png'), 720, 720, model.render(rest, az, el, 720))
+        print('wrote', name + '.png')
+    # cutaway: the shell, the controller and the holder taken off, so the servos, battery, boards and cable show
+    off = ('shell', 'core', 'glass', 'screen', 'camera', 'button', 'port', 'port_red', 'neck', 'servo', 'light_bar')
+    for name, az in (('cutaway-rear', 142), ('cutaway-front', -38)):
+        sr.write_png(os.path.join(out, name + '.png'), 720, 720, model.render(rest, az, 22, 720, hide=off))
         print('wrote', name + '.png')
     S = 400
     wide = S / 0.118  # room for the head swinging round

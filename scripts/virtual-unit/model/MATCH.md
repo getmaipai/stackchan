@@ -47,12 +47,28 @@ Added: speaker grille on the controller's left side, the camera ring and the fou
 2. **Zero and direction.** That firmware angle 0 means "level", and that positive yaw turns the head to the robot's right, are assumptions. The zero position is stored per unit (`zero_pos_1`, `zero_pos_2`), so a unit can differ by a few degrees.
 3. **Light order.** Two bars of six is published. Lights 0 to 5 run front to back on the left bar and 6 to 11 back to front on the right. The real order and the 5 mm spacing are unknown.
 4. **Controller unit** is a rounded block with glass, screen, camera ring, openings, speaker grille, button and ports drawn on from the drawing, to about 1 mm. No logo, labels, card slot or reset button.
-5. **Board** under the head top is a flat green plate whose position is a guess. Its parts, the cable and the battery are not drawn.
-6. **Servos and the bearing** are not in the files and not drawn. The rear view is emptier than a real unit.
+5. **Boards** are two flat green plates: one under the head top, one upright behind the controller. Only the schematics of the adapter, power, ring and touch boards are published, so size and position are guesses.
+6. **Servos, battery and cable** are drawn from what is published and are otherwise assumed; see the next section. The bearing is not drawn.
 7. **Arm side.** The arm is on the left because the holder's stub is on the right. Both parts are hidden inside the head.
 8. **Mass split** between head, neck and base is a guess; only the 187.2 g total is published.
 9. **Colors** are judged from photos. Units come in other colors.
 10. **Feet.** The base has no separate feet: `foot_0..3` mark the four corner mounting holes.
+
+## Inside the body (added 2026-11-18)
+
+Published: both servos are the SCS0009, 23.2 x 12.1 x 25.25 mm with a 20 tooth, 3.95 mm output (servo data sheet linked from the product page); the body holds a 550 mAh battery (product page). The maker's repository has only the structure files for this product: no assembly drawing, no board outline, no battery size.
+
+Measured in the structure files: the base has a socket of 3.95 mm on the turn axis and the servo arm has one on the nod axis. So the pan servo's case sits in the holder and turns with it, with its shaft down in the base; it is not in the base. The two servo sizes stacked (25.25 + 12.1 = 37.35 mm) match the holder with its cover (37.8 mm), and the cover's C-shaped opening is the length of a servo.
+
+| Part (node) | Rides on | Size | Position |
+|---|---|---|---|
+| Pan servo (`servo_yaw`) | yaw | measured (data sheet) | assumed: upright on the turn axis, shaft in the base socket |
+| Tilt servo (`servo_pitch`) | yaw | measured (data sheet) | assumed: lying on the pan servo in the cover's opening, shaft on the nod axis into the arm |
+| Battery (`battery`) | yaw | assumed: 30 x 20 x 8 mm, a common 550 mAh cell | assumed: behind the holder's back cover, where the product photo shows blue through the cover's notch |
+| Boards (`board`, in the head mesh) | pitch | assumed | assumed |
+| Flat cable (`cable`) | yaw | assumed | assumed: from the holder up toward the head |
+
+Sweep with these parts in: free from 0 to 90 degrees of pitch. The only contact is the tilt servo's shaft inside the arm's socket, the same at every angle, which is where they join.
 
 ## What to compare on the unit
 

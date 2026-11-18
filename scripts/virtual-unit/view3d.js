@@ -61,6 +61,7 @@ function initRobot(THREE, canvas, hooks) {
   const back = new THREE.DirectionalLight(0xffffff, 0.25); back.position.set(10, 5, -9); scene.add(back);
 
   const robot = new THREE.Group(); scene.add(robot);
+  const BASE_MID = new THREE.Vector3(0, 0.56, 0);
   // table
   const table = new THREE.Mesh(new THREE.CircleGeometry(16, 64), new THREE.MeshStandardMaterial({color: 0x1b2027, roughness: 1}));
   table.rotation.x = -Math.PI / 2; scene.add(table);
@@ -69,6 +70,7 @@ function initRobot(THREE, canvas, hooks) {
   // ---- the body: filled in when the model file arrives
   const tex = new THREE.Texture(); tex.minFilter = THREE.LinearFilter; tex.flipY = false;   // the model's screen UV has 0,0 at the top left
   const M = {ready: false, yaw: null, pitch: null, screen: null, headMeshes: [], leds: [], button: null, portHit: null, btnHit: null,
+             parts: [], lookKey: '', labels: [], demoAt: 0,
              yawAxis: new THREE.Vector3(0, -1, 0), pitchAxis: new THREE.Vector3(-1, 0, 0), yawLim: [-128, 128], pitchLim: [0, 90], pitchY: 4.35, topY: 7.05, baseTopY: 1.13};
   const cable = new THREE.Group(); cable.visible = false; robot.add(cable);
   const chargeLed = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 10), new THREE.MeshBasicMaterial({color: 0x222222})); robot.add(chargeLed);
@@ -113,6 +115,18 @@ function initRobot(THREE, canvas, hooks) {
     yawLine.position.set(0, (M.topY + 2.4) / 2, 0); axes.add(yawLine);
     const pitchLine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 8.2, 8), new THREE.MeshBasicMaterial({color: 0xff6b6b}));
     pitchLine.rotation.z = Math.PI / 2; pitchLine.position.set(0, M.pitchY, 0); axes.add(pitchLine);
+    // every drawn part remembers its own material and which link it rides on, for the Show inside and Show motion looks
+    const SHELL = {shell: 1, core: 1, glass: 1, neck: 1, servo: 1, base: 1};
+    const tag = (node, link) => node.traverse(o => { if (o.isMesh && o !== M.screen && !M.leds.includes(o) && o !== M.portHit && o !== M.btnHit && !o.userData.link) o.userData = {link, mat: o.material, shell: !!SHELL[o.material.name]}; });
+    tag(N.pitch_joint, 'pitch'); tag(N.yaw_joint, 'yaw'); tag(N.base, 'base');
+    model.root.traverse(o => { if (o.isMesh && o.userData.link) M.parts.push(o); });
+    const stage = cv.parentElement;
+    for (const [text, color, node, dy] of [['turns with the pan servo (yaw)', '#3ddc84', N.neck, -0.004], ['tilts with the tilt servo (pitch)', '#ff6b6b', N.head, 0.034]]) {
+      const el = document.createElement('div'); el.textContent = text;
+      el.style.cssText = 'position:absolute;pointer-events:none;display:none;background:#000a;color:' + color + ';border:1px solid ' + color + ';border-radius:6px;padding:2px 7px;font-size:12px;white-space:nowrap;transform:translate(-50%,-50%)';
+      stage.appendChild(el); M.labels.push({el, node, dy});
+    }
+    BASE_MID.y = M.baseTopY / 2;   // the physics model's base body origin: the middle of the base's height
     target.y = M.topY / 2;
     M.ready = true;
   }
@@ -225,7 +239,36 @@ function initRobot(THREE, canvas, hooks) {
   setInterval(() => { img.src = '/frame.png?' + Date.now(); }, 100);
 
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-  const BASE_MID = new THREE.Vector3(0, 0.6, 0);   // the physics model's base body origin: the middle of its base plate, 6 mm above the table
+  const LINK_TINT = {yaw: new THREE.Color(0x3ddc84), pitch: new THREE.Color(0xff6b6b)};
+  function applyLook(inside, motion) {   // inside: the shells turn to glass so the servos, battery and boards show; motion: each moving link takes its axis color
+    const key = (inside ? 'i' : '') + (motion ? 'm' : '');
+    if (key === M.lookKey) return; M.lookKey = key;
+    for (const o of M.parts) {
+      const u = o.userData;
+      if (!inside && !motion) { o.material = u.mat; o.renderOrder = 0; continue; }
+      const m = u.mat.clone();
+      if (motion && LINK_TINT[u.link]) m.color.lerp(LINK_TINT[u.link], 0.6);
+      if (inside && u.shell) { m.transparent = true; m.opacity = u.link === 'base' ? 0.45 : 0.16; m.depthWrite = false; o.renderOrder = 2; } else o.renderOrder = 0;
+      o.material = m;
+    }
+    M.screen.material.transparent = inside; M.screen.material.opacity = inside ? 0.35 : 1; M.screen.renderOrder = inside ? 3 : 0;
+  }
+  const v3 = new THREE.Vector3();
+  function placeLabels(show) {
+    const w = cv.clientWidth, h = cv.clientHeight;
+    for (const l of M.labels) {
+      if (!show) { l.el.style.display = 'none'; continue; }
+      l.node.getWorldPosition(v3); v3.y += l.dy * 100; v3.project(cam);
+      l.el.style.display = v3.z < 1 ? 'block' : 'none';
+      l.el.style.left = ((v3.x + 1) / 2 * w) + 'px'; l.el.style.top = ((1 - v3.y) / 2 * h) + 'px';
+    }
+  }
+  // the demo sweep: the drawn head pans left and right, then nods up and down, slowly; the unit itself is not commanded
+  function demoPose(t) {
+    if (t < 8) return {yaw: 90 * Math.sin(2 * Math.PI * t / 8), pitch: 10, note: 'Demo: the pan servo turns everything above the base (yaw).'};
+    if (t < 16) return {yaw: 0, pitch: 10 + 75 * Math.pow(Math.sin(Math.PI * (t - 8) / 8), 2), note: 'Demo: the tilt servo nods the head about the side axis (pitch).'};
+    return null;
+  }
   let cy = 0, cp = 0;
   const api = {
     update(st) {
@@ -236,7 +279,13 @@ function initRobot(THREE, canvas, hooks) {
       axes.visible = !!hooks.axesVisible();
       buildRanges(st.yaw_range, st.pitch_range, st.pitch_safe);
       const ph = this.phys && performance.now() - this.phys.at < 400 ? this.phys.pose : null;
-      if (ph) { cy = ph.yaw; cp = ph.pitch; } else { cy += (st.head.yaw - cy) * 0.35; cp += (st.head.pitch - cp) * 0.35; }
+      const demo = !ph && M.demoAt ? demoPose((performance.now() - M.demoAt) / 1000) : null;
+      if (M.demoAt && !demo) { M.demoAt = 0; if (hooks.demoDone) hooks.demoDone(); }
+      if (demo && hooks.status && demo.note !== M.demoNote) { M.demoNote = demo.note; hooks.status(demo.note); }
+      if (ph) { cy = ph.yaw; cp = ph.pitch; } else if (demo) { cy = demo.yaw; cp = demo.pitch; } else { cy += (st.head.yaw - cy) * 0.35; cp += (st.head.pitch - cp) * 0.35; }
+      const motion = !!(hooks.motionOn && hooks.motionOn()) || !!demo;
+      applyLook(!!(hooks.insideOn && hooks.insideOn()), motion);
+      this.labelsOn = motion;
       if (ph) {   // the model's base: where it slid, tipped or was lifted (physics frame: x forward, y left, z up; view: z forward, x right, y up)
         const q = new THREE.Quaternion(ph.quat[2], ph.quat[3], ph.quat[1], ph.quat[0]);
         robot.quaternion.copy(q);
@@ -258,7 +307,8 @@ function initRobot(THREE, canvas, hooks) {
       M.screen.material.color.set(on ? 0xffffff : 0x000000);
     },
     setPhysicsPose(pose) { this.phys = {pose, at: performance.now()}; },
-    render() { placeCam(); r.render(scene, cam); },
+    render() { placeCam(); r.render(scene, cam); if (M.ready) placeLabels(!!this.labelsOn); },
+    demo() { M.demoNote = ''; M.demoAt = M.demoAt ? 0 : performance.now(); return !!M.demoAt; },
     get screen() { return M.screen; },
     model: M,
   };

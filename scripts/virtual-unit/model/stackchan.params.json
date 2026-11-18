@@ -9,10 +9,22 @@
     0.105,
     1.0
    ],
+   "battery": [
+    0.02,
+    0.09,
+    0.42,
+    1.0
+   ],
    "button": [
     0.83,
     0.83,
     0.83,
+    1.0
+   ],
+   "cable": [
+    0.45,
+    0.45,
+    0.47,
     1.0
    ],
    "camera": [
@@ -87,6 +99,12 @@
     0.43,
     1.0
    ],
+   "servo_case": [
+    0.012,
+    0.014,
+    0.02,
+    1.0
+   ],
    "shell": [
     0.72,
     0.72,
@@ -135,10 +153,33 @@
    "basis": "measured",
    "value": 0.048
   },
+  "battery_capacity_mah": {
+   "basis": "measured",
+   "note": "product page",
+   "value": 550
+  },
+  "battery_size": {
+   "basis": "assumed",
+   "note": "no size is published; a common 550 mAh cell, placed behind the holder back cover",
+   "value": [
+    0.03,
+    0.02,
+    0.008
+   ]
+  },
+  "boards": {
+   "basis": "assumed",
+   "note": "only the schematics of the adapter, power, ring and touch boards are published",
+   "value": "flat plates"
+  },
   "bottom_plate_below_base": {
    "basis": "measured",
    "note": "the plate seats on the four screw posts",
    "value": 0.00015
+  },
+  "cable": {
+   "basis": "assumed",
+   "value": "flat strip"
   },
   "controller_depth": {
    "basis": "assumed",
@@ -277,6 +318,25 @@
     0.0,
     -0.0003,
     0.03328
+   ]
+  },
+  "servo_positions": {
+   "basis": "assumed",
+   "note": "the shaft axes are measured; where each case ends is not published",
+   "value": "pan servo upright on the turn axis with its shaft in the base socket; tilt servo lying on top of it with its shaft on the nod axis"
+  },
+  "servo_shaft_diameter": {
+   "basis": "measured",
+   "note": "servo data sheet: 20 teeth, 3.95 mm; the base socket and the arm socket measure the same",
+   "value": 0.00395
+  },
+  "servo_size": {
+   "basis": "measured",
+   "note": "servo data sheet: 23.2 x 12.1 x 25.25 mm, both servos",
+   "value": [
+    0.0232,
+    0.0121,
+    0.02525
    ]
   },
   "shell_depth": {

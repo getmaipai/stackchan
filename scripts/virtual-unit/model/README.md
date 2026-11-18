@@ -28,12 +28,14 @@ stackchan
     col_base              collider box
     yaw_joint             vertical axis, extras.joint: axis, limit_deg [-128, 128], source
       neck                servo holder and its two covers (turns with yaw)
+      servo_yaw, servo_pitch, battery, cable    inside the holder: size of the servos from their data sheet, the rest assumed (MATCH.md)
       col_neck            collider cylinder
       pitch_joint         horizontal axis, extras.joint: axis, limit_deg [3, 87], source
         head              shell, controller unit, front glass, board, light bars, pitch arm and bearing plate
           screen_plane    320x240 screen, flat quad, UV 0,0 top-left to 1,1 bottom-right; put the live frame on its material
           power_button, usb_c_otg, port_a    markers on the controller's right side
           ring_light_0..11   0..5 left bar front to back, 6..11 right bar back to front; each has its own material
+          board           marks the boards in the head (drawn in the head mesh)
           col_head        collider box
 ```
 

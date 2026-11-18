@@ -14,6 +14,8 @@
 - What the body does (`scripts/virtual-unit/hw.py`, tested in `host/tests/test_virtual_unit_hw.py`): power off shows a black screen and refuses tools with the way out; power on runs the boot covers (Starting, Connecting to Wi-Fi, Connecting to Home; with Wi-Fi off, the Wi-Fi setup cover) drawn by the unit's own cover code; a cable means USB power and charging; the battery slider drives the status bar, the tired look at 20 and 10 percent, and a sleep after the 8 second grace at 5 percent (patch T01); carried, orientation, cable and battery feed the unit's own limiter (patch ML01), whose state, excursion percent and speed cap show in the panel.
 - Axes: the green yaw arc (limits -128 to 128) and the red pitch arc (limits 0 to 90, the maker advises 5 to 85, drawn brighter) with live pointers, sliders that call `self.robot.set_head_angles`, Look left, Center, Look right, Look up, and four dances. The limiter shrinks the excursion and caps the speed of moves. The counter shows head moves in the last minute against the cap of 40 (patch 038).
 
+- **Show inside** turns the shell, controller and servo holder to glass so the two servos, the battery, the boards and the cable show. **Show motion** colors what turns with the pan servo green and what tilts with the tilt servo red, with a label on each. **Demo sweep** pans the drawn head left and right, then nods it up and down, over 16 seconds; it moves the drawing only and sends the unit nothing.
+
 ## What is a stand-in
 - Boot cover durations (the unit's real boot times are not measured) and what the serial cable does (only shown).
 - The dance paths: simple shapes of the right size and speed class, not the unit's tables.
