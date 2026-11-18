@@ -68,7 +68,9 @@ def _updater(tmp_path, *, reported=None):
     updater = FirmwareUpdater(
         ask_home=lambda: answer,
         download=lambda path: path.write_bytes(reported if reported is not None else image),
-        serve_once=lambda path: served.append(path.read_bytes()) or "http://body/one-time",
+        serve_once=lambda path, sig=None: served.append(path.read_bytes()) or "http://body/one-time",
+        download_signature=lambda: b"sig",
+        verify=lambda image, sig: True,
         call_tool=lambda name, args: calls.append((name, args)),
         situation=lambda: BASE.copy(),
         battery=lambda: {"percent": 80, "charging": False},

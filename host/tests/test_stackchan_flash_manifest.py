@@ -138,7 +138,7 @@ def test_release_requires_signing_key_before_build():
 
 
 def test_signing_ignores_a_missing_tmpdir_and_leaves_no_files(tmp_path, monkeypatch):
-    """HC-7: no macOS-only temporary path; works when TMPDIR is unset or elsewhere."""
+    """no macOS-only temporary path; works when TMPDIR is unset or elsewhere."""
     private, public = _key(tmp_path)
     monkeypatch.delenv("TMPDIR", raising=False)
     monkeypatch.setattr("tempfile.tempdir", str(tmp_path / "work"))
@@ -149,3 +149,23 @@ def test_signing_ignores_a_missing_tmpdir_and_leaves_no_files(tmp_path, monkeypa
     signed = flash_manifest.sign_manifest(manifest, private)
     assert flash_manifest.verify_manifest(signed, public)
     assert list((tmp_path / "work").iterdir()) == []
+
+
+def test_detached_image_signature_verifies_and_rejects_tampering(tmp_path):
+    """the host checks the image signature Home hands over against the trusted key."""
+    import subprocess
+
+    from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
+
+    private, public = _key(tmp_path)
+    image = tmp_path / "app.bin"
+    image.write_bytes(b"firmware bytes")
+    sig = subprocess.run(
+        [openssl_cli(), "pkeyutl", "-sign", "-rawin", "-inkey", str(private), "-in", str(image)],
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert flash_manifest.verify_detached(b"firmware bytes", sig, public)
+    assert not flash_manifest.verify_detached(b"firmware bytez", sig, public)
+    assert not flash_manifest.verify_detached(b"firmware bytes", sig[:-1] + b"\x00", public)
+    assert not flash_manifest.verify_detached(b"firmware bytes", b"", public)

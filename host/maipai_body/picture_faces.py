@@ -180,12 +180,19 @@ def resize_rgba(data: bytes, width: int, height: int, fit: str = "cover") -> np.
         raise PictureError(say(None, "bad_picture"), "bad_picture")
     if width * height > MAX_SOURCE_PIXELS:
         raise PictureError(say(None, "picture_huge"), "picture_huge")
-    src = np.frombuffer(data, dtype=np.uint8).reshape(height, width, 4).astype(np.float32)
+    src = np.frombuffer(data, dtype=np.uint8).reshape(height, width, 4)
     # Box-halve while the source is more than twice the size wanted, so a large photo does not alias.
+    # The halving runs in bands of rows so the full picture is never held as float32 at once.
     while src.shape[0] >= 2 * HEIGHT and src.shape[1] >= 2 * WIDTH:
         h2, w2 = src.shape[0] // 2 * 2, src.shape[1] // 2 * 2
-        s = src[:h2, :w2]
-        src = (s[0::2, 0::2] + s[1::2, 0::2] + s[0::2, 1::2] + s[1::2, 1::2]) / 4.0
+        halved = np.empty((h2 // 2, w2 // 2, 4), dtype=np.float32)
+        for top in range(0, h2, 256):
+            s = src[top : min(top + 256, h2), :w2].astype(np.float32)
+            halved[top // 2 : min(top + 256, h2) // 2] = (
+                s[0::2, 0::2] + s[1::2, 0::2] + s[0::2, 1::2] + s[1::2, 1::2]
+            ) / 4.0
+        src = halved
+    src = src.astype(np.float32, copy=False)
     sh, sw = src.shape[:2]
     scale = max(WIDTH / sw, HEIGHT / sh) if fit == "cover" else min(WIDTH / sw, HEIGHT / sh)
     new_w, new_h = max(1, round(sw * scale)), max(1, round(sh * scale))

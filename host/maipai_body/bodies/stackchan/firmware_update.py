@@ -92,14 +92,19 @@ class FirmwareUpdater:
         *,
         ask_home: Callable[[], dict | None],
         download: Callable[[Path], object],
-        serve_once: Callable[[Path], str],
+        serve_once: Callable[..., str],
         call_tool: Callable[[str, dict], object],
         situation: Callable[[], Mapping[str, Any]],
         battery: Callable[[], Mapping[str, Any] | None],
         unit_version: Callable[[], str | None],
         now: Callable[[], float],
         report: Callable[[bool, int | None], object] | None = None,
+        download_signature: Callable[[], bytes | None] | None = None,
+        verify: Callable[[bytes, bytes], bool] | None = None,
     ) -> None:
+        # Without a trusted key (`verify`) no image from Home is served: the hash Home sends comes from
+        # the same place as the image, so it proves nothing about who built it.
+        self.download_signature, self.verify = download_signature, verify
         self.ask_home, self.download, self.serve_once = ask_home, download, serve_once
         self.call_tool, self.situation, self.battery = call_tool, situation, battery
         self.unit_version, self.now = unit_version, now
@@ -192,7 +197,12 @@ class FirmwareUpdater:
                 raise ValueError("image_size_mismatch")
             if digest.lower() != str(answer.get("sha256", "")).lower():
                 raise ValueError("image_hash_mismatch")
-            url = self.serve_once(path)
+            if self.verify is None or self.download_signature is None:
+                raise ValueError("update_key_missing")
+            signature = self.download_signature()
+            if not signature or not self.verify(path.read_bytes(), signature):
+                raise ValueError("image_signature_invalid")
+            url = self.serve_once(path, signature)
             LOG.info("StackChan firmware update: calling unit update tool")
             self.report(True, None)
             self.call_tool(
@@ -209,6 +219,8 @@ class FirmwareUpdater:
                 in {
                     "image_size_mismatch",
                     "image_hash_mismatch",
+                    "image_signature_invalid",
+                    "update_key_missing",
                 }
                 else type(exc).__name__
             )

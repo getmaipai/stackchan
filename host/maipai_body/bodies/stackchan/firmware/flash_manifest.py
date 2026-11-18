@@ -161,6 +161,27 @@ def verify_manifest(manifest: dict[str, Any], public_key_path: str | Path) -> bo
         return False
 
 
+def verify_detached(image: bytes, signature: bytes, public_key_path: str | Path) -> bool:
+    """Check a detached Ed25519 signature over the image bytes against the trusted public key."""
+    if not signature:
+        return False
+    try:
+        with tempfile.TemporaryDirectory(prefix="stackchan-image-") as work:
+            payload, sig = Path(work) / "image.bin", Path(work) / "image.sig"
+            payload.write_bytes(image)
+            sig.write_bytes(signature)
+            result = subprocess.run(
+                [
+                    openssl_cli(), "pkeyutl", "-verify", "-rawin", "-pubin",
+                    "-inkey", str(public_key_path), "-in", str(payload), "-sigfile", str(sig),
+                ],
+                capture_output=True,
+            )  # fmt: skip
+            return result.returncode == 0
+    except (ValueError, OSError):
+        return False
+
+
 def validate_manifest(manifest: dict[str, Any], spec_root: str | Path | None = None) -> None:
     """Run the pinned JSON schema and record validator with useful part errors."""
     root = Path(spec_root) if spec_root else _spec_root()

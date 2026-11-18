@@ -166,9 +166,40 @@ def zip_payload(files: dict[str, bytes], *, stored: bool = False) -> bytes:
     return buf.getvalue()
 
 
+MAX_UNZIPPED_BYTES = 64 * 1024 * 1024  # everything a pack may unpack to, however small it is on the wire
+MAX_UNZIPPED_FILES = 2000
+
+
 def unzip_payload(payload: bytes) -> dict[str, bytes]:
+    """Open a pack's zip with limits: file count, total size (declared and actually read) and safe names."""
+    out: dict[str, bytes] = {}
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-        return {n: archive.read(n) for n in archive.namelist()}
+        infos = archive.infolist()
+        if len(infos) > MAX_UNZIPPED_FILES:
+            raise PackError(
+                f"The pack holds more than {MAX_UNZIPPED_FILES} files, so it was refused. Get a smaller pack from its author.",
+                "bad_zip",
+            )
+        for info in infos:
+            if info.filename.startswith("/") or ".." in info.filename.split("/") or "\\" in info.filename:
+                raise PackError("The pack has an unsafe file name, so it was refused. Get the pack again from its author.", "bad_zip")
+        if sum(info.file_size for info in infos) > MAX_UNZIPPED_BYTES:
+            raise PackError(
+                f"The pack unpacks to more than {MAX_UNZIPPED_BYTES // (1024 * 1024)} MB, so it was refused. Get a smaller pack from its author.",
+                "bad_zip",
+            )
+        total = 0
+        for info in infos:
+            with archive.open(info) as handle:
+                data = handle.read(MAX_UNZIPPED_BYTES - total + 1)
+            total += len(data)
+            if total > MAX_UNZIPPED_BYTES:
+                raise PackError(
+                    f"The pack unpacks to more than {MAX_UNZIPPED_BYTES // (1024 * 1024)} MB, so it was refused. Get a smaller pack from its author.",
+                    "bad_zip",
+                )
+            out[info.filename] = data
+    return out
 
 
 def make_pack(kind: str, name: str, payload: bytes, *, version: int = 1, voice: str = "", lang: str = "", signature: str = "", signer: str = "") -> Pack:
