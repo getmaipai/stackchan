@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 136,
+ "count": 137,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -12,6 +12,7 @@
   "self.battery.get_status": "C01-battery-status.patch",
   "self.battery.simulate": "T01-low-battery-ladder.patch",
   "self.bench.inject": "L06-bench-latency-trace.patch",
+  "self.bench.link_selftest": "SF21-link-key-curve-and-storage.patch",
   "self.bench.mic3_check": "SF15-talk-over-mic3-step0.patch",
   "self.bench.noise": "L06-bench-latency-trace.patch",
   "self.camera.cue_test": "T05-camera-on-cue.patch",
@@ -189,6 +190,7 @@
    "tail_ms": "integer",
    "gain_pct": "integer"
   },
+  "self.bench.link_selftest": {},
   "self.bench.mic3_check": {
    "volume": "integer",
    "gain_db": "integer"
