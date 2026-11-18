@@ -36,6 +36,7 @@ CLIPS = (
     "bonk_squeak", "bonk_boop", "squeak", "boing", "wah", "raspberry", "boop", "haha", "whistle", "trombone",
     "good", "fanfare", "bad", "cue0", "cue1", "cue2", "cue3", "cue4", "cue5",
     "rattle", "thud", "mystic", "ting",
+    "grid_tick_lo", "grid_tick_mid", "grid_tick_hi", "grid_clack_lo", "grid_clack_mid", "grid_clack_hi", "grid_drop", "grid_lose", "grid_draw",  # patch SF72
 )  # fmt: skip
 GROUPS = ("bonk", "miss", "escape")
 TONE_IDS = {

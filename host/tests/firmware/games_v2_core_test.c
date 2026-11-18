@@ -156,7 +156,7 @@ static void test_new_refusals(void)
 static void test_sound_clips(void)
 {
     static int16_t buf[MGS_SFX_MAX_SAMPLES];
-    CHECK(MGS_CLIPS == 23 && MGS_GROUPS == 3 && MGS_TONE_SHIPPED == 5);
+    CHECK(MGS_CLIPS == 32 && MGS_GROUPS == 3 && MGS_TONE_SHIPPED == 5);
     for (int c = 0; c < MGS_CLIPS; c++) {
         const size_t want = mgs_clip_samples(c);
         CHECK(want > 0 && want <= (size_t)MGS_SFX_MAX_SAMPLES);
