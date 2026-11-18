@@ -49,4 +49,6 @@ $('unit').onchange=()=>{editing=false;load()};units();
 
 
 def render_installed_page() -> bytes:
-    return PAGE.encode("utf-8")
+    from maipai_body.dashboard_shell import apply
+
+    return apply(PAGE, "installed").encode("utf-8")

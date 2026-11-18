@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 850 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 852 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 46 items, 6 measured, 13 estimated, 27 placeholders or not built. 83 of 850 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 46 items, 6 measured, 13 estimated, 27 placeholders or not built. 83 of 852 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 25 | 250 | 8 | 51 | 355 | 64 |
-| Maker and tech | 0 | 0 | 65 | 370 | 60 | 0 | 495 | 70 |
+| Maker and tech | 0 | 0 | 67 | 370 | 60 | 0 | 497 | 70 |
 
 ## Everyday user
 
@@ -546,7 +546,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Music feature stack** | 1 patch(es): The music feature task "musicfeat" (stack in PSRAM) had 584 bytes of... | proven virtual | 70 | not declared | `MF01-music-feature-task-stack-6144.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Movement limiter** | 1 patch(es): One movement limiter at the single place every servo target passes th... | proven virtual | 70 | not declared | `ML01-movement-limiter-at-the-servo-layer.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 
-### Host modules (294)
+### Host modules (295)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -654,6 +654,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: __main__** | ``python -m maipai_body.dashboard``: serve a body's dashboard. | proven virtual | 70 | not declared | `host/maipai_body/dashboard/__main__.py` | file exists, a test names it | doc missing |
 | **Host: server** | The dashboard's stdlib HTTP server: a page, a JSON API, and a server-sent-event feed. | proven on unit | 100 | not declared | `host/maipai_body/dashboard/server.py` | `bench-b9.md` | doc missing |
 | **Host: telemetry** | The dashboard's view of a body: the latest state frame plus presence, as one JSON snapshot. | built | 40 | not declared | `host/maipai_body/dashboard/telemetry.py` | file exists | doc missing |
+| **Host: dashboard_shell** | Wrap a page that is `<style>...</style></head><body><main>...</main>...` in the shared layout. | built | 40 | not declared | `host/maipai_body/dashboard_shell.py` | file exists | doc missing |
 | **Host: cue** | The typed cue and the phase-to-primitive mapping (``dev.md`` section 5). | proven on unit | 100 | not declared | `host/maipai_body/expression/cue.py` | `bench-b9.md`, `bench-window5.md` | doc missing |
 | **Host: engine** | The expression engine: one cue in, one primitive rendered or withheld. | proven virtual | 70 | not declared | `host/maipai_body/expression/engine.py` | file exists, a test names it | doc missing |
 | **Host: envelope** | The calibrated envelope: fractions of the profile's declared axis limits. | proven virtual | 70 | not declared | `host/maipai_body/expression/envelope.py` | file exists, a test names it | doc missing |
@@ -866,7 +867,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | not declared | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (69)
+### Scripts and tools (70)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -913,6 +914,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: license-check.py** | licenses stay honest. | built | 40 | not declared | `scripts/license-check.py` | file exists | doc missing |
 | **Script: link-key-vector.py** | Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only). | proven virtual | 70 | not declared | `scripts/link-key-vector.py` | file exists, a test names it | doc missing |
 | **Script: link-psk-vector.py** | Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests). | proven virtual | 70 | not declared | `scripts/link-psk-vector.py` | file exists, a test names it | doc missing |
+| **Script: make-dashboard-screens.py** | A screenshot of each host dashboard page at desktop and phone width, kept in docs/dev/dashboard-screens for review. | built | 40 | not declared | `scripts/make-dashboard-screens.py` | file exists | doc missing |
 | **Script: make-doc-screenshots.py** | make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, never by hand, | built | 40 | not declared | `scripts/make-doc-screenshots.py` | file exists | doc missing |
 | **Script: make-lights.py** | draw the robot's ring colors and tone shapes as small animated SVGs for the docs. | built | 40 | not declared | `scripts/make-lights.py` | file exists | doc missing |
 | **Script: make-placeholders.py** | draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image. | built | 40 | not declared | `scripts/make-placeholders.py` | file exists | doc missing |

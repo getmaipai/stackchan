@@ -83,7 +83,9 @@ def render_page(doc: dict[str, Any]) -> bytes:
 body{{margin:0;background:var(--bg);color:var(--fg);font:18px/1.5 system-ui,sans-serif}}main{{max-width:44rem;margin:0 auto;padding:1rem 16px 3rem}}li.ok{{color:var(--good)}}li.failed{{color:var(--bad)}}li.restarting{{color:var(--warn)}}</style>
 <meta http-equiv="refresh" content="10"></head><body><main><h1>Health</h1><p role="status"><b>{html.escape(doc['summary'])}</b></p>
 <h2>Parts</h2><ul>{parts}</ul><h2>Robots</h2><ul>{units}</ul>{('<h2>What to do</h2><ul>' + advice + '</ul>') if advice else ''}</main></body></html>"""
-    return page.encode("utf-8")
+    from maipai_body.dashboard_shell import apply
+
+    return apply(page, "health").encode("utf-8")
 
 
 def fetch_health(host_url: str | None = None, timeout: float = 4.0) -> dict[str, Any] | None:

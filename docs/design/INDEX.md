@@ -128,13 +128,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/contributing.md` (24): Contributing
 - `docs/dev/cross-review-status.md` (45): Cross-review bugs: fixed and still open
 - `docs/dev/dance-entry-points.md` (207): Dance entry points on the real unit, and what each one runs
+- `docs/dev/dashboard-screens/README.md` (5): Dashboard screens
 - `docs/dev/draft-names.md` (131): Draft names to confirm
 - `docs/dev/e2e-virtual-unit.md` (81): End to end on the virtual unit (the spoken-turn check without hardware)
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1078): Feature ledger
+- `docs/dev/feature-ledger.md` (1080): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (28): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -1042,7 +1043,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/brain/home.py` (89): Home brain adapter. Existing clients retain transport behavior and timing."""
 - `host/maipai_body/brain/interface.py` (63): Typed interface between the body host and its answering brain."""
 - `host/maipai_body/brain/own_llm.py` (377): Own-LLM brain using owner-configured HTTP services and optional local speech models."""
-- `host/maipai_body/brain_page.py` (78): ruff: noqa: E501
+- `host/maipai_body/brain_page.py` (80): ruff: noqa: E501
 - `host/maipai_body/brain_setup/__init__.py` (1): Three ways to get a brain (docs/plan/minimal-stack.md): MaiPai Home, the person's own stack, or a minimal loca
 - `host/maipai_body/brain_setup/catalog.py` (106): The pinned downloads of the minimal local stack (docs/plan/minimal-stack.md).
 - `host/maipai_body/brain_setup/controller.py` (126): The Brain page's one object: what is set now, the test buttons, applying a mode, and the local stack's install
@@ -1060,6 +1061,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/dashboard/__main__.py` (73): no header
 - `host/maipai_body/dashboard/server.py` (498): The dashboard's stdlib HTTP server: a page, a JSON API, and a server-sent-event feed."""
 - `host/maipai_body/dashboard/telemetry.py` (128): The dashboard's view of a body: the latest state frame plus presence, as one JSON snapshot."""
+- `host/maipai_body/dashboard_shell.py` (48): ruff: noqa: E501
 - `host/maipai_body/expression/__init__.py` (21): The expression package: the primitive vocabulary, rendered on a body's HAL seam.
 - `host/maipai_body/expression/cue.py` (99): The typed cue and the phase-to-primitive mapping (``dev.md`` section 5).
 - `host/maipai_body/expression/engine.py` (389): The expression engine: one cue in, one primitive rendered or withheld.
@@ -1081,7 +1083,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/hal/__init__.py` (1): The HAL seam: ``seam`` for the typed protocols, ``errors`` for what crosses it."""
 - `host/maipai_body/hal/errors.py` (68): Errors the HAL seam raises.
 - `host/maipai_body/hal/seam.py` (427): The HAL seam every body profile implements.
-- `host/maipai_body/health.py` (98): One health document for the whole host: what runs, what does not, per unit and per part, in plain words.
+- `host/maipai_body/health.py` (100): One health document for the whole host: what runs, what does not, per unit and per part, in plain words.
 - `host/maipai_body/hub_host.py` (131): Host launcher for a self-contained MaiPai Bot hub sidecar.
 - `host/maipai_body/i18n.py` (401): ruff: noqa: E501
 - `host/maipai_body/i18n_character.py` (37): ruff: noqa: E501
@@ -1138,7 +1140,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/initiative/__init__.py` (1): Things the robot starts on the hub's say-so: offers and the safety alarm."""
 - `host/maipai_body/initiative/alarm.py` (264): ALARM-PLAY-01: the safety alarm on the robot (deterministic, no model).
 - `host/maipai_body/initiative/offer.py` (248): OFFER-01: the robot's half of a hub initiative offer.
-- `host/maipai_body/installed_page.py` (52): ruff: noqa: E501
+- `host/maipai_body/installed_page.py` (54): ruff: noqa: E501
 - `host/maipai_body/installed_set.py` (238): The installed set of one robot (decision 17): a few slots per kind, chosen on the dashboard, sent to the unit 
 - `host/maipai_body/installed_set_legacy.py` (34): The reconciler's transport over the pack tools a unit has today (`self.pack.*`, one pack per kind)."""
 - `host/maipai_body/language_packs.py` (170): ruff: noqa: E501
@@ -2481,6 +2483,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/license-check.py` (52): licenses stay honest. (1) every host dependency in host/pyproject.toml is named in THIRD-PARTY.md; (2) LICENSE
 - `scripts/link-key-vector.py` (124): Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
+- `scripts/make-dashboard-screens.py` (71): A screenshot of each host dashboard page at desktop and phone width, kept in docs/dev/dashboard-screens for re
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.

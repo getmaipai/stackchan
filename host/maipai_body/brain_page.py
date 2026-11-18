@@ -75,4 +75,6 @@ load();
 
 
 def render_brain_page() -> bytes:
-    return PAGE.encode("utf-8")
+    from maipai_body.dashboard_shell import apply
+
+    return apply(PAGE, "brain").encode("utf-8")
