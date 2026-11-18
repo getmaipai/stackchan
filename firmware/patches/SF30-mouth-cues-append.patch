@@ -1,0 +1,126 @@
+# Intent: self.face.mouth_cues takes an optional append flag. With append true the cues are added to the list of the speech that is playing or waiting, with times still counted from that speech's first audio frame, so a reply of several sentences sends one list per sentence as each is made. Checks: each call as before (160 cues, 12 in any second, times in order, levels 0 to 4, also across the join), the first time not before the last time held (bad_time), at most 480 cues held for a speech, times within 60 s; dropped with the speech, when muted or locked. With nothing held it is a plain list.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.face.mouth_cues with cues [[0,2],[100,3],[200,0]] then, during speech, append true with [[1500,4],[1600,1]]: the mouth follows both lists; an append starting before 200 answers bad_time.
+# Kconfig: CONFIG_MAIPAI_FACE_FLUID (existing)
+
+diff --git a/firmware/main/hal/maipai_mouthcue_core.h b/firmware/main/hal/maipai_mouthcue_core.h
+--- a/firmware/main/hal/maipai_mouthcue_core.h
++++ b/firmware/main/hal/maipai_mouthcue_core.h
+@@ -13,7 +13,8 @@
+ #include <stdint.h>
+ #include <string.h>
+ 
+-#define MMC_MAX_CUES 160
++#define MMC_MAX_CUES 160 /* cues in one call */
++#define MMC_CAP 480      /* cues held for one speech (appended lists add up) */
+ #define MMC_MAX_MS 60000u
+ #define MMC_MAX_PER_SEC 12
+ #define MMC_STALE_MS 10000u
+@@ -25,8 +26,8 @@ static const char* const MMC_REASONS[MMC_COUNT] = {"ok", "bad_count", "bad_time"
+ enum { MMC_NONE = 0, MMC_PENDING, MMC_PLAYING };
+ 
+ typedef struct {
+-    uint32_t ms[MMC_MAX_CUES];
+-    uint8_t lvl[MMC_MAX_CUES];
++    uint32_t ms[MMC_CAP];
++    uint8_t lvl[MMC_CAP];
+     uint16_t n;
+     uint16_t cur;
+     uint8_t state;
+@@ -64,6 +65,31 @@ static inline int mmc_set(mmc_t* m, const uint32_t* ms, const uint8_t* lvl, int
+     return MMC_OK;
+ }
+ 
++/* Cues added to the list of the speech that is playing or waiting (patch SF30): ms is counted from the same first audio frame, so a reply of several
++ * sentences sends one list per sentence as each is made. The call is checked like mmc_set; the first time may not be before the last time already held
++ * (bad_time), the held cues stay within MMC_CAP and the 12-in-a-second rule also holds across the join. With no list held it is a plain mmc_set. */
++static inline int mmc_append(mmc_t* m, const uint32_t* ms, const uint8_t* lvl, int n, uint32_t now)
++{
++    if (m->state == MMC_NONE || m->n == 0) return mmc_set(m, ms, lvl, n, now);
++    if (ms == NULL || lvl == NULL || n < 1 || n > MMC_MAX_CUES || (int)m->n + n > MMC_CAP) return MMC_BAD_COUNT;
++    for (int i = 0; i < n; i++) {
++        if (ms[i] > MMC_MAX_MS || (i > 0 && ms[i] < ms[i - 1])) return MMC_BAD_TIME;
++        if (lvl[i] > 4) return MMC_BAD_LEVEL;
++    }
++    if (ms[0] < m->ms[m->n - 1]) return MMC_BAD_TIME;
++    /* at most MMC_MAX_PER_SEC cues in any 1000 ms, counting the held cues near the join */
++    for (int i = 0; i < n; i++) {
++        int in_window = 1;
++        for (int j = i - 1; j >= 0 && ms[i] - ms[j] < 1000u; j--) in_window++;
++        for (int j = (int)m->n - 1; j >= 0 && ms[i] - m->ms[j] < 1000u; j--) in_window++;
++        if (in_window > MMC_MAX_PER_SEC) return MMC_TOO_FAST;
++    }
++    memcpy(m->ms + m->n, ms, sizeof(uint32_t) * (size_t)n);
++    memcpy(m->lvl + m->n, lvl, (size_t)n);
++    m->n = (uint16_t)(m->n + n);
++    return MMC_OK;
++}
++
+ /* The first audio frame of a turn: start playing a fresh list, drop a stale one. */
+ static inline void mmc_start(mmc_t* m, uint32_t now)
+ {
+diff --git a/firmware/main/hal/maipai_facefx.cc b/firmware/main/hal/maipai_facefx.cc
+--- a/firmware/main/hal/maipai_facefx.cc
++++ b/firmware/main/hal/maipai_facefx.cc
+@@ -31,14 +31,14 @@ std::mutex s_cue_mutex;
+ mmc_t* s_cues = nullptr;  // patch SF24: about 1 KB, in PSRAM, allocated by the first list (idle the pointer is all there is)
+ }  // namespace
+ 
+-int maipai_mouth_cues_set(const uint32_t* ms, const uint8_t* levels, int n)
++int maipai_mouth_cues_set(const uint32_t* ms, const uint8_t* levels, int n, bool append)
+ {
+     std::lock_guard<std::mutex> lock(s_cue_mutex);
+     if (s_cues == nullptr) {
+         s_cues = static_cast<mmc_t*>(heap_caps_calloc(1, sizeof(mmc_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+         if (s_cues == nullptr) return MMC_BAD_COUNT;
+     }
+-    return mmc_set(s_cues, ms, levels, n, now_ms());
++    return append ? mmc_append(s_cues, ms, levels, n, now_ms()) : mmc_set(s_cues, ms, levels, n, now_ms());
+ }
+ 
+ const char* maipai_mouth_cues_reason(int code)
+diff --git a/firmware/main/hal/maipai_facefx.h b/firmware/main/hal/maipai_facefx.h
+--- a/firmware/main/hal/maipai_facefx.h
++++ b/firmware/main/hal/maipai_facefx.h
+@@ -19,7 +19,7 @@ bool maipai_speech_level(int* level);
+ void maipai_speech_tap(const int16_t* samples, size_t count);
+ // Patch SF10: a list of mouth cues from the host: ms[i] from the first audio frame, levels[i] 0 to 4. Returns 0 or a reason code (see
+ // maipai_mouth_cues_reason). The list waits for the next speech; a list that is not played within 10 s is dropped.
+-int maipai_mouth_cues_set(const uint32_t* ms, const uint8_t* levels, int n);
++int maipai_mouth_cues_set(const uint32_t* ms, const uint8_t* levels, int n, bool append = false);
+ const char* maipai_mouth_cues_reason(int code);
+ // Bench only: a synthetic level.
+ void maipai_speech_feed_bench(int level);
+@@ -28,6 +28,6 @@ inline void maipai_speech_set_active(bool) {}
+ inline bool maipai_speech_level(int*) { return false; }
+ inline void maipai_speech_tap(const int16_t*, size_t) {}
+ inline void maipai_speech_feed_bench(int) {}
+-inline int maipai_mouth_cues_set(const uint32_t*, const uint8_t*, int) { return 1; }
++inline int maipai_mouth_cues_set(const uint32_t*, const uint8_t*, int, bool = false) { return 1; }
+ inline const char* maipai_mouth_cues_reason(int) { return "not_compiled"; }
+ #endif
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -867,8 +867,9 @@ void maipai_face_register_tools()
+                 "Mouth cues for the next speech: cues is a JSON list of [ms, level] pairs, ms from the first audio frame (0 to 60000, in order) and "
+                 "level 0 (closed) to 4 (wide open); at most 160 cues and 12 in any second. The mouth follows the list instead of the loudness and "
+                 "stays closed after the last cue. A list not played within 10 s, or left over when the speech ends, is dropped. Refused while the "
+-                "unit is muted or locked. Answers {ok, n} or {ok:false, reason}.",
+-                PropertyList({Property("cues", kPropertyTypeString, std::string("[]"))}),
++                "unit is muted or locked. append true adds the cues to the list of the speech that is playing or waiting (times still counted from its first audio frame, "
++                "not before the last time held, at most 480 cues in all): one list per sentence of a longer reply. Answers {ok, n} or {ok:false, reason}.",
++                PropertyList({Property("cues", kPropertyTypeString, std::string("[]")), Property("append", kPropertyTypeBoolean, false)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     if (maipai_muted()) return std::string("{\"ok\":false,\"reason\":\"muted\"}");
+                     if (maipai_lock_locked()) return std::string("{\"ok\":false,\"reason\":\"locked\"}");
+@@ -911,7 +912,7 @@ void maipai_face_register_tools()
+                         heap_caps_free(scratch);
+                         return std::string("{\"ok\":false,\"reason\":\"bad_cues\"}");
+                     }
+-                    const int r = maipai_mouth_cues_set(ms, lv, n > MMC_MAX_CUES ? MMC_MAX_CUES + 1 : n);
++                    const int r = maipai_mouth_cues_set(ms, lv, n > MMC_MAX_CUES ? MMC_MAX_CUES + 1 : n, properties["append"].value<bool>());
+                     heap_caps_free(scratch);
+                     if (r != 0) return std::string("{\"ok\":false,\"reason\":\"") + maipai_mouth_cues_reason(r) + "\"}";
+                     return std::string("{\"ok\":true,\"n\":") + std::to_string(n) + "}";

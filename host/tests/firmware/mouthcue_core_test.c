@@ -78,6 +78,64 @@ int main(void)
     }
     CHECK(mmc_set(&m, long_t, long_l, 160, 0) == MMC_OK);
 
+    /* append: the next sentence's list continues the playing one */
+    {
+        static mmc_t a;
+        mmc_init(&a);
+        const uint32_t s1[] = {0, 100, 200};
+        const uint8_t l1[] = {2, 3, 0};
+        const uint32_t s2[] = {1500, 1600};
+        const uint8_t l2[] = {4, 1};
+        CHECK(mmc_append(&a, s1, l1, 3, 0) == MMC_OK && a.state == MMC_PENDING && a.n == 3); /* nothing held: a plain set */
+        mmc_start(&a, 1000);
+        CHECK(mmc_append(&a, s2, l2, 2, 1100) == MMC_OK && a.n == 5 && a.state == MMC_PLAYING);
+        CHECK(mmc_level(&a, 1000 + 1550, &level) == 1 && level == 100); /* the second sentence plays at its offset */
+        CHECK(mmc_level(&a, 1000 + 1700, &level) == 1 && level == 25);
+        CHECK(mmc_level(&a, 1000 + 2500, &level) == 1 && level == 0);   /* closed after the last cue */
+        /* the first time may not be before the last held time */
+        const uint32_t early[] = {1000};
+        const uint8_t el[] = {1};
+        CHECK(mmc_append(&a, early, el, 1, 2000) == MMC_BAD_TIME && a.n == 5);
+        /* an append may start at the last held time */
+        const uint32_t same[] = {1600, 1700};
+        CHECK(mmc_append(&a, same, l2, 2, 2000) == MMC_OK && a.n == 7);
+        /* the rate rule holds across the join: 12 held cues inside a second, one more is too fast */
+        static mmc_t b;
+        mmc_init(&b);
+        uint32_t dense[12];
+        uint8_t dl[12];
+        for (int i = 0; i < 12; i++) {
+            dense[i] = (uint32_t)(i * 80);
+            dl[i] = 1;
+        }
+        CHECK(mmc_set(&b, dense, dl, 12, 0) == MMC_OK);
+        const uint32_t join[] = {960};
+        CHECK(mmc_append(&b, join, el, 1, 0) == MMC_TOO_FAST);
+        const uint32_t later[] = {1100};
+        CHECK(mmc_append(&b, later, el, 1, 0) == MMC_OK);
+        /* the whole held list is bounded */
+        static mmc_t c;
+        mmc_init(&c);
+        static uint32_t chunk[160];
+        static uint8_t cl[160];
+        for (int i = 0; i < 160; i++) {
+            chunk[i] = (uint32_t)(i * 100);
+            cl[i] = 1;
+        }
+        CHECK(mmc_set(&c, chunk, cl, 160, 0) == MMC_OK);
+        for (int i = 0; i < 160; i++) chunk[i] = 16000u + (uint32_t)(i * 100);
+        CHECK(mmc_append(&c, chunk, cl, 160, 0) == MMC_OK);
+        for (int i = 0; i < 160; i++) chunk[i] = 32000u + (uint32_t)(i * 100);
+        CHECK(mmc_append(&c, chunk, cl, 160, 0) == MMC_OK && c.n == 480);
+        for (int i = 0; i < 160; i++) chunk[i] = 48000u + (uint32_t)(i * 70);
+        CHECK(mmc_append(&c, chunk, cl, 1, 0) == MMC_BAD_COUNT); /* 481 cues */
+        /* a speech end drops the whole list: a later append is a fresh pending set */
+        mmc_stop(&c);
+        CHECK(mmc_append(&c, s1, l1, 3, 0) == MMC_OK && c.n == 3 && c.state == MMC_PENDING);
+        /* the 60 second span */
+        const uint32_t far[] = {70000};
+        CHECK(mmc_append(&a, far, el, 1, 0) == MMC_BAD_TIME);
+    }
     if (failures) return 1;
     printf("mouthcue core ok\n");
     return 0;

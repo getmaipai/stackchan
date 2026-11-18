@@ -124,6 +124,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/model-previews/joints.gif` (1553): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/overview.md` (48): How MaiPai for StackChan fits together
 - `docs/dev/releases/b13.md` (45): Build report: b13
+- `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
 - `docs/dev/screens-contact-sheets.md` (38): Screens contact sheets
 - `docs/dev/second-robot-adapter.md` (16): Adding a second robot behind the seam
@@ -247,6 +248,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/link-key-exchange.md` (58): Link key exchange for the encrypted link (design, 2026-11-18)
+- `docs/plan/mouth-cues-append.md` (16): Mouth cues for replies of more than one sentence
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
@@ -328,6 +330,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/with-maipai-home.md` (55): Use MaiPai Home as the brain
 - `firmware/.gitkeep` (0): no header
 - `firmware/BASE` (5): The pinned upstream bases that firmware/patches/ORDER applies onto (read by scripts/fw-rebuild.sh).
+- `firmware/configs/sdkconfig.aec.defaults` (4): Talk over the robot (patches SF15 and SF29): microphone 1 plus the speaker loopback, the echo canceller on the
 - `firmware/configs/sdkconfig.bench.defaults` (3): no header
 - `firmware/configs/sdkconfig.gate.defaults` (2): Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
 - `firmware/configs/sdkconfig.linkpsk.defaults` (2): Encrypted link, step 1 (patch SF21): the curve calls and key storage with the bench check self.bench.link_self
@@ -487,7 +490,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (283): no header
+- `firmware/patches/ORDER` (284): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -543,6 +546,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF26-bench-slot-firstrun-tool.patch` (163): Bench only. self.bench.mic3_check takes a slot (1 to 3) that changes the TDM slot read as the second channel a
 - `firmware/patches/SF27-bench-servo-rate-firstrun-loop.patch` (238): Bench tools and cleanup. The other TDM slots can be read only by a bench build (a release image reads slot 1, 
 - `firmware/patches/SF28-servo-clock-real-time.patch` (135): The servo animation advances by the real time since its last step (20 to 50 ms) instead of a fixed 20 ms, so a
+- `firmware/patches/SF29-talk-over-aec-and-barge-in.patch` (275): Talking over the robot, wired (off by default, CONFIG_MAIPAI_TALK_OVER_AEC, needs CONFIG_MAIPAI_TALK_OVER): th
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -644,7 +648,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (4848): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (4900): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
 - `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
@@ -888,7 +892,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/person_tracker.py` (694): Find the person, then the face, then follow (owner design, approved 2026-11-12).
 - `host/maipai_body/bodies/stackchan/power_idle.py` (141): StackChan stays still while charging or not upright (owner requests 2026-10-20, 2026-10-21).
 - `host/maipai_body/bodies/stackchan/presence_watch.py` (302): The small, pure parts of idle face watching: the per-minute camera line and the greeting edge.
-- `host/maipai_body/bodies/stackchan/privacy.py` (571): StackChan mute, vision off and full quiet, the host side (firmware patches 105 to 108,
+- `host/maipai_body/bodies/stackchan/privacy.py` (576): StackChan mute, vision off and full quiet, the host side (firmware patches 105 to 108,
 - `host/maipai_body/bodies/stackchan/profile.py` (125): StackChan capabilities and soft limits from the firmware research note."""
 - `host/maipai_body/bodies/stackchan/reactions.py` (209): How the robot reacts to being touched, shaken and praised (owner requests 2026-10-21).
 - `host/maipai_body/bodies/stackchan/renderer.py` (118): StackChan expression renderer: avatar frames, bounded head poses and ring states."""
@@ -907,7 +911,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/talk_games.py` (429): ruff: noqa: E501
 - `host/maipai_body/bodies/stackchan/timers.py` (332): On-unit timers and alarms, the host side (firmware patches 090 to 094).
 - `host/maipai_body/bodies/stackchan/tool_parity.py` (30): The unit tool names the host sends that no firmware patch defines, each with a stated status.
-- `host/maipai_body/bodies/stackchan/turn.py` (2213): StackChan audio turn bridge to the existing hub speech clients."""
+- `host/maipai_body/bodies/stackchan/turn.py` (2279): StackChan audio turn bridge to the existing hub speech clients."""
 - `host/maipai_body/bodies/stackchan/updater.py` (297): Flasher and updater: check a signed release, then flash it or push it over the air.
 - `host/maipai_body/bodies/stackchan/uplink_stats.py` (108): Uplink statistics the self-test can read: hearing (frames, bytes, peak)
 - `host/maipai_body/bodies/stackchan/vision_bridge.py` (423): Host-side StackChan camera tracking and consent-gated face recognition."""
@@ -920,7 +924,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (224): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 - `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (633): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1760): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1761): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
@@ -1667,7 +1671,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/mic3_core_test.c` (73): Host test for the MIC3 bench measurement (patch SF15). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/mood_core_test.c` (129): Host test for the mood core (patch M01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/motion_limit_core_test.c` (234): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
-- `host/tests/firmware/mouthcue_core_test.c` (84): Host test for the mouth cue player (patch SF10). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>. 
+- `host/tests/firmware/mouthcue_core_test.c` (142): Host test for the mouth cue player (patch SF10). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/music_core_test.c` (168): Host test for the on-unit music features (patch 100): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/music_mood_test.c` (54): Host test for the music mood faces (patch V03): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/nettest_core_test.c` (151): Host test for the network test core (patch U04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
@@ -1954,7 +1958,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_motor_health.py` (239): MOTOR-RECOVER-01, the watchdog and the recovery ladder: cycle the mode, read the
 - `host/tests/test_motor_run_loop.py` (317): MOTOR-RECOVER-01 and THERMAL-01 on the run loop: the presence tick drives the
 - `host/tests/test_mouth_cues.py` (44): Host-computed mouth cues: 4 to 11 updates a second while speaking, smooth, closed at the end."""
-- `host/tests/test_mouth_cues_wiring.py` (83): The reply's mouth cues go to the unit (self.face.mouth_cues) before the first audio frame, within the unit's l
+- `host/tests/test_mouth_cues_wiring.py` (120): The reply's mouth cues go to the unit (self.face.mouth_cues) before the first audio frame, within the unit's l
 - `host/tests/test_move_scene_05.py` (118): MOVE-SCENE-05: after the body is handled, who is near and the light and camera are re-checked."""
 - `host/tests/test_moves.py` (387): MOVES-01: the recorded moves package.
 - `host/tests/test_moves_catalog.py` (240): MOVES-01 (amended): both datasets, the clip index, the age allow-list, the envelope report."""
@@ -1973,6 +1977,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_offline_clips.py` (261): G4b: the offline clip manifest, bundle, composition and playback.
 - `host/tests/test_offline_clips_unit.py` (58): G4b: the offline clips against real rendered audio and the real unit.
 - `host/tests/test_offline_clips_wiring.py` (269): G4b: the clips wired in - the spoken pairing code, the reconnect clip in
+- `host/tests/test_other_unit_timers.py` (55): A second unit's timer events reach that unit's own timer service, not the first unit's."""
 - `host/tests/test_overlay_preview_parity.py` (188): ruff: noqa: E501
 - `host/tests/test_own_llm.py` (124): no header
 - `host/tests/test_own_model_defaults.py` (69): Own-model mode works with only a model address, and /v1 is never doubled."""
