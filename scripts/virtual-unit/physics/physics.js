@@ -214,6 +214,7 @@ async function dryRun(api, report) {
   step('put down: free again within 6 s', r.ok, `limiter ${r.s.motion.state}, carried ${r.s.hw.carried}, after ${r.ms} ms`);
   const m2 = await call('self.robot.set_head_angles', {yaw: 0, pitch: 10});
   step('head moves work again', m2.ok === true, JSON.stringify(m2));
+  api.reset();   // the hand may have slid the robot along the table: put it back where it started
   return out;
 }
 window.startPhysics = startPhysics;
