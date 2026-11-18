@@ -12,7 +12,15 @@ from maipai_body.bodies.reachy_mini.client import ReachyMiniClient
 from maipai_body.bodies.reachy_mini.fake import FakeReachyMiniClient
 from maipai_body.bodies.reachy_mini.profile import REACHY_MINI_PROFILE
 
-pytest_plugins = ["tests.exit_guard"]
+
+@pytest.fixture(autouse=True)
+def _end_service_threads():
+    """A test that starts host service threads and never sets their stop event must not leave them running."""
+    yield
+    from maipai_body import service_threads
+
+    service_threads.stop_all(timeout=2.0)
+
 
 LIVE_HOST = "localhost"
 LIVE_PORT = 8000

@@ -639,7 +639,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (4847): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (4848): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
 - `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
@@ -895,7 +895,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/sight.py` (195): Honest answers to "can you see me?" and the picture questions when Home gave no description.
 - `host/maipai_body/bodies/stackchan/sleep_z.py` (33): Version-gated host wrapper for the future StackChan sleep Z tool."""
 - `host/maipai_body/bodies/stackchan/song_title.py` (127): Keeps the song title on the robot's face while the song plays (host side).
-- `host/maipai_body/bodies/stackchan/sounds.py` (562): The StackChan's own sounds, the host side (firmware patches 115 to 118).
+- `host/maipai_body/bodies/stackchan/sounds.py` (585): The StackChan's own sounds, the host side (firmware patches 115 to 118).
 - `host/maipai_body/bodies/stackchan/speaker_gaze.py` (119): Speaker gaze for StackChan (BOT-SC-GAZE-01): while someone is talking,
 - `host/maipai_body/bodies/stackchan/speech_backend.py` (35): Where a StackChan turn gets its speech-to-text, answer and text-to-speech (docs/plan/seam-refactor.md, step P3
 - `host/maipai_body/bodies/stackchan/stop_phrases.py` (40): A spoken "stop" heard while listening ends the turn on the robot, without asking the hub.
@@ -1094,7 +1094,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/presence/sleep_auto.py` (177): SLEEP-AUTO-01: dark and quiet means sleep, arrival wakes.
 - `host/maipai_body/presence/thermal.py` (189): THERMAL-01: the Compute Module's temperature and throttle flags drive the body's load.
 - `host/maipai_body/presence/touch.py` (89): Antenna touch detection from commanded and observed positions.
-- `host/maipai_body/remote_activity.py` (565): ruff: noqa: E501
+- `host/maipai_body/remote_activity.py` (564): ruff: noqa: E501
 - `host/maipai_body/remote_trust.py` (86): ruff: noqa: E501
 - `host/maipai_body/reply_tags.py` (264): ruff: noqa: E501
 - `host/maipai_body/robot/__init__.py` (15): Vendor-neutral robot object and the shared API vocabulary reader."""
@@ -1621,8 +1621,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/spec-vendor/spec/vocab/robot-api.json` (55): no header
 - `host/spec-vendor/spec/voice/fixtures/normalize-for-speech.json` (52): no header
 - `host/spec-vendor/spec/voice/py/normalize_for_speech.py` (482): Speech normalization, the Python twin of spec/voice/ts/normalizeForSpeech.ts
-- `host/tests/conftest.py` (91): Shared fixtures: the deterministic suite runs against the fake always, and
-- `host/tests/exit_guard.py` (31): Leave the test process without the interpreter's native shutdown when worker threads are still running.
+- `host/tests/conftest.py` (99): Shared fixtures: the deterministic suite runs against the fake always, and
 - `host/tests/eyes_fakes.py` (58): A pty standing in for the Reachy Eyes USB serial port.
 - `host/tests/firmware/apps_core_test.c` (341): Host test for the Apps wall, the Timers and Alarms apps and the tabbed Settings layout (patch UI16):
 - `host/tests/firmware/banner_core_test.c` (337): Host test for the banner row logic (patch N01): the queue, priorities, minimum display time, replace-in-place 
@@ -1838,7 +1837,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_entry_point.py` (28): The reachy_mini_apps entry point resolves to a real ReachyMiniApp.
 - `host/tests/test_envelope.py` (82): The envelope: what a goto or set_target is allowed to reach the daemon with."""
 - `host/tests/test_estop_recovery.py` (195): The lost-link stop latch clears by itself; the pressed one waits for a person."""
-- `host/tests/test_exit_guard.py` (42): The exit guard: a native abort during interpreter shutdown must not turn a green run into exit 134, and a red 
 - `host/tests/test_expression_cue_mapping.py` (97): The cue-to-primitive mapping (dev.md section 5's trigger column)."""
 - `host/tests/test_expression_engine.py` (274): EXPR-01's own acceptance: every primitive renders from its cue against a scripted source."""
 - `host/tests/test_expression_renderer.py` (103): RM-02: every primitive renders on the Reachy Mini profile, within its envelope."""
@@ -2015,7 +2013,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_selftest.py` (390): BOT-SELF-TEST-01: the per-part self-test runner and the StackChan checks."""
 - `host/tests/test_selftest_cli.py` (440): BOT-SELF-TEST-02: the command line that runs the robot's checks from a
 - `host/tests/test_selftest_wiring.py` (165): BOT-SELF-TEST-01: the live-service wiring of the StackChan self-test."""
-- `host/tests/test_service_startup_pin.py` (43): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
+- `host/tests/test_service_startup_pin.py` (57): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
 - `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
 - `host/tests/test_settings_ui.py` (426): ruff: noqa: E501
 - `host/tests/test_sf_patch_headers.py` (19): Public-readiness guard: the header lines of the safety patches (SF*) say what the patch does, with no review l

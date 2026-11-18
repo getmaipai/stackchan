@@ -28,7 +28,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from maipai_body import remote_trust, unit_remote
+from maipai_body import remote_trust, service_threads, unit_remote
 from maipai_body.hal.errors import BodyLost
 from maipai_body.i18n import normalize
 from maipai_body.remote_trust import gated_kind
@@ -547,8 +547,7 @@ class RemoteActivity:
             if self._thread is not None and self._thread.is_alive():
                 return
             self._stop.clear()
-            self._thread = threading.Thread(target=self._loop, name="remote-heartbeat", daemon=True)
-            self._thread.start()
+            self._thread = service_threads.start(self._loop, name="remote-heartbeat", stop=self._stop)
 
     def _loop(self) -> None:
         while not self._stop.wait(HEARTBEAT_S):

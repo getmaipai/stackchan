@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from maipai_body import wake_look as wake_look_mod
+from maipai_body import service_threads
 from maipai_body.bodies.stackchan.companion import DIAGNOSTIC_KINDS
 from maipai_body.bodies.stackchan.head_search import (
     AMBIENT_FACE_QUIET_S,
@@ -2761,6 +2762,7 @@ def _wire_sounds(voice, behavior: StackChanBehavior, stop_event: threading.Event
                 sounds.tick()
             except Exception:
                 logger.warning("sound tick failed", exc_info=True)
+        sounds.close()
 
     threading.Thread(target=ticks, name="stackchan-sound-ticks", daemon=True).start()
     return sounds
@@ -3745,7 +3747,7 @@ def _attach_motor_safety(client: ReachyMiniClient, stop_event: threading.Event):
         except Exception:
             logger.warning("safe exit failed", exc_info=True)
 
-    threading.Thread(target=safe_exit_when_stopped, name="motor-safe-exit", daemon=True).start()
+    service_threads.start(safe_exit_when_stopped, name="motor-safe-exit", stop=stop_event)
     return gate, health
 
 
@@ -3768,7 +3770,7 @@ def _attach_eyes(
         if close is not None:
             close()
 
-    threading.Thread(target=close_when_stopped, name="eyes-close", daemon=True).start()
+    service_threads.start(close_when_stopped, name="eyes-close", stop=stop_event)
     return tap, director
 
 
@@ -3900,14 +3902,12 @@ def _build_conversation_loop(
     loop.subscribe_view(director.on_view)
     alarm = _build_alarm_controller(loop, audio_playback, offline, people, lambda m: _send(m))
     loop.set_alarm_word_handler(alarm.on_spoken)
-    threading.Thread(
-        target=_alarm_backstop, args=(alarm, stop_event), name="alarm-backstop", daemon=True
-    ).start()
+    service_threads.start(_alarm_backstop, args=(alarm, stop_event), name="alarm-backstop", stop=stop_event)
     threading.Thread(target=print_sync.run, name="face-print-sync", daemon=True).start()
     # FOLLOWUP-01: the hub's roster fills `people` (refresh now, every 30 s, and
     # right after a command-channel drop); a stale roster clears to unknown.
     roster_poller = RosterPoller(people, hub_credentials, stop_event)
-    threading.Thread(target=roster_poller.run, name="roster-poller", daemon=True).start()
+    service_threads.start(roster_poller.run, name="roster-poller", stop=stop_event)
 
     from maipai_body.link.channel import CommandChannel
 
@@ -4471,7 +4471,7 @@ def _start_robot_checkin(voice: Any, behavior: Any, link: LinkLifecycle, stop_ev
     reporter = RobotCheckin(
         _hub_credentials_reader(link, ""), stop_event, collect, facts, connected
     )
-    threading.Thread(target=reporter.run, name="robot-checkin", daemon=True).start()
+    service_threads.start(reporter.run, name="robot-checkin", stop=stop_event)
 
 
 def _hub_credentials_reader(link: LinkLifecycle, base_url: str) -> Callable[[], tuple[str, str]]:
@@ -4676,7 +4676,7 @@ def run_paired_body(
             state_snapshot,
             state_change_event,
         )
-        threading.Thread(target=reporter.run, name="robot-state-reporter", daemon=True).start()
+        service_threads.start(reporter.run, name="robot-state-reporter", stop=stop_event)
 
         build_result: list[ConversationLoop | Exception] = []
 
@@ -4729,6 +4729,7 @@ def run_paired_body(
         _log_state(_STATE_BODY_LOST)
     finally:
         _log_state(_STATE_STOPPED)
+        service_threads.stop_all()
 
 
 def _alarm_control(behavior):

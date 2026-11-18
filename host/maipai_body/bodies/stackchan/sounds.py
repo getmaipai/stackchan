@@ -163,10 +163,13 @@ class _Worker:
         self._jobs: queue.Queue[Callable[[], None]] = queue.Queue(maxsize=32)
         self._thread = threading.Thread(target=self._run, name="stackchan-sounds", daemon=True)
         self._started = False
+        self._closed = False
         self._lock = threading.Lock()
 
     def submit(self, job: Callable[[], None]) -> None:
         with self._lock:
+            if self._closed:
+                return
             if not self._started:
                 self._started = True
                 self._thread.start()
@@ -175,9 +178,23 @@ class _Worker:
         except queue.Full:
             logger.info("a sound request was dropped: the queue is full")
 
+    def close(self, timeout: float = 2.0) -> None:
+        """Stop the thread after the job it is running; queued jobs are dropped. Safe to call twice."""
+        self._closed = True
+        try:
+            self._jobs.put_nowait(lambda: None)  # wakes a thread that is waiting for work
+        except queue.Full:
+            pass
+        with self._lock:
+            started = self._started
+        if started and self._thread is not threading.current_thread():
+            self._thread.join(timeout)
+
     def _run(self) -> None:
-        while True:
+        while not self._closed:
             job = self._jobs.get()
+            if self._closed:
+                return
             try:
                 job()
             except Exception:
@@ -212,7 +229,8 @@ class SoundService:
         self._night = night
         self._quiet_minutes = quiet_minutes
         self.battery_low = battery_low
-        self._run_async = run_async or _Worker().submit
+        self._worker = _Worker() if run_async is None else None
+        self._run_async = run_async or self._worker.submit
         self._clock = clock
         self._sleep = sleep
         self._lock = threading.Lock()
@@ -448,6 +466,11 @@ class SoundService:
         """An apology is about to be spoken: the error earcon comes first (at night it is the only
         sound, the apology itself being skipped by the quiet rules elsewhere)."""
         self.play_later("exclamation")
+
+    def close(self) -> None:
+        """Stop the worker thread (service shutdown). A service built with an injected runner has none."""
+        if self._worker is not None:
+            self._worker.close()
 
     def tick(self) -> None:
         """About once a second: the low battery sound and line, and the policy when it changed."""

@@ -41,3 +41,17 @@ def test_the_service_starts_the_same_background_threads():
     line = next((ln for ln in result.stdout.splitlines() if ln.startswith("THREADS ")), "")
     assert line, result.stdout[-500:] + result.stderr[-500:]
     assert json.loads(line[len("THREADS "):]) == EXPECTED
+
+
+PROBE_STOP = PROBE.replace(
+    'stop.set()\n',
+    'stop.set()\ntime.sleep(5)\nprint("LEFT " + json.dumps(sorted(t.name for t in threading.enumerate() if t.name != "MainThread")))\n',
+)
+
+
+def test_no_service_thread_remains_after_stop():
+    result = subprocess.run([sys.executable, "-c", PROBE_STOP], capture_output=True, text=True, cwd=HOST, timeout=90)
+    line = next((ln for ln in result.stdout.splitlines() if ln.startswith("LEFT ")), "")
+    assert line, result.stdout[-500:] + result.stderr[-500:]
+    left = [n for n in json.loads(line[len("LEFT "):]) if n != "Thread-1"]
+    assert left == [], f"threads still running after stop: {left}"
