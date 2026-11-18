@@ -13,7 +13,7 @@ src = (tree / "firmware/main/hal/board/stackchan_display.cc").read_text()
 def func(sig: str) -> str:
     """One function by brace matching, from its signature to its closing brace."""
     a = src.index(sig)
-    depth, seen = 0, False
+    depth = 0
     for j in range(src.index("{", a), len(src)):
         depth += src[j] == "{"
         depth -= src[j] == "}"

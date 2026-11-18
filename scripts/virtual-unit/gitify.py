@@ -2,7 +2,6 @@
 """Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before every file diff, and `new file mode`
 for a file made from /dev/null. Usage: gitify.py FILE.patch...   (safe to run again)
 Placement: host-side development tool. Upstream: none."""
-import re
 import sys
 from pathlib import Path
 

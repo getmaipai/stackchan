@@ -28,7 +28,7 @@ def _record(n, u, kind, result, text=""):
 
 @tool("self.firmware.update")
 def firmware_update(u, a):
-    n = _net(u)
+    _net(u)  # makes the state
     return {"started": False, "reason": "update_not_available"}
 
 

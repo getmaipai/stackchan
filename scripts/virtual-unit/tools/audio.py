@@ -20,7 +20,7 @@ def _quiet(s):
     p = s["policy"]
     if p["dark"]:
         return True
-    minute = (u_minute := s.get("minute", 720))
+    minute = s.get("minute", 720)
     start, end = p["quiet_from"], p["quiet_to"]
     if start < 0 or end < 0 or start == end:
         start, end = 1320, 420

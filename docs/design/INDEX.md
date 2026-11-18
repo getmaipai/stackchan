@@ -10,7 +10,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `.githooks/commit-msg` (2): no header
 - `.githooks/pre-commit` (2): no header
 - `.github/FUNDING.yml` (1): no header
-- `.gitignore` (9): no header
+- `.gitignore` (10): no header
 - `.gitleaks.toml` (19): Source-level secret rules for this repo. The image-level check is scripts/check-no-keys.py (patch 156).
 - `AGENTS.md` (56): MaiPai StackChan
 - `CLAUDE.md` (1): no header
@@ -1111,6 +1111,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/selftest/core.py` (113): BOT-SELF-TEST-01: the small check runner every per-part self-test shares.
 - `host/maipai_body/selftest/stackchan.py` (181): BOT-SELF-TEST-01: the StackChan's seven part checks, one per part.
 - `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
+- `host/maipai_body/service_threads.py` (48): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (62): Settings keys shared by body settings consumers."""
 - `host/maipai_body/settings_page.py` (912): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (182): ruff: noqa: E501
@@ -1622,7 +1623,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/spec-vendor/spec/vocab/robot-api.json` (55): no header
 - `host/spec-vendor/spec/voice/fixtures/normalize-for-speech.json` (52): no header
 - `host/spec-vendor/spec/voice/py/normalize_for_speech.py` (482): Speech normalization, the Python twin of spec/voice/ts/normalizeForSpeech.ts
-- `host/tests/conftest.py` (99): Shared fixtures: the deterministic suite runs against the fake always, and
+- `host/tests/conftest.py` (122): Shared fixtures: the deterministic suite runs against the fake always, and
 - `host/tests/eyes_fakes.py` (58): A pty standing in for the Reachy Eyes USB serial port.
 - `host/tests/firmware/apps_core_test.c` (341): Host test for the Apps wall, the Timers and Alarms apps and the tabbed Settings layout (patch UI16):
 - `host/tests/firmware/banner_core_test.c` (337): Host test for the banner row logic (patch N01): the queue, priorities, minimum display time, replace-in-place 
@@ -1996,6 +1997,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_release_report.py` (56): scripts/release-report.py: images against the slot rule, memory only from a real log, never invented."""
 - `host/tests/test_remote_activity.py` (370): ruff: noqa: E501
 - `host/tests/test_remote_trust.py` (215): ruff: noqa: E501
+- `host/tests/test_renderer_stamp.py` (29): The renderer is rebuilt when its inputs changed: a stale binary draws old words and fails the goldens for no r
 - `host/tests/test_reply_stream_hardening.py` (169): ruff: noqa: E501
 - `host/tests/test_reply_streaming.py` (332): Streamed replies: the first sentence is spoken while the rest is still being written."""
 - `host/tests/test_reply_tags.py` (369): ruff: noqa: E501
@@ -2015,6 +2017,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_selftest_cli.py` (440): BOT-SELF-TEST-02: the command line that runs the robot's checks from a
 - `host/tests/test_selftest_wiring.py` (165): BOT-SELF-TEST-01: the live-service wiring of the StackChan self-test."""
 - `host/tests/test_service_startup_pin.py` (57): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
+- `host/tests/test_service_threads.py` (37): Every host service thread ends when its stop event is set (or `stop_all` runs); none of ours remain."""
 - `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
 - `host/tests/test_settings_ui.py` (426): ruff: noqa: E501
 - `host/tests/test_sf_patch_headers.py` (19): Public-readiness guard: the header lines of the safety patches (SF*) say what the patch does, with no review l
@@ -2178,6 +2181,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_update_header.py` (147): The signed update header: version, build number and image hash in 64 bytes, signed with Ed25519; the unit refu
 - `host/tests/test_update_header_core.py` (45): The unit's update header core (firmware patch SF25) against the shared vectors of the app track (host/tests/fi
 - `host/tests/test_virtual_unit.py` (273): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
+- `host/tests/test_virtual_unit_fidelity.py` (56): Handlers the virtual unit shares with the unit's own cores, checked against the core's rules (docs/dev/virtual
 - `host/tests/test_virtual_unit_hw.py` (189): ruff: noqa: E501
 - `host/tests/test_virtual_unit_parity.py` (37): Tool parity: every firmware tool is either simulated or a named gap. Unsimulated tools xfail (strict), so this
 - `host/tests/test_virtual_unit_physics.py` (210): ruff: noqa: E501
@@ -2294,7 +2298,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/spelling-check.py` (98): fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere).
 - `scripts/stackchan-egress-proof.sh` (66): no header
 - `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.
-- `scripts/test-all.sh` (9): the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. Run 
+- `scripts/test-all.sh` (10): the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. Run 
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/build-face.sh` (19): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (30): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
@@ -2303,7 +2307,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
-- `scripts/virtual-unit/gitify.py` (29): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
+- `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
 - `scripts/virtual-unit/hw.py` (167): The virtual unit's body: power button, USB-C cable, Wi-Fi, battery, carried and orientation, and what they do 
 - `scripts/virtual-unit/listen_guard.c` (22): Harness for the listening guard (patch SF03): runs the guard loop of Application::Run once a second through th
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
@@ -2338,7 +2342,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/scenarios.py` (206): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/tools/__init__.py` (15): Tool handlers for the virtual unit, one module per group. A handler is registered with @tool("self.x.y") and g
-- `scripts/virtual-unit/tools/apps.py` (205): Clock, game, lock, and timer tools for the virtual unit."""
+- `scripts/virtual-unit/tools/apps.py` (203): Clock, game, lock, and timer tools for the virtual unit."""
 - `scripts/virtual-unit/tools/audio.py` (277): Audio, listening, music and unit utility tools for the virtual unit."""
 - `scripts/virtual-unit/tools/banner_screen.py` (32): Virtual handlers for banner face reports and screen level reads."""
 - `scripts/virtual-unit/tools/face.py` (140): Virtual behavior for face bench and decorator tools."""
