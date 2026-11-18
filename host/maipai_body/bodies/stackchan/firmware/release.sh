@@ -70,7 +70,7 @@ cp "$RECIPE_OUT/generated_assets.bin" "$RECIPE_OUT/ota_data_initial.bin" "$OUT/"
 cp "$BUILD_DIR/bootloader/bootloader.bin" "$BUILD_DIR/partition_table/partition-table.bin" "$OUT/"
 strings "$OUT/stack-chan-maipai.bin" > "$OUT/image-strings.txt"
 bash "$ROOT/scripts/stackchan-no-third-party.sh" --strings "$OUT/image-strings.txt"
-(cd "$ROOT/body" && MAIPAI_SPEC_DIR="$(bash "$ROOT/scripts/spec-dir.sh")" uv run python -m maipai_body.bodies.stackchan.firmware.flash_manifest build \
+(cd "$ROOT/host" && MAIPAI_SPEC_DIR="$(bash "$ROOT/scripts/spec-dir.sh")" uv run python -m maipai_body.bodies.stackchan.firmware.flash_manifest build \
   --build-dir "$BUILD_DIR" --release-dir "$OUT" --version "$VERSION" \
   --date "$BUILD_DATE" --key "$SIGNING_KEY_PATH" --out "$OUT/flash-manifest.json")
 python3 - "$HERE" "$ROOT" "$BUILD_DATE" "$OUT/manifest.json" <<'PY'

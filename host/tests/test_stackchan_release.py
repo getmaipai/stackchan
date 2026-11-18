@@ -200,3 +200,13 @@ class StackChanReleaseTests(unittest.TestCase):
         source = server.read_text()
         self.assertNotIn('"firmware"', source)
         self.assertNotIn('"firmware.url"', source)
+
+
+def test_release_script_points_at_the_host_folder_that_exists():
+    """release.sh used `$ROOT/body`, a folder that is not in the repository."""
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "maipai_body/bodies/stackchan/firmware/release.sh"
+    ).read_text()
+    assert '"$ROOT/body"' not in script
+    assert (Path(__file__).resolve().parents[2] / "host").is_dir()
