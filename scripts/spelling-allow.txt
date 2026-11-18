@@ -59,3 +59,4 @@ host/maipai_body/i18n_reviewed/* :: *
 
 # Bench notes copied as written by the bench agent (docs/dev/bench-evidence): the spelling rule does not apply to another author's evidence.
 docs/dev/bench-evidence/* :: *
+docs-site/vendor/* :: *
