@@ -1,0 +1,2 @@
+# Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
+CONFIG_MAIPAI_MEMORY_LINE=y

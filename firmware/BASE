@@ -1,0 +1,5 @@
+# The pinned upstream bases that firmware/patches/ORDER applies onto (read by scripts/fw-rebuild.sh).
+outer_repository=https://github.com/m5stack/StackChan
+outer_commit=28b9f0c8bd6acd81cb3c70f1a93c3e373b39d400
+# The nested tree is fetched by the outer repo's own firmware/fetch_repos.py (repos.json, branch v2.5.2), then reset to this commit.
+nested_commit=49b4380b3faa0ceadd28a3e78aaf0f311c46c57e

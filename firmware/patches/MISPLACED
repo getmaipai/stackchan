@@ -1,0 +1,6 @@
+# Patches stored with hunks in the wrong place. Each is repaired by a later patch, so the tree is only right once the repairing patch has
+# applied. scripts/fw-rebuild.sh prints this list and skips its compile step at these. Format: patch | repaired by | what is wrong in between.
+# Fix the patch itself when it is next touched, then delete its row.
+075-offline-mode.patch | B01-xiaozhi-base-adapt.patch | a closing brace sits after the first comment of ContinueOpenAudioChannel; the tree does not compile
+106-privacy-core.patch | B01-xiaozhi-base-adapt.patch | guards sit after a return in the codec Read and Write; the privacy state is wired in the wrong function
+107-mic-guards.patch | B01-xiaozhi-base-adapt.patch | a block sits at the top of Application::Schedule instead of SetListeningMode
