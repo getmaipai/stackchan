@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 128,
+ "count": 134,
  "tools": {
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
@@ -57,7 +57,10 @@
   "self.listen.test": "TB01-listening-cues.patch",
   "self.lock.bench_key": "LK02-lock-state-tools-and-lock-screen.patch",
   "self.lock.bench_touch": "LK02-lock-state-tools-and-lock-screen.patch",
+  "self.lock.clear": "LK02-lock-state-tools-and-lock-screen.patch",
+  "self.lock.config": "LK02-lock-state-tools-and-lock-screen.patch",
   "self.lock.now": "LK02-lock-state-tools-and-lock-screen.patch",
+  "self.lock.set": "LK02-lock-state-tools-and-lock-screen.patch",
   "self.lock.status": "LK02-lock-state-tools-and-lock-screen.patch",
   "self.look.bench_address": "S14-seek-task-tools-and-setting.patch",
   "self.look.calibrate": "S14-seek-task-tools-and-setting.patch",
@@ -129,8 +132,20 @@
   "self.timer.snooze": "092-timer-tools.patch",
   "self.timer.stop": "092-timer-tools.patch",
   "self.version.get": "U05-version-screen.patch",
-  "self.wifi.list_saved": "023-wifi-saved-networks-tools.patch"
+  "self.wifi.add": "023-wifi-saved-networks-tools.patch",
+  "self.wifi.forget": "023-wifi-saved-networks-tools.patch",
+  "self.wifi.list_saved": "023-wifi-saved-networks-tools.patch",
+  "self.wifi.switch": "023-wifi-saved-networks-tools.patch"
  },
+ "user_only": [
+  "self.lock.clear",
+  "self.lock.config",
+  "self.lock.set",
+  "self.tailnet.set",
+  "self.wifi.add",
+  "self.wifi.forget",
+  "self.wifi.switch"
+ ],
  "arguments": {
   "self.audio.hourly_chime": {
    "enabled": "integer",
@@ -300,7 +315,17 @@
    "key": "string"
   },
   "self.lock.bench_touch": {},
+  "self.lock.clear": {
+   "current": "string"
+  },
+  "self.lock.config": {
+   "auto_minutes": "integer"
+  },
   "self.lock.now": {},
+  "self.lock.set": {
+   "code": "string",
+   "current": "string"
+  },
   "self.lock.status": {},
   "self.look.bench_address": {},
   "self.look.calibrate": {
@@ -507,6 +532,16 @@
   },
   "self.timer.stop": {},
   "self.version.get": {},
-  "self.wifi.list_saved": {}
+  "self.wifi.add": {
+   "ssid": "string",
+   "password": "string"
+  },
+  "self.wifi.forget": {
+   "index": "integer"
+  },
+  "self.wifi.list_saved": {},
+  "self.wifi.switch": {
+   "index": "integer"
+  }
  }
 }

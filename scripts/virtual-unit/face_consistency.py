@@ -5,7 +5,7 @@ Usage: face_consistency.py [--table] [--update-known]   prints violations (exit 
 Measured on the real LVGL face through the virtual unit. host/tests/golden/face-known.json lists violations that exist today, each with the reason; a fixed one must be removed
 from that file (the check says so), and a new one fails. Rules (from the 2026-11-18 review): the strongest color channel of the brightest face pixel is full (240+; emotion tints are allowed, a dim face is not);
 a face that is not tired or asleep has no gray fill (pixels 100..220 stay under 12 percent of the lit ones); a mouth, when the style has one,
-is at least 30 px wide; no stroke is 2 px or thinner (a lit pixel whose horizontal and vertical runs are both 2 or less).
+is at least 30 px wide; no stroke is 2 px or thinner (more than 12 lit pixels whose horizontal and vertical runs are both 2 or less).
 Placement: host-side development tool. Upstream: none."""
 import importlib.util
 import json
@@ -19,6 +19,7 @@ vunit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(vunit)
 
 STYLES = ["big_eyes", "eyes_only", "stock", "classic", "minimal"]
+HAIRLINE_ONLY = ["closing", "sleeping"]  # resting closed eyes: only the stroke rule applies
 EMOTIONS = ["neutral", "happy", "sad", "angry", "doubtful", "surprised", "sleepy", "love", "content"]
 MOUTH_ZONE = (100, 140, 220, 190)  # x0 y0 x1 y1: the mouth center sits at y 162 in every style
 KNOWN_FILE = HERE.parents[1] / "host" / "tests" / "golden" / "face-known.json"
@@ -62,7 +63,7 @@ def main() -> int:
     found: dict[str, str] = {}
     with vunit.VirtualUnit() as u:
         for style in STYLES:
-            for emo in EMOTIONS:
+            for emo in EMOTIONS + HAIRLINE_ONLY:
                 u.raw(f"style {style}")
                 u.call("self.face.bench_emotion", {"emotion": emo})
                 u.advance(1800)
@@ -70,11 +71,15 @@ def main() -> int:
                 key = f"{style}/{emo}"
                 if table:
                     print(key, m)
+                if emo in HAIRLINE_ONLY:
+                    if m["thin_px"] > 12:
+                        found[key + ":hairline"] = f"{m['thin_px']} pixels of a 2 px stroke or thinner"
+                    continue
                 if emo != "sleepy" and m["bright"] < 240:  # sleepy is dim gray by design (owner default, 2026-11-17)
                     found[key + ":not-white"] = f"brightest pixel {m['bright']}"
                 if emo != "sleepy" and m["gray_pct"] > 12:
                     found[key + ":gray"] = f"{m['gray_pct']} percent gray"
-                if m["thin_px"] > 0:
+                if m["thin_px"] > 12:  # a few stray anti-alias pixels move with the gaze; a stroke is longer
                     found[key + ":hairline"] = f"{m['thin_px']} pixels of a 2 px stroke or thinner"
                 if style != "eyes_only" and emo not in ("sleepy", "surprised") and m["mouth_w"] < 30:
                     found[key + ":mouth"] = f"mouth {m['mouth_w']} px wide (under 30)"

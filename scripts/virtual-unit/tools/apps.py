@@ -107,7 +107,7 @@ def game_install(u,args):
     return {"ok":False,"error":"The pack data is invalid. Send a valid game pack."}
 
 @tool("self.lock.status")
-def lock_status(u,args): a=app(u); return {"has_code":a["code"] is not None,"locked":a["locked"],"auto_minutes":0}
+def lock_status(u,args): a=app(u); return {"has_code":a["code"] is not None,"locked":a["locked"],"auto_minutes":a.get("auto_minutes",0)}
 @tool("self.lock.now")
 def lock_now(u,args):
     a=app(u)

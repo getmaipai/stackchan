@@ -49,6 +49,7 @@ class VirtualUnit:
         schema = json.loads((ROOT / "schema" / "tools.json").read_text())
         self.tool_names = sorted(schema["tools"])
         self.tool_args: dict[str, dict[str, str]] = schema.get("arguments", {})
+        self.user_only: list[str] = schema.get("user_only", [])
         self.now_ms = 0
         self.output: list[str] = []
         self.state: dict = {}  # per group state for tools/*.py handlers
@@ -195,8 +196,10 @@ class VirtualUnit:
             return {"ok": True}
         return {"isError": True, "text": f"{name} is not simulated yet; the tool exists in the firmware, the virtual unit has no behavior for it"}
 
-    def tools_list(self) -> list[dict]:
-        return [{"name": n, "inputSchema": {"type": "object", "properties": {k: {"type": t} for k, t in self.tool_args.get(n, {}).items()}}} for n in self.tool_names]
+    def tools_list(self, for_model: bool = False) -> list[dict]:
+        """for_model=True hides the user-only tools, as the unit's list does for the model; a call by name still answers."""
+        hidden = set(self.user_only) if for_model else set()
+        return [{"name": n, "inputSchema": {"type": "object", "properties": {k: {"type": t} for k, t in self.tool_args.get(n, {}).items()}}} for n in self.tool_names if n not in hidden]
 
 
 def serve() -> int:
@@ -207,7 +210,7 @@ def serve() -> int:
             if method == "initialize":
                 result = {"protocolVersion": "2024-11-05", "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "StackChan", "version": "virtual"}}
             elif method == "tools/list":
-                result = {"tools": u.tools_list()}
+                result = {"tools": u.tools_list(for_model=True)}  # as the unit lists them for the model
             elif method == "tools/call":
                 out = u.call(params.get("name", ""), params.get("arguments", {}))
                 result = {"content": [{"type": "text", "text": json.dumps(out)}], **({"isError": True} if out.get("isError") else {})}

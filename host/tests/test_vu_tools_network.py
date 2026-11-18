@@ -20,12 +20,27 @@ def test_update_network_test_and_version_shapes():
         assert set(u.call("self.version.get")) >= {"ok", "version", "tag", "image", "slot", "uptime_s"}
 
 
-def test_wifi_list_saved_and_removed_tools():
+def test_wifi_tools_are_user_only_and_refuse_while_locked():
     with vunit.VirtualUnit() as u:
         assert u.call("self.wifi.list_saved") == {"result": []}
-        u.state.setdefault("network", {})  # the saved list is seeded by a scenario, not by a tool
-        for name in ("self.wifi.add", "self.wifi.forget", "self.wifi.switch"):
-            assert u.call(name, {})["isError"]  # removed by patch SF02
+        assert u.call("self.wifi.add", {"ssid": "Home", "password": "x"}) == {"ok": True}
+        assert u.call("self.wifi.list_saved") == {"result": [{"index": 0, "ssid": "Home"}]}
+        names = [t["name"] for t in u.tools_list(for_model=True)]
+        assert "self.wifi.add" not in names and "self.wifi.list_saved" in names  # hidden from the model, answers by name
+        u.state["apps"]["locked"] = True
+        assert u.call("self.wifi.forget", {"index": 0}) == {"ok": False}  # patch SF02: a locked unit keeps its networks
+        u.state["apps"]["locked"] = False
+        assert u.call("self.wifi.forget", {"index": 0}) == {"ok": True}
+
+
+def test_lock_set_clear_config_reasons():
+    with vunit.VirtualUnit() as u:
+        assert u.call("self.lock.set", {"code": "12"})["reason"] == "bad_code"
+        assert u.call("self.lock.set", {"code": "1234"}) == {"ok": True}
+        assert u.call("self.lock.set", {"code": "5678"})["reason"] == "current_needed"
+        assert u.call("self.lock.set", {"code": "5678", "current": "0000"})["reason"] == "wrong_current"
+        assert u.call("self.lock.config", {"auto_minutes": 5}) == {"ok": True}
+        assert u.call("self.lock.clear", {"current": "1234"}) == {"ok": True}
 
 
 def test_pack_transfer_and_refusals():

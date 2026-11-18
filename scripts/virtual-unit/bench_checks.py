@@ -5,6 +5,7 @@ Each scenario is labeled by what it proves: "rule" (the unit's own C rule, compi
 "screen" (the unit's own drawing code). None of them proves what the unit does: the last line of each says what only the unit can show.
 Placement: host-side development tool. Upstream: none."""
 import importlib.util
+import re
 import subprocess
 import sys
 import tempfile
@@ -46,32 +47,36 @@ def update_trial():
 
 
 def listen_cut():
-    """Check 3: the state guard (patches 068 and L03) returns Listening to idle after 8 s counted from entering Listening, whatever is said."""
-    import re
-    # the limit comes from the patch text, so a changed patch changes the reading
-    GUARD_S = int(re.search(r"kFollowUpListenSeconds = (\d+);", (ROOT / "firmware" / "patches" / "L03-followup-window-8s.patch").read_text()).group(1))
-    def run(speech_s):
-        held, state = 0, "listening"  # wake at t=0; the guard ticks once a second and only the state change resets its count
-        for t in range(1, 31):
-            held += 1
-            if state == "listening" and held >= GUARD_S:
-                return t
-        return None
-    cut = run(12)
-    rows = [("12 s sentence after wake", f"listening ends at {cut} s", "listening ends at 8 s")]
-    return {"title": "A long sentence after wake", "kind": "model", "rows": rows,
-            "unit_only": "whether anything else resets the guard while the person speaks (speech does not change the state in the patch text, so a model says no); say a 12 s sentence after the wake word and read the log for 'State guard returning listening to idle after 8 seconds'."}
+    """Check 3: the listening guard (patches L03 and SF03) ends Listening after 8 s with no voice, and never later than 60 s after the entry."""
+    pats = ROOT / "firmware" / "patches"
+    follow = int(re.search(r"kFollowUpListenSeconds = (\d+);", (pats / "L03-followup-window-8s.patch").read_text()).group(1))
+    cap = int(re.search(r"kListenCapSeconds = (\d+);", (pats / "SF03-listening-guard-follows-voice.patch").read_text()).group(1))
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "maipai_listen_guard_core.h").write_text(patch_file("SF03-listening-guard-follows-voice.patch", "firmware/main/hal/maipai_listen_guard_core.h"))
+        exe = Path(tmp) / "guard"
+        subprocess.run(["cc", "-std=c99", "-Wall", "-Werror", f"-I{tmp}", str(HERE / "listen_guard.c"), "-o", str(exe)], check=True, capture_output=True)
+        def run(frm, until):
+            return subprocess.run([str(exe), str(follow), str(cap), str(frm), str(until)], capture_output=True, text=True).stdout.strip()
+        rows = [("no one speaks after wake", run(0, 0), "ends at 8"), ("a 12 s sentence from 1 s to 13 s", run(1, 13), "ends at 21"),
+                ("speech that never stops", run(1, 200), f"ends at {cap}")]
+    return {"title": "A long sentence after wake (SF03)", "kind": "rule", "rows": rows,
+            "unit_only": "that the unit feeds the rule real voice detection every second and the host still gets the whole sentence: say a 12 s sentence after the wake word, read the log for no 'State guard returning listening to idle' until 8 s after the last word, and that the reply starts (fw-voice-bench.py ROUNDS --gate)."}
 
 
 def wifi_setup():
     """Check 1: no saved network: the unit shows the Wi-Fi setup screen with the hotspot name and address."""
     with vunit.VirtualUnit() as u:
+        u.state.setdefault("network", {})["wifi"] = [{"ssid": "Home", "password": "x"}]
+        before = len(u.call("self.wifi.list_saved")["result"])
+        wiped = u.call("self.wifi.forget", {"index": 0})  # a user-only tool: hidden from the model, answers a call by name
         saved = u.call("self.wifi.list_saved")["result"]
-    rows = [("saved networks on a unit with none", f"{len(saved)}", "0")]
+        listed = [t["name"] for t in u.tools_list(for_model=True)]
+    rows = [("a saved network exists before the wipe", f"{before}", "1"), ("self.wifi.forget answers", str(wiped.get("ok")), "True"),
+            ("saved networks after the wipe", f"{len(saved)}", "0"), ("the model's tool list hides self.wifi.forget", str("self.wifi.forget" not in listed), "True")]
     golden = ROOT / "host" / "tests" / "golden" / "screens" / "cover-wifi-setup.png"
     rows.append(("setup screen frame exists (drawn by the unit's own cover code)", str(golden.exists()), "True"))
     return {"title": "Wi-Fi setup with no saved network", "kind": "screen", "rows": rows,
-            "unit_only": "whether the unit really reaches the setup branch with no saved network and shows the hotspot name and address (the review says the branch may never be reached): there is no tool to wipe Wi-Fi any more (add, forget and switch were removed by SF02): wipe it from the portal or by erasing the settings store, boot, snapshot the screen, compare with cover-wifi-setup.png."}
+            "unit_only": "whether the unit really reaches the setup branch with no saved network and shows the hotspot name and address (the review says the branch may never be reached): wipe Wi-Fi with self.wifi.forget, reboot, snapshot the screen, compare with cover-wifi-setup.png."}
 
 
 def main():

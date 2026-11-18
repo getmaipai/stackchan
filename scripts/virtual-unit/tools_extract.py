@@ -9,7 +9,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PAT = re.compile(r'AddTool\(\s*"(self\.[A-Za-z0-9_.]+)"')
+PAT = re.compile(r'Add(?:UserOnly)?Tool\(\s*"(self\.[A-Za-z0-9_.]+)"')
+USER_ONLY = re.compile(r'AddUserOnlyTool\(\s*"(self\.[A-Za-z0-9_.]+)"')
 PROP = re.compile(r'Property\("([A-Za-z0-9_]+)",\s*kPropertyType(String|Integer|Boolean)')
 KIND = {"String": "string", "Integer": "integer", "Boolean": "boolean"}
 
@@ -31,6 +32,7 @@ def extract_args() -> dict[str, dict[str, str]]:
 
 
 _ARGS: dict[str, dict[str, str]] = {}
+_USER: set[str] = set()
 
 
 def extract() -> dict[str, str]:
@@ -38,13 +40,18 @@ def extract() -> dict[str, str]:
     found: dict[str, str] = {}
     args: dict[str, dict[str, str]] = {}
     removed: set[str] = set()
-    for patch in sorted((ROOT / "firmware" / "patches").glob("*.patch")):
+    _USER.clear()
+    pdir = ROOT / "firmware" / "patches"
+    order = [pdir / n for n in (pdir / "ORDER").read_text().split() if (pdir / n).exists()]  # the order the patches apply in: later wins
+    for patch in order + [p for p in sorted(pdir.glob("*.patch")) if p not in order]:
         added, gone = [], []
         for line in patch.read_text(errors="replace").splitlines():
             if line.startswith("+") and not line.startswith("+++"):
                 added.append(line[1:])
             elif line.startswith("-") and not line.startswith("---"):
                 gone.append(line[1:])
+        _USER.update(USER_ONLY.findall("\n".join(added)))
+        _USER.difference_update(n for n in PAT.findall("\n".join(added)) if n not in USER_ONLY.findall("\n".join(added)))
         for name, props in properties("\n".join(added)).items():
             args.setdefault(name, props)
             _ARGS.setdefault(name, props)
@@ -65,6 +72,7 @@ def extract() -> dict[str, str]:
 def main() -> int:
     tools = extract()
     text = json.dumps({"source": "firmware/patches (AddTool lines)", "count": len(tools), "tools": tools,
+                       "user_only": sorted(n for n in _USER if n in tools),
                        "arguments": {k: _ARGS.get(k, {}) for k in tools}}, indent=1) + "\n"
     out = ROOT / "schema" / "tools.json"
     if "--check" in sys.argv:
