@@ -54,8 +54,8 @@ PARTS = [
     ('MainBody', 'head', 'shell', lambda p: (p[0] - 246.0, p[1] + 13.0, p[2])),
     ('ServoArm', 'head', 'neck', lambda p: (YAW_X + WALL - (p[0] - 327.73), p[1] + 123.05, 2 * PITCH_Z - p[2])),
     ('BearingFixture', 'head', 'neck', lambda p: (YAW_X - WALL + (p[0] - 327.73), p[1] + 123.05, p[2])),
-    ('LightGuideBar-A', 'head', 'light_bar', _bar(+1)),
-    ('LightGuideBar-B', 'head', 'light_bar', _bar(-1)),
+    ('LightGuideBar-A', 'bar_left', 'light_bar', _bar(+1)),   # each bar is its own node, so a view can light it along its length
+    ('LightGuideBar-B', 'bar_right', 'light_bar', _bar(-1)),
 ]
 
 MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. Colors are judged from product photos.
@@ -67,7 +67,7 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('core', (0.74, 0.74, 0.74, 1.0), 0.0, 0.6, None),
     ('glass', (0.004, 0.004, 0.005, 1.0), 0.0, 0.12, None),
     ('light_bar', (0.42, 0.70, 0.72, 1.0), 0.0, 0.35, None),
-    ('pcb', (0.01, 0.10, 0.07, 1.0), 0.0, 0.6, None),
+    ('pcb', (0.012, 0.014, 0.016, 1.0), 0.0, 0.55, None),     # the boards are matte black (owner's photo of the open back)
     ('shell', (0.72, 0.72, 0.72, 1.0), 0.0, 0.6, None),
     ('screen', (0.0, 0.0, 0.0, 1.0), 0.0, 0.4, (1.0, 1.0, 1.0)),
     ('button', (0.83, 0.83, 0.83, 1.0), 0.0, 0.6, None),
@@ -76,7 +76,7 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('servo_case', (0.012, 0.014, 0.02, 1.0), 0.0, 0.5, None),
     ('battery', (0.02, 0.09, 0.42, 1.0), 0.0, 0.5, None),
     ('cable', (0.45, 0.45, 0.47, 1.0), 0.0, 0.6, None),
-    ('touch_pad', (0.60, 0.62, 0.66, 1.0), 0.0, 0.5, None),
+    ('touch_pad', (0.50, 0.53, 0.58, 1.0), 0.0, 0.5, None),
     ('port_teal', (0.0, 0.33, 0.36, 1.0), 0.0, 0.5, None),
     ('sticker', (0.80, 0.80, 0.79, 1.0), 0.0, 0.7, None),
     ('sticker_ink', (0.012, 0.012, 0.014, 1.0), 0.0, 0.7, None),
@@ -95,6 +95,10 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('sticker_gray', (0.45, 0.45, 0.46, 1.0), 0.0, 0.7, None),
     ('emboss', (0.60, 0.60, 0.60, 1.0), 0.0, 0.6, None),
     ('pin_gold', (0.80, 0.58, 0.18, 1.0), 0.9, 0.3, None),
+    ('silk', (0.80, 0.80, 0.78, 1.0), 0.0, 0.7, None),
+    ('conn_green', (0.30, 0.72, 0.55, 1.0), 0.0, 0.5, None),
+    ('flex_ink', (0.05, 0.40, 0.22, 1.0), 0.0, 0.6, None),
+    ('ring_led', (0.75, 0.75, 0.72, 1.0), 0.0, 0.4, None),
 ]
 LIGHT_OFF = (0.42, 0.70, 0.72, 1.0)
 LIGHTS = 12
@@ -121,7 +125,7 @@ def world(p):
 
 YAW_O = (0.0, -22.3 - TABLE_Z, 0.0)        # yaw joint origin: bottom of the servo body flange, on the axis
 PITCH_O = (0.0, PITCH_Z - TABLE_Z, 0.0)    # pitch joint origin: the nod axis crosses the turn axis
-ORIGIN = {'base': (0.0, 0.0, 0.0), 'neck': YAW_O, 'head': PITCH_O}
+ORIGIN = {'base': (0.0, 0.0, 0.0), 'neck': YAW_O, 'head': PITCH_O, 'bar_left': PITCH_O, 'bar_right': PITCH_O}
 
 
 # ---- primitives (model mm, world position)
@@ -309,6 +313,8 @@ STROKES = {  # letter: (advance, strokes) in a box one capital high; the product
     'n': (0.6, [[(0.05, 0.68), (0.05, 0.0)], _ARCH]),
     'E': (0.7, [arc(0.42, 0.5, 0.42, 0.5, 52, 308, 14), [(0.1, 0.5), (0.55, 0.5)]]),
     'o': (0.7, [arc(0.3, 0.5, 0.3, 0.3, 0, 360, 14)]),
+    '7': (0.7, [[(0.05, 1.0), (0.62, 1.0), (0.25, 0.0)]]),
+    'P': (0.7, [[(0.05, 0.0), (0.05, 1.0), (0.4, 1.0), (0.58, 0.86), (0.58, 0.64), (0.4, 0.5), (0.05, 0.5)]]),
     'M': (1.1, [[(0.05, 0.0), (0.05, 1.0), (0.52, 0.25), (1.0, 1.0), (1.0, 0.0)]]),
     '5': (0.75, [[(0.62, 1.0), (0.1, 1.0), (0.06, 0.55), (0.34, 0.62), (0.56, 0.52), (0.64, 0.3), (0.54, 0.08), (0.32, 0.0), (0.06, 0.1)]]),
 }
@@ -461,7 +467,7 @@ def bounds(tris):
 
 def assemble():
     """Returns (glb bytes, params dict)."""
-    geo = {'base': {}, 'neck': {}, 'head': {}}
+    geo = {'base': {}, 'neck': {}, 'head': {}, 'bar_left': {}, 'bar_right': {}}
     hashes, tri_count = {}, 0
     for name, node, material, place in PARTS:
         path = os.path.join(HERE, 'source', 'StackChan-%s.stl' % name)
@@ -588,19 +594,51 @@ def assemble():
                                              (sx * 26.5, 60.5 + d0, zc - w0, sx * 26.5, 60.5 + d1, zc + w1, sx * 26.5, 60.5 + d1, zc - w1)])
 
     # ---- the boards in the head, seen through the open back (positions assumed; they clear the servo housing over the whole sweep)
-    geo['head']['pcb'] = box((0.0, top - 3.1, (front - 1.5 + head_lo[2] + 9.0) / 2.0), (45.0, 1.2, front - 1.5 - head_lo[2] - 9.0))
-    geo['head']['pcb'] += box((0.0, cy + 1.0, front - 1.1), (48.0, 46.0, 1.2))
+    # The ring board: the dark plate under the head top that carries the 12 lights (owner's photo of the open back, lights on). Its small
+    # lights sit in a row along each side edge, on the underside, and fire sideways into the frosted bar in that top corner.
+    ring_z0, ring_z1 = head_lo[2] + 9.0, front - 1.5
+    ring_c = (0.0, top - 3.1, (ring_z0 + ring_z1) / 2.0)
+    ring_under = top - 3.7
+    ring_board = {'pcb': box(ring_c, (45.0, 1.2, ring_z1 - ring_z0)), 'chip': [], 'conn': [], 'port': [], 'conn_green': []}
+    for x, z, w, d, t, material in ((-6.0, 2.0, 3.0, 3.0, 0.8, 'chip'), (4.0, -6.0, 2.0, 4.0, 0.7, 'chip'), (-12.0, -9.0, 1.2, 2.0, 0.6, 'conn'), (9.0, 6.0, 1.0, 2.0, 0.6, 'conn')):
+        ring_board[material] += box((x, ring_under - t / 2, z), (w, t, d))
+    ring_board['port'] += box((-11.0, ring_under - 2.2, front - 4.6), (10.2, 4.4, 5.6))            # the body of the black top connector, under the board
+    green_c = (11.0, ring_under - 2.2, front - 4.6)                                              # the mint green body of the other top connector (owner's photo)
+    green_tris = box(green_c, (10.2, 4.4, 5.6))
+    for k4 in range(4):                                                                          # its four solder tails
+        green_tris += box((11.0 - 3.0 + 2.0 * k4, ring_under - 4.9, front - 5.6), (0.6, 1.0, 0.6))
+    ring_leds = []                                                                               # (center, triangles) for lights 0..11, in the order of ring_light_N
+    for i in range(LIGHTS):
+        side_x = 1 if i < 6 else -1
+        along = (-12.5 + 5.0 * i) if i < 6 else (12.5 - 5.0 * (i - 6))
+        c = (side_x * 21.3, ring_under - 0.45, -(BAR_Y + along - YAW_Y))
+        ring_leds.append((c, box(c, (1.4, 0.9, 2.2))))
     zb = front - 1.7                                          # the back of the upright board
+    board_7p = {'pcb': box((0.0, cy + 1.0, front - 1.1), (48.0, 46.0, 1.2)), 'silk': []}
+    quads, length = lettering('7P', 1.7, 0.3)                 # the white print beside the seven-pin socket (owner's photo)
+    for quad in quads:
+        board_7p['silk'] += flat(lambda u, v, c: (u, v, zb - c), [(9.6 - a, top - 12.9 + b) for a, b in quad], 0.02)
+    for x0, x1, y0, y1 in ((16.6, 9.0, 9.2, 9.35), (16.6, 9.0, 6.6, 6.75), (15.0, 10.6, 13.6, 13.75), (15.0, 10.6, 18.4, 18.55), (-3.0, -11.0, 20.0, 20.15)):   # thin white outlines
+        board_7p['silk'] += flat(lambda u, v, c: (u, v, zb - c), [(x0, top - y0), (x1, top - y0), (x1, top - y1), (x0, top - y1)], 0.02)
 
     def onboard(u, v, c):                                     # u toward the robot's left, v up, c out of the board toward the back
         return (u, v, zb - c)
-    board_parts = {'chip': [], 'conn': [], 'flex': [], 'port_metal': []}
+    board_parts = {'chip': [], 'conn': [], 'port_metal': []}
     for material, x, dy, w, h, t in (('chip', 12.75, 16.0, 3.5, 3.5, 0.8), ('chip', 8.9, 16.0, 3.2, 2.9, 0.6), ('conn', 5.2, 12.1, 3.6, 2.0, 1.2),
                                      ('chip', -0.6, 17.0, 7.3, 8.8, 0.2), ('conn', -7.1, 16.5, 3.0, 3.8, 0.5), ('conn', -7.0, 12.2, 1.6, 2.4, 0.5),
-                                     ('flex', -13.9, 9.5, 4.7, 11.1, 0.2), ('port_metal', 10.0, 8.0, 1.0, 1.0, 0.4), ('port_metal', 12.0, 8.0, 1.0, 1.0, 0.4),
+                                     ('port_metal', 10.0, 8.0, 1.0, 1.0, 0.4), ('port_metal', 12.0, 8.0, 1.0, 1.0, 0.4),
                                      ('port_metal', 14.0, 8.0, 1.0, 1.0, 0.4), ('port_metal', 16.0, 8.0, 1.0, 1.0, 0.4), ('chip', 15.0, 24.0, 2.4, 2.4, 0.6),
                                      ('conn', -17.0, 22.0, 2.0, 5.0, 1.0), ('conn', 18.5, 30.0, 2.0, 6.0, 1.0)):
         board_parts[material] += slab(onboard, x - w / 2, x + w / 2, top - dy - h / 2, top - dy + h / 2, 0.0, t)
+    # the flat cable from the upright board up to the ring board: pale, with green print along it (owner's photo)
+    flex = {'flex': [], 'flex_ink': []}
+    flex_x, fpath = -10.5, [(top - 21.0, zb - 0.25), (top - 9.5, zb - 0.6), (top - 5.4, zb - 2.6), (top - 3.9, zb - 6.0)]   # (height, depth) along the cable
+    for (y0, zf0), (y1, zf1) in zip(fpath, fpath[1:]):
+        d = ((y1 - y0) / 2.0, (zf1 - zf0) / 2.0)
+        ln = math.hypot(*d)
+        flex['flex'] += obox((flex_x, (y0 + y1) / 2.0, (zf0 + zf1) / 2.0), (2.35, 0, 0), (0, d[0] * 1.04, d[1] * 1.04), (0, -d[1] / ln * 0.1, d[0] / ln * 0.1))
+    for k6 in range(6):
+        flex['flex_ink'] += slab(lambda u, v, c: (u, v, zb - 0.45 - c), flex_x - 0.9, flex_x + 0.9, top - 19.6 + 1.6 * k6, top - 18.6 + 1.6 * k6, 0.0, 0.03)
     # ---- inside the servo holder (assembly mm): two servos of the published size, stacked, and the battery behind the back cover
     L, W, H = SERVO_MM
     ax, ay = YAW_X, YAW_Y
@@ -646,9 +684,11 @@ def assemble():
         cable += obox([(m0[i] + m1[i]) / 2.0 for i in range(3)], (4.0, 0, 0), (0, d[1] * 1.05, d[2] * 1.05), (0, -d[2] / ln * 0.2, d[1] / ln * 0.2))
     screen_c = (0.0, cy - SCREEN_DROP_MM, face + 0.03)
 
-    def screw(f, u, v, r, c0, c1):
-        """A screw head in a frame: a round head from c0 to c1 with a cross on top. Returns (head, cross)."""
+    def screw(f, u, v, r, c0, c1, socket=False):
+        """A screw head in a frame: a round head from c0 to c1 with a cross on top, or a hex socket. Returns (head, mark)."""
         o = moved(circle(r, 14), u, v)
+        if socket:
+            return tube(f, o, c0, c1) + flat(f, o, c1), flat(f, moved(circle(r * 0.5, 6), u, v), c1 + 0.03)
         cross = slab(f, u - r * 0.62, u + r * 0.62, v - r * 0.13, v + r * 0.13, c1, c1 + 0.03) + slab(f, u - r * 0.13, u + r * 0.13, v - r * 0.62, v + r * 0.62, c1, c1 + 0.03)
         return tube(f, o, c0, c1) + flat(f, o, c1), cross
 
@@ -740,6 +780,10 @@ def assemble():
             usb['pin_gold'] += slab(back, -2.65 + 0.7 * k, -2.25 + 0.7 * k, sv * 0.35, sv * 0.41, -4.4, -1.2)
     g.node('usb_c_port', base, usb_c, g.mesh('usb_c_port', many(usb, usb_c)),
            {'what': 'USB-C for charging and data on the back of the base: an open socket with its tongue and contacts', 'opening': {'size': [mm(8.3), mm(2.6)], 'depth': mm(5.0)}})
+    bb = (0.0, usb_c[1] - 2.2, -14.5)                            # the small board the back socket sits on (assumed: no picture of the open base yet)
+    base_board = {'pcb': box(bb, (24.0, 1.0, 14.0)), 'chip': box((6.0, bb[1] + 0.9, -12.0), (3.0, 0.8, 3.0)), 'conn': box((-7.0, bb[1] + 1.2, -10.0), (4.0, 1.4, 3.0))}
+    g.node('base_board', base, bb, g.mesh('base_board', many(base_board, bb)),
+           {'what': 'board in the base that carries the back USB-C socket', 'basis': 'assumed', 'note': 'no picture of the open base: size, place and parts are a guess until the owner photographs it'})
     for i, (fx, fz) in enumerate([(-16.0, 24.0), (16.0, 24.0), (16.0, -24.0), (-16.0, -24.0)]):
         g.node('foot_%d' % i, base, (fx, base_bottom, mid + fz),
                extras={'what': 'corner mounting hole on the base underside (the base has no separate feet; the bottom plate rests on the table)'})
@@ -782,7 +826,7 @@ def assemble():
     g.node('neck', yaw, mesh=g.mesh('neck', prims('neck')), extras={'what': 'servo holder that turns with yaw: holder and its two covers'})
     led_w = world((YAW_X, -298.75, -17.4))
     g.node('back_charge_led', yaw, sub(led_w, YAW_O), g.mesh('back_charge_led', [g.primitive(box(led_w, (1.4, 2.8, 0.5)), led_w, 'led_charge')]),
-           {'what': 'small red light in the holder back, between the two screws; lit while charging (behavior assumed, not driven by the firmware)', 'basis': 'assumed'})
+           {'what': 'small red light in the holder back, between the two screws; lit while the unit has USB power (observed by the owner 2026-11-18); the firmware does not drive it', 'basis': 'assumed'})
 
     def holder_back(u, v, c):                                    # u toward the robot's left, v up, c out of the back
         return (u, v, -20.05 - c)
@@ -791,10 +835,24 @@ def assemble():
         c = (sx, 15.1, -21.15)
         g.node('screw_back_%d' % i, yaw, sub(c, YAW_O), g.mesh('screw_back_%d' % i, [g.primitive(head_t, c, 'screw'), g.primitive(cross, c, 'screw_dark')]),
                {'what': 'screw of the holder back cover', 'basis': 'measured', 'note': 'recess from the cover file; the head is a stand-in'})
-    head_t, cross = screw(lambda u, v, c: (u, v, -17.25 - c), 14.7, 41.7, 1.2, 0.0, 0.5)   # the screw on the tilt servo's back end (back photo)
-    c = (14.7, 41.7, -17.75)
+    bracket_c = (14.7, 41.7, -17.95)                             # the black bracket on the tilt servo's back end, with its socket-head screw (owner's photo)
+    g.node('black_bracket', yaw, sub(bracket_c, YAW_O), g.mesh('black_bracket', [g.primitive(box(bracket_c, (9.0, 13.0, 1.4)), bracket_c, 'servo_case')]),
+           {'what': "black bracket on the tilt servo's back end", 'basis': 'assumed', 'note': "seen in the owner's photo of the open back; size and place read off it"})
+    head_t, cross = screw(lambda u, v, c: (u, v, -18.65 - c), 14.7, 41.7, 1.5, 0.0, 1.4, socket=True)
+    c = (14.7, 41.7, -19.35)
     g.node('screw_servo', yaw, sub(c, YAW_O), g.mesh('screw_servo', [g.primitive(head_t, c, 'screw'), g.primitive(cross, c, 'screw_dark')]),
-           {'what': "screw on the tilt servo's back end", 'basis': 'assumed'})
+           {'what': "socket-head screw in the black bracket on the tilt servo's back end", 'basis': 'assumed'})
+    coil, coil_c = [], (8.0, 52.3, -13.0)                         # the black coiled lead above the tilt servo (owner's photo): 7 turns, drawn as a helix
+    turns, seg, cr = 7, 12, 2.2
+    hx = [(coil_c[0] - 3.0 + 6.0 * n / (turns * seg), coil_c[1] + cr * math.cos(2 * math.pi * n / seg), coil_c[2] + cr * math.sin(2 * math.pi * n / seg)) for n in range(turns * seg + 1)]
+    for a, b in zip(hx, hx[1:]):
+        d = [(b[j] - a[j]) / 2.0 for j in range(3)]
+        mid_p = [(a[j] + b[j]) / 2.0 for j in range(3)]
+        rad = (0.0, mid_p[1] - coil_c[1], mid_p[2] - coil_c[2])
+        rl = math.hypot(rad[1], rad[2])
+        coil += obox(mid_p, [v * 1.15 for v in d], (0.0, rad[1] / rl * 0.3, rad[2] / rl * 0.3), (0.3, 0.0, 0.0))
+    g.node('coil', yaw, sub(coil_c, YAW_O), g.mesh('coil', [g.primitive(coil, coil_c, 'servo_case')]),
+           {'what': 'black coiled lead above the tilt servo', 'basis': 'assumed', 'note': "seen in the owner's photo of the open back; what it connects is not known"})
     inside = [('servo_yaw', {'servo_case': servo_yaw}, 'pan servo: its case turns with the holder, its shaft sits in the base socket (size from the data sheet, position assumed)'),
               ('servo_pitch', {'servo_case': servo_pitch}, 'tilt servo: its shaft drives the arm on the nod axis (size from the data sheet, position assumed)'),
               ('battery', {'battery': battery}, '550 mAh battery behind the holder back cover (capacity published; size and position assumed)'),
@@ -827,10 +885,28 @@ def assemble():
     g.node('port_a', head, sub(port_a_c, PITCH_O), g.mesh('port_a', many(port_a, port_a_c)),
            {'what': "I2C port A on the controller's right side: a red socket with four pins", 'opening': {'size': [mm(5.3), mm(10.5)], 'depth': mm(5.0)}})
     board_c = (0.0, top - 3.1, (front - 1.5 + head_lo[2] + 9.0) / 2.0)
-    g.node('board', head, sub(board_c, PITCH_O), extras={'what': 'the boards in the head: one flat under the top, one upright behind the controller; drawn in the head mesh (material pcb), position assumed', 'basis': 'assumed'})
+    g.node('board', head, sub(board_c, PITCH_O), extras={'what': 'marks the boards in the head: ring_board flat under the top and board_7p upright behind the controller', 'basis': 'assumed'})
+    for side_name in ('left', 'right'):
+        g.node('light_bar_%s' % side_name, head, mesh=g.mesh('light_bar_%s' % side_name, prims('bar_%s' % side_name)),
+               extras={'what': "frosted light guide in the head's top %s corner; the six lights of that side shine into it from the ring board" % side_name,
+                'lights': [0, 1, 2, 3, 4, 5] if side_name == 'left' else [11, 10, 9, 8, 7, 6], 'lights_order': 'front to back along the bar'})
+    g.node('ring_board', head, sub(ring_c, PITCH_O), g.mesh('ring_board', many(ring_board, ring_c)),
+           {'what': 'the dark board under the head top that carries the 12 lights, with the body of the black top connector', 'basis': 'assumed',
+            'note': "plate and lights along both side edges seen in the owner's photo of the open back; exact size assumed"})
+    for i, (c, tris) in enumerate(ring_leds):
+        g.node('ring_led_%d' % i, head, sub(c, PITCH_O), g.mesh('ring_led_%d' % i, [g.primitive(tris, c, 'ring_led')]),
+               {'what': 'the small light of ring_light_%d on the underside of the ring board; it fires sideways into the light bar' % i, 'light': i, 'basis': 'assumed'})
+    g.node('green_connector', head, sub(green_c, PITCH_O), g.mesh('green_connector', [g.primitive(green_tris, green_c, 'conn_green')]),
+           {'what': "mint green body of the four-pin top connector, under the ring board on the robot's left", 'basis': 'assumed', 'note': "seen in the owner's photo"})
+    b7 = (0.0, cy + 1.0, front - 1.1)
+    g.node('board_7p', head, sub(b7, PITCH_O), g.mesh('board_7p', many(board_7p, b7)),
+           {'what': 'the upright board behind the controller, with its white print (7P beside the seven-pin socket)', 'basis': 'assumed', 'note': "print seen in the owner's photo and in the maker's back picture"})
+    fc = (flex_x, top - 12.0, zb - 3.0)
+    g.node('flex_cable_ring', head, sub(fc, PITCH_O), g.mesh('flex_cable_ring', many(flex, fc)),
+           {'what': 'flat cable with green print from the upright board up to the ring board', 'basis': 'assumed', 'note': "seen in the owner's photo; the exact path is assumed"})
     bp = (0.0, top - 16.0, zb)
     g.node('board_parts', head, sub(bp, PITCH_O), g.mesh('board_parts', many(board_parts, bp)),
-           {'what': 'parts on the back of the upright board: chips, sockets, pin pads, a dark ribbon and a pale flat cable, as plain blocks (layout from the back photo)', 'basis': 'assumed'})
+           {'what': 'parts on the back of the upright board: chips, sockets, pin pads and a dark ribbon, as plain blocks (layout from the back photo)', 'basis': 'assumed'})
     for i, sx in enumerate((-21.85, 21.85)):                     # dark screws in the shell's two lower front holes, heads toward the back (holes from the shell file)
         head_t, cross = screw(lambda u, v, c: (u, v, 15.75 - c), sx, 21.88, 1.5, 0.0, 0.8)
         c = (sx, 21.88, 15.35)
@@ -841,7 +917,7 @@ def assemble():
     g.node('sd_slot', head, sub(sd_c, PITCH_O), g.mesh('sd_slot', [g.primitive(sd_tris, sd_c, 'port'), g.primitive(sd_pins, sd_c, 'pin_gold')]),
            {'what': 'card slot under the controller: an open slot', 'opening': {'size': [mm(12.9), mm(1.3)], 'depth': mm(3.0)}})
     g.node('screen_bottom_led', head, sub(led_bottom_c, PITCH_O), g.mesh('screen_bottom_led', [g.primitive(led_bottom_tris, led_bottom_c, 'led_bottom')]),
-           {'what': 'small light hole under the controller, between the card slot and the reset button; green in download mode (product picture); the firmware does not drive it', 'basis': 'assumed'})
+           {'what': 'small light under the controller, between the card slot and the reset button; observed by the owner 2026-11-18: lit with USB power, same as the rear one, so it is a power light; its color is assumed', 'basis': 'assumed'})
     g.node('button_left_top', g.nodes.index(next(n for n in g.nodes if n['name'] == 'power_button')),
            extras={'what': 'another name for power_button: the button at the top of the side that is on the left when you face the screen'})
     for name in sorted(stickers):
@@ -849,7 +925,8 @@ def assemble():
         g.node(name, head, sub(c, PITCH_O), g.mesh(name, many(parts, c)),
                {'what': 'label drawn for this model; the print is a stand-in', 'basis': 'assumed'})
     for i, c in enumerate(pads):
-        g.node('touch_back_%d' % i, head, sub(c, PITCH_O), g.mesh('touch_back_%d' % i, [g.primitive(box(c, (pad_w, 0.06, pad_d)), c, 'touch_pad')]),
+        g.node('touch_back_%d' % i, head, sub(c, PITCH_O), g.mesh('touch_back_%d' % i, [g.primitive(box(c, (pad_w, 0.06, pad_d)), c, 'touch_pad'),
+                                             g.primitive(band(lambda u, v, h: (u, top + 0.07 + h, v), moved(rounded_outline(pad_w, pad_d, 1.2), c[0], c[2]), moved(rounded_outline(pad_w - 0.7, pad_d - 0.7, 0.9), c[0], c[2]), 0.0), c, 'print')]),
                {'touch': {'zone': i, 'of': 3, 'order': 'front to back'}, 'what': 'one zone of the head touch strip (three zones in the firmware; position and outline assumed)', 'basis': 'assumed'})
     k = 0.70710678
     light_pos = []

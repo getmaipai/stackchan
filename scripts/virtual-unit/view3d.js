@@ -54,12 +54,19 @@ function initRobot(THREE, canvas, hooks) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x15181d);
   const cam = new THREE.PerspectiveCamera(35, 1, 0.1, 200);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x50565e, 0.5));
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x50565e, 0.5); scene.add(hemi);
   const key = new THREE.DirectionalLight(0xffffff, 0.4); key.position.set(8, 14, 12); scene.add(key);
   const rim = new THREE.DirectionalLight(0xdde6ff, 0.35); rim.position.set(-9, 6, -10); scene.add(rim);
   const fill = new THREE.DirectionalLight(0xffffff, 0.25); fill.position.set(-10, 4, 9); scene.add(fill);
   const back = new THREE.DirectionalLight(0xffffff, 0.25); back.position.set(10, 5, -9); scene.add(back);
   const below = new THREE.DirectionalLight(0xffffff, 0.3); below.position.set(2, -10, 6); scene.add(below);   // so the underside reads when the view looks up at it
+  const ROOM = [[hemi, 0.5], [key, 0.4], [rim, 0.35], [fill, 0.25], [back, 0.25], [below, 0.3]];   // the room's own light; "Dim room" turns it down so the unit's lights carry the picture
+  // one soft round glow, drawn once and reused: a lit light gets it as an additive halo (no second script from the network)
+  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext && c.getContext('2d'); if (!g) return null;
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32); grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.25, 'rgba(255,255,255,0.55)'); grad.addColorStop(0.6, 'rgba(255,255,255,0.12)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); return t; })();
+  const halo = (parent, size) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({map: glowTex, color: 0x000000, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true}));
+    sp.scale.setScalar(size); sp.visible = false; sp.renderOrder = 4; parent.add(sp); return sp; };
 
   const robot = new THREE.Group(); scene.add(robot);
   const BASE_MID = new THREE.Vector3(0, 0.56, 0);
@@ -98,6 +105,30 @@ function initRobot(THREE, canvas, hooks) {
       const m = N['ring_light_' + i].children.find(c => c.isMesh);
       m.material = new THREE.MeshBasicMaterial({color: 0x222222}); M.leds.push(m);
     }
+    // The lights as light: each bar is a frosted guide lit along its length by its six lights; each lit light has a halo; the small lights on
+    // the ring board are bright points; four point lights at the ring board color what is near them, so the glow shows inside the open back.
+    M.bars = [];
+    for (const name of ['light_bar_left', 'light_bar_right']) {
+      const node = N[name], mesh = node && node.children.find(c => c.isMesh); if (!mesh) continue;
+      const pos = mesh.geometry.attributes.position; let z0 = -1e9, z1 = 1e9;
+      for (let i = 0; i < pos.count; i++) { z0 = Math.max(z0, pos.getZ(i)); z1 = Math.min(z1, pos.getZ(i)); }
+      const along = new Float32Array(pos.count);   // where each corner sits along the bar: 0 at the front light, 5 at the back one
+      for (let i = 0; i < pos.count; i++) along[i] = (z0 - pos.getZ(i)) / (z0 - z1) * 5;
+      mesh.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pos.count * 3), 3));
+      mesh.material = new THREE.MeshBasicMaterial({vertexColors: true}); M.leds.push(mesh);
+      M.bars.push({mesh, along, lights: node.userData.lights || [0, 1, 2, 3, 4, 5]});
+    }
+    M.ringLeds = []; M.halos = []; M.ledHalos = [];
+    for (let i = 0; i < 12; i++) {
+      const node = N['ring_led_' + i], m = node && node.children.find(c => c.isMesh);
+      if (m) { m.material = new THREE.MeshBasicMaterial({color: 0x8a8a84}); M.leds.push(m); M.ringLeds[i] = m; M.ledHalos[i] = halo(node, 0.007); }
+      M.halos[i] = halo(N['ring_light_' + i], 0.014);
+    }
+    M.glowLights = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]].map(px => {
+      const l = new THREE.PointLight(0x000000, 0, 7, 2), at = new THREE.Vector3();
+      for (const i of px) at.add((N['ring_led_' + i] || N['ring_light_' + i]).position); at.multiplyScalar(1 / px.length); at.y -= 0.002;
+      l.position.copy(at); N.head.add(l); return {l, px};
+    });
     // click targets: the port on the back of the base and the power button on the head, each with a bigger unseen target (sizes in meters)
     const unseen = new THREE.MeshBasicMaterial({visible: false});
     // each switch has a generous unseen target and a yellow glow that shows while the pointer is over it
@@ -122,7 +153,7 @@ function initRobot(THREE, canvas, hooks) {
     M.btnHit = addSwitch(N.power_button, new THREE.SphereGeometry(0.008, 10, 10), 'Power button: click to turn the unit off or on', () => hooks.togglePower());
     if (N.reset_button) addSwitch(N.reset_button, new THREE.SphereGeometry(0.006, 10, 10), 'Reset button: a click restarts the unit (on the real one, a 3 second hold enters download mode)', () => hooks.reset && hooks.reset());
     for (let i = 0; i < 3; i++) if (N['touch_back_' + i])
-      addSwitch(N['touch_back_' + i], new THREE.BoxGeometry(0.016, 0.004, 0.008), 'Head touch pad ' + i + ' of 3 (' + ['front', 'middle', 'back'][i] + '): a click is a touch on the head', () => hooks.headTouch && hooks.headTouch(i));
+      addSwitch(N['touch_back_' + i], new THREE.BoxGeometry(0.016, 0.004, 0.008), 'Head touch pad ' + (i + 1) + ' of 3 (' + ['front', 'middle', 'back'][i] + '): a click is a touch on the head', () => { flash('touch_back_' + i); if (hooks.headTouch) hooks.headTouch(i); });
     // the cable into the port, and the charge light beside it
     const p = wp(N.usb_c_port), pz = p.z - 0.1;
     // a USB-C plug is small: a metal tip 8.3 x 2.5 mm that goes into the socket and a short grip barely wider, so it hides little of the base
@@ -134,8 +165,10 @@ function initRobot(THREE, canvas, hooks) {
     cable.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.11, 10, false), new THREE.MeshStandardMaterial({color: 0x2a2f36, roughness: 0.7})));
     // the two small lights: the red one in the holder back and the one under the screen edge
     const lamp = (node, label) => { if (!node) return null; const m = node.children.find(c => c.isMesh); m.material = new THREE.MeshBasicMaterial({color: 0x000000}); addSwitch(node, new THREE.SphereGeometry(0.003, 6, 6), label, () => {}); return m; };
-    M.chargeLed = lamp(N.back_charge_led, 'Charge light: red while the battery charges (behavior assumed)');
-    M.bottomLed = lamp(N.screen_bottom_led, 'Light beside the reset button: green in download mode on the real unit; the firmware does not drive it, so it stays off here');
+    M.chargeLed = lamp(N.back_charge_led, 'Power light at the back: lit while the unit has USB power (observed on the real unit, 2026-11-18)');
+    M.bottomLed = lamp(N.screen_bottom_led, 'Power light under the screen: lit with USB power, the same as the one at the back (observed on the real unit, 2026-11-18; its color is assumed)');
+    M.powerGlow = [N.back_charge_led, N.screen_bottom_led].map((node, k) => { if (!node) return null;
+      const l = new THREE.PointLight(k ? 0x35e06a : 0xff3b30, 0, 3, 2); node.add(l); return {l, sp: halo(node, k ? 0.006 : 0.009), color: k ? 0x35e06a : 0xff3b30}; });
     if (N.sd_slot) addSwitch(N.sd_slot, new THREE.BoxGeometry(0.016, 0.005, 0.005), 'Card slot (microSD)', () => {});
     // the axes gizmo sits on the model's own joints
     yawGizmo.position.set(0, M.baseTopY + 0.05, 0); pitchGizmo.position.set(0, M.pitchY, 0);
@@ -144,7 +177,7 @@ function initRobot(THREE, canvas, hooks) {
     const pitchLine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 8.2, 8), new THREE.MeshBasicMaterial({color: 0xff6b6b}));
     pitchLine.rotation.z = Math.PI / 2; pitchLine.position.set(0, M.pitchY, 0); axes.add(pitchLine);
     // every drawn part remembers its own material and which link it rides on, for the Show inside and Show motion looks
-    const SHELL = {shell: 1, core: 1, glass: 1, neck: 1, servo: 1, base: 1, sticker: 1, sticker_ink: 1, sticker_dark: 1, sticker_gray: 1, sticker_orange: 1, print: 1, button: 1, touch_pad: 1};
+    const SHELL = {shell: 1, core: 1, glass: 1, neck: 1, servo: 1, base: 1, sticker: 1, sticker_ink: 1, sticker_dark: 1, sticker_gray: 1, sticker_orange: 1, print: 1, button: 1};   // the touch pads stay solid so they show in Show inside
     const tag = (node, link) => node.traverse(o => { if (o.isMesh && o !== M.screen && !M.leds.includes(o) && !M.aux.has(o) && !o.userData.link) o.userData = {link, mat: o.material, shell: !!SHELL[o.material.name]}; });
     tag(N.pitch_joint, 'pitch'); tag(N.yaw_joint, 'yaw'); tag(N.base, 'base');
     model.root.traverse(o => { if (o.isMesh && o.userData.link) M.parts.push(o); });
@@ -296,6 +329,10 @@ function initRobot(THREE, canvas, hooks) {
   }
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
   cv.addEventListener('pointerleave', () => { tip.style.display = 'none'; if (M.hover) { M.hover.hl.visible = false; M.hover = null; } });
+  function flash(name) {   // a touched pad glows for a moment
+    const h = M.hits.find(x => x.name === name); if (!h) return;
+    h.hl.visible = true; setTimeout(() => { if (M.hover !== h) h.hl.visible = false; }, 700);
+  }
   // moving the head by hand: the same tool call the model would make, so the unit's limiter decides
   const headDrag = () => !!(hooks.dragHead && hooks.dragHead() && hooks.aimHead && hooks.on() && api.st);
   const turnSign = () => Math.cos(view.az) >= 0 ? -1 : 1;   // seen from the front, a drag to the right turns the head to the viewer's right
@@ -312,8 +349,10 @@ function initRobot(THREE, canvas, hooks) {
   cv.style.touchAction = 'none'; cv.style.cursor = 'grab';
 
   const img = new Image();
-  img.onload = () => { tex.image = img; tex.needsUpdate = true; };
-  setInterval(() => { img.src = '/frame.png?' + Date.now(); }, 100);
+  img.onload = () => { framePending = false; tex.image = img; tex.needsUpdate = true; };
+  let framePending = false;   // the screen follows the unit 20 times a second, one request at a time
+  img.onerror = () => { framePending = false; };
+  setInterval(() => { if (framePending) return; framePending = true; img.src = '/frame.png?' + Date.now(); }, 50);
 
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   const LINK_TINT = {yaw: new THREE.Color(0x3ddc84), pitch: new THREE.Color(0xff6b6b)};
@@ -374,21 +413,47 @@ function initRobot(THREE, canvas, hooks) {
       if (yawPointer) yawPointer.position.copy(yawPoint(cy, yawArcR));
       if (pitchPointer) { const p = pitchPointer.userData.pp(cp, pitchArcR); pitchPointer.position.copy(p); }
       const on = st.hw.on, leds = st.leds || [];
-      M.leds.forEach((m, i) => {   // an unlit light shows the bar's own frosted teal
-        const c = on && leds[i] ? leds[i] : [0, 0, 0];
-        if (c[0] + c[1] + c[2] === 0) m.material.color.setRGB(0.30, 0.46, 0.47); else m.material.color.setRGB(c[0] / 255, c[1] / 255, c[2] / 255);
-      });
+      const rich = !hooks.richLights || hooks.richLights(), dim = !!(hooks.dimRoom && hooks.dimRoom());
+      const lightKey = (on ? leds.join(';') : 'off') + rich + dim;
+      if (lightKey !== M.lightKey) {   // only when a light changed: the dances change them many times a second
+        M.lightKey = lightKey;
+        const px = []; for (let i = 0; i < 12; i++) { const c = on && leds[i] ? leds[i] : [0, 0, 0]; px.push([c[0] / 255, c[1] / 255, c[2] / 255, Math.max(c[0], c[1], c[2]) / 255]); }
+        for (const [l, level] of ROOM) l.intensity = level * (dim ? 0.22 : 1);
+        scene.background.set(dim ? 0x07090c : 0x15181d);
+        const off = dim ? [0.07, 0.10, 0.10] : [0.20, 0.30, 0.31];   // an unlit bar is plain frosted plastic: no light of its own
+        for (let i = 0; i < 12; i++) {
+          const [r0, g0, b0, lv] = px[i], plate = M.leds[i];
+          plate.visible = lv > 0.02; plate.material.color.setRGB(Math.min(1, r0 * 1.15 + 0.25 * lv), Math.min(1, g0 * 1.15 + 0.25 * lv), Math.min(1, b0 * 1.15 + 0.25 * lv));   // the core burns toward white
+          if (M.ringLeds[i]) M.ringLeds[i].material.color.setRGB(lv > 0.02 ? Math.min(1, r0 + 0.5) : 0.42, lv > 0.02 ? Math.min(1, g0 + 0.5) : 0.42, lv > 0.02 ? Math.min(1, b0 + 0.5) : 0.40);
+          for (const [sp, gain] of [[M.halos[i], 0.6], [M.ledHalos[i], 1]]) if (sp) { sp.visible = rich && lv > 0.02; sp.material.color.setRGB(r0 * gain, g0 * gain, b0 * gain); }
+        }
+        for (const bar of M.bars) {   // the light spreads along the guide: each corner takes the blend of the two lights it sits between
+          const col = bar.mesh.geometry.attributes.color, a = bar.along;
+          for (let v = 0; v < a.length; v++) {
+            const k = Math.min(4, Math.floor(a[v])), f = a[v] - k, p = px[bar.lights[k]], q = px[bar.lights[k + 1]];
+            const lv = p[3] * (1 - f) + q[3] * f, keep = 1 - 0.85 * lv;
+            col.setXYZ(v, Math.min(1, off[0] * keep + (p[0] * (1 - f) + q[0] * f) * 0.95 + 0.12 * lv), Math.min(1, off[1] * keep + (p[1] * (1 - f) + q[1] * f) * 0.95 + 0.12 * lv), Math.min(1, off[2] * keep + (p[2] * (1 - f) + q[2] * f) * 0.95 + 0.12 * lv));
+          }
+          col.needsUpdate = true;
+        }
+        for (const g of M.glowLights) {   // what the lights throw on the parts near them, inside and out
+          let r1 = 0, g1 = 0, b1 = 0; for (const i of g.px) { r1 += px[i][0]; g1 += px[i][1]; b1 += px[i][2]; }
+          const lv = Math.max(r1, g1, b1) / 3; g.l.intensity = rich ? 2.2 * lv : 0; if (lv > 0) g.l.color.setRGB(r1 / 3 / lv, g1 / 3 / lv, b1 / 3 / lv);
+        }
+      }
       const ports = st.hw.ports || {back: {plugged: st.hw.usb}, side: {plugged: false}};
       cable.visible = ports.back.plugged; if (M.sideCable) M.sideCable.visible = ports.side.plugged;
-      if (M.chargeLed) M.chargeLed.material.color.set(st.hw.charging ? 0xff3b30 : 0x3a0806);   // red while charging, dark otherwise
-      if (M.bottomLed) M.bottomLed.material.color.set(0x0b2412);   // unlit: nothing in the firmware drives it
+      const powered = st.hw.vbus !== undefined ? st.hw.vbus : (st.hw.usb || st.hw.charging);   // both small lights come on with USB power (observed on the real unit)
+      if (M.chargeLed) M.chargeLed.material.color.set(powered ? 0xff5a48 : 0x180403);
+      if (M.bottomLed) M.bottomLed.material.color.set(powered ? 0x5dff8a : 0x04100a);
+      for (const g of M.powerGlow || []) if (g) { g.l.intensity = powered && rich ? 0.9 : 0; g.sp.visible = powered && rich; g.sp.material.color.set(g.color); }
       M.screen.material.color.set(on ? 0xffffff : 0x000000);
     },
     setPhysicsPose(pose) { this.phys = {pose, at: performance.now()}; },
-    render() { placeCam(); table.visible = grid.visible = cam.position.y > 0; r.render(scene, cam); if (M.ready) placeLabels(!!this.labelsOn); },   // from below, the table would hide the underside
+    render() { const t0 = performance.now(); placeCam(); table.visible = grid.visible = cam.position.y > 0; r.render(scene, cam); this.perf.ms += (performance.now() - t0 - this.perf.ms) * 0.1; this.perf.frames++; if (M.ready) placeLabels(!!this.labelsOn); },   // from below, the table would hide the underside
     demo() { M.demoNote = ''; M.demoAt = M.demoAt ? 0 : performance.now(); return !!M.demoAt; },
     get screen() { return M.screen; },
-    model: M, view, target,
+    model: M, view, target, perf: {ms: 0, frames: 0},   // perf.ms: how long drawing one picture takes, smoothed
     pointOf(name) {   // where a switch, or any named part of the model, is on the page right now, for scripted checks
       const h = M.hits.find(x => x.name === name), o = h ? h.mesh : (M.nodes && M.nodes[name]); if (!o) return null;
       placeCam(); cam.updateMatrixWorld(); const p = o.getWorldPosition(new THREE.Vector3()).project(cam), b = cv.getBoundingClientRect();

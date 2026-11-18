@@ -257,3 +257,62 @@ def test_both_usb_c_sockets_take_real_clicks_and_the_panel_shows_each_port(page)
     assert page.until("ST.hw.serial && ST.hw.usb_path.data_from === 'back'")
     page.js("document.getElementById('bback').click()")
     assert page.until("!ST.hw.vbus && /nothing/.test(document.getElementById('whylim').textContent)")
+
+
+def test_the_lights_glow_follow_the_ring_and_both_power_lights_follow_usb_power(page):
+    if not page.until("window.ROBOT && ROBOT.model && ROBOT.model.ready", 12):
+        pytest.skip("the 3D drawing did not start here (it needs the pinned three.js from the network and a graphics context)")
+    page.js("(() => { document.getElementById('rich').checked = true; document.getElementById('ledoff').click(); })()")
+    assert page.until("ST.leds.every(c => c[0] + c[1] + c[2] === 0)")
+    dark = "ROBOT.model.glowLights.every(g => g.l.intensity === 0) && ROBOT.model.halos.every(h => !h.visible) && !ROBOT.model.leds[0].visible"
+    assert page.until(dark), "off means dark: no halo, no light thrown, no lit plate"
+    bar = "Array.from(ROBOT.model.bars[0].mesh.geometry.attributes.color.array.slice(0, 3)).map(v => +v.toFixed(2)).join()"
+    unlit = page.js(bar)
+    # amber on the left bar only: its halos, its two point lights and its bar light up; the right side stays dark
+    page.js("(() => { document.getElementById('ledc').value = '#ff9600'; document.getElementById('ledleft').click(); })()")
+    assert page.until("ST.leds[0][0] === 255 && ST.leds[11][0] === 0")
+    assert page.until("ROBOT.model.halos[0].visible && ROBOT.model.ledHalos[0].visible && !ROBOT.model.halos[11].visible")
+    assert page.js("ROBOT.model.glowLights[0].l.intensity > 1 && ROBOT.model.glowLights[1].l.intensity > 1 && ROBOT.model.glowLights[2].l.intensity === 0 && ROBOT.model.glowLights[3].l.intensity === 0")
+    assert page.js("(c => c.r > 0.9 && c.b < 0.2)(ROBOT.model.glowLights[0].l.color)"), "the thrown light takes the ring's color"
+    assert page.js(bar) != unlit, "the bar itself takes the color"
+    # simple lights: plain colors only
+    page.js("document.getElementById('rich').checked = false")
+    assert page.until("ROBOT.model.glowLights.every(g => g.l.intensity === 0) && !ROBOT.model.halos[0].visible && ROBOT.model.leds[0].visible")
+    page.js("(() => { document.getElementById('rich').checked = true; document.getElementById('ledoff').click(); })()")
+    assert page.until(dark)
+    # both small power lights: dark on battery, lit with a cable in either socket
+    for key in ("side", "back"):
+        page.js(f"fetch('/hw', {{method: 'POST', body: JSON.stringify({{key: '{key}', value: false}})}}).then(r => r.json())")
+    lit = "ROBOT.model.chargeLed.material.color.r > 0.9 && ROBOT.model.bottomLed.material.color.g > 0.9 && ROBOT.model.powerGlow.every(g => g.l.intensity > 0)"
+    assert page.until("!ST.hw.vbus") and page.until("ROBOT.model.chargeLed.material.color.r < 0.2 && ROBOT.model.bottomLed.material.color.g < 0.2")
+    for key in ("back", "side"):
+        page.js(f"fetch('/hw', {{method: 'POST', body: JSON.stringify({{key: '{key}', value: true}})}}).then(r => r.json())")
+        assert page.until(lit), f"both power lights come on with a cable in the {key} socket"
+        page.js(f"fetch('/hw', {{method: 'POST', body: JSON.stringify({{key: '{key}', value: false}})}}).then(r => r.json())")
+        assert page.until("!ST.hw.vbus && ROBOT.model.chargeLed.material.color.r < 0.2")
+    # the page keeps up with the dances: the unit's clock is read at least 15 times a second and a picture takes well under a frame
+    stamps = set()
+    end = time.time() + 1.0
+    while time.time() < end:
+        stamps.add(page.js("ST.now_ms"))
+        time.sleep(0.01)
+    assert len(stamps) >= 12, f"the state reached the page only {len(stamps)} times in a second"
+    assert page.js("ROBOT.perf.frames > 10 && ROBOT.perf.ms < 20"), page.js("JSON.stringify(ROBOT.perf)")
+
+
+def test_a_touched_head_pad_glows_and_says_which_pad(page):
+    if not page.until("window.ROBOT && ROBOT.model && ROBOT.model.ready", 12):
+        pytest.skip("the 3D drawing did not start here (it needs the pinned three.js from the network and a graphics context)")
+    page.js("fetch('/call', {method: 'POST', body: JSON.stringify({name: 'self.robot.set_head_angles', arguments: {yaw: 0, pitch: 10}})}).then(r => r.json())")
+    assert page.until("Math.abs(ST.head.yaw) < 1 && ST.hw.on", 10)
+    page.js("(() => { Object.assign(ROBOT.view, {az: 0.3, el: 1.2, dist: 16}); window.scrollTo(0, 0); })()")
+    time.sleep(0.4)
+    p = page.js("ROBOT.pointOf('touch_back_1')")
+    page.mouse("mouseMoved", p["x"], p["y"], 0)
+    time.sleep(0.2)
+    page.mouse("mouseMoved", p["x"] + 1, p["y"], 0)
+    hit = "ROBOT.model.hits.find(h => h.name === 'touch_back_1')"
+    assert page.until(f"{hit}.hl.visible"), "the pad glows under the pointer"
+    page.click(p["x"] + 1, p["y"])
+    assert page.until("/pad 2 of 3/.test(document.getElementById('msg').textContent)"), page.js("document.getElementById('msg').textContent")
+    assert page.js(f"{hit}.hl.visible"), "and stays lit for a moment after the touch"

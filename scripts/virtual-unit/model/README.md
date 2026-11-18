@@ -25,6 +25,7 @@ stackchan
   base                    base and bottom plate (mesh)
     usb_c_port            charge and data USB-C on the back of the base: an open socket (extras.opening: size, depth)
     screw_base_0..3       the four screws of the bottom plate
+    base_board            the board behind the back socket (a guess: no picture of the open base yet)
     foot_0..foot_3        the four corner mounting holes underneath (the base has no separate feet)
     sticker_bottom        label under the base, drawn for the model
     col_base              collider box
@@ -32,6 +33,7 @@ stackchan
       neck                servo holder and its two covers (turns with yaw)
       servo_yaw, servo_pitch, battery, cable    inside the holder: size of the servos from their data sheet, the rest assumed (MATCH.md)
       battery_lead, servo_wires    the battery lead and the two servo leads (assumed paths)
+      black_bracket, coil    the bracket on the tilt servo's back end and the coiled lead above it (owner's photo)
       back_charge_led     red light in the holder back, between the screws
       screw_back_0, screw_back_1, screw_servo    the two cover screws on the holder back and the one on the tilt servo
       col_neck            collider cylinder
@@ -40,7 +42,10 @@ stackchan
           screen_plane    320x240 screen, flat quad, UV 0,0 top-left to 1,1 bottom-right; put the live frame on its material
           power_button, usb_c_otg, port_a    on the controller's right side: a white key in a dark gap and two open sockets (extras.opening)
           ring_light_0..11   0..5 left bar front to back, 6..11 right bar back to front; each has its own material
-          board           marks the boards in the head (drawn in the head mesh)
+          board           marks the boards in the head
+          ring_board, ring_led_0..11    the dark board under the top and its 12 small lights (ring_led_N belongs to ring_light_N)
+          light_bar_left, light_bar_right    the two frosted light guides; extras.lights lists each bar's lights front to back
+          green_connector, board_7p, flex_cable_ring    seen in the owner's photo of the open back
           board_parts     chips, sockets, a ribbon and a flat cable on the upright board, as plain blocks
           screw_head_0, screw_head_1    dark screws low inside the head, seen from the back
           reset_button, sd_slot, screen_bottom_led    under the controller: white key, open card slot, light pinhole (positions from the underside photo)

@@ -84,8 +84,8 @@ Seen on the real unit and now drawn (all positions read off the photos, so assum
 
 | Feature | Node | In the view |
 |---|---|---|
-| Red light in the holder back, between the two screws | `back_charge_led` | red while the unit charges. The firmware does not drive it (`BUILTIN_LED_GPIO` is not connected), so "lit while charging" is an assumption |
-| Pinhole between the card slot and the reset button | `screen_bottom_led` | stays off: the product picture says green in download mode, and nothing in the firmware drives it |
+| Red light in the holder back, between the two screws | `back_charge_led` | lit while the unit has USB power. Observed by the owner 2026-11-18: lit with USB power. The firmware does not drive it (`BUILTIN_LED_GPIO` is not connected) |
+| Light between the card slot and the reset button | `screen_bottom_led` | lit while the unit has USB power. Observed by the owner 2026-11-18: lit with USB power, same as the rear one, so it is a power light and not a download light. Its color is assumed (green) |
 | Card slot under the controller | `sd_slot` | named on hover |
 | Reset button to the right of the slot: a white key in a dark gap, with a pinhole and two short slots between | `reset_button` | restarts the unit |
 | Button at the top of the left side (as you face the screen) | `power_button`, also named `button_left_top` | power: the product picture says press for on, hold 6 s for off |
@@ -121,6 +121,33 @@ Each face was rendered at the angle of its photo and set beside it. The pairs ar
 | Every socket | empty pockets | contacts on both faces of each USB-C tongue, four pins and two plastic keys in port A and in each top connector, a row of contacts in the card slot |
 
 Only the 17 maker pictures and the published drawing were used. No other gallery or video was read.
+
+## The open back with the lights on: the owner's photo (2026-11-18)
+
+Ground truth for the rear and the lights is the owner's own photo of his unit, `rear-inside-lights-on-2026-11-18.jpg` (not in this repository; it stays in the session's notes folder). The camera is low behind the unit, looking up into the open back, with the lights amber. The model was rendered from the same angle beside it (`docs/dev/model-previews/compare-rear-inside.png`, ignored by git because it holds the photo).
+
+| Observed in the owner's photo | Node | In the model |
+|---|---|---|
+| A big dark plate under the head top, with a row of small lights along its side edge (four seen on one side, two more at the far corner), firing sideways | `ring_board`, `ring_led_0` to `ring_led_11` | black board under the top; six small lights on the underside along each side edge, each paired with `ring_light_N` |
+| The light bar: a thick frosted rod that glows evenly, with a bright core and a soft falloff | `light_bar_left`, `light_bar_right` | each bar is its own node, listing its six lights front to back, so a view can light it along its length |
+| The inner shell wall and the board near the bar take the warm color | (view) | four point lights at the ring board, tinted by the ring colors |
+| A mint green four-pin connector under the plate on the left | `green_connector` | the body of the teal top connector, with four tails |
+| A black board with white print `7P`, small chips and a square part | `board_7p`, `board_parts` | the upright board is black, with the print and thin white outlines |
+| A flat cable with green print from the lower board up to the plate | `flex_cable_ring` | pale strip with green marks; the path is assumed |
+| A black coiled part and a black bracket with a socket-head screw at the lower left | `coil`, `black_bracket`, `screw_servo` | a seven-turn helix above the tilt servo; a black plate on its back end with a socket-head screw |
+| The gray holder and its darker cover, and the strip with three round openings under the bar | (structure files) | already there |
+| The boards are black, not green | material `pcb` | changed |
+
+Not settled by this photo, and what a photo from the owner would settle:
+
+1. **Base, opened** (bottom plate off, looking straight in): the board that carries the back USB-C socket, the power parts, where the battery lead and the servo leads go. `base_board` is a guess until then.
+2. **Back, lights off, straight on and level**: the exact size of the ring board, how many small lights sit on each edge, and what the coiled part connects to.
+3. **The other side of the open back** (camera low on the right): the black top connector, the right-hand lights and the cable from the holder to the head.
+4. **Top, straight down, in raking light**: whether the three touch pads show at all on the real head. The model draws them with an outline so they can be found; the maker's top picture shows nothing there.
+5. **Underside of the controller with a cable in**: the color of the light beside the reset button.
+6. **Front and each side, level**: to check the label, button and port places against a real unit and not the maker's pictures.
+
+No teardown or assembly photo of the inside of the base or of the ring board was found (one web search, 2026-11-18). Outside figures seen there and not verified: twelve lights in two rows of six, and a battery quoted as 550 mAh in one place and 700 mAh in another.
 
 ## What to compare on the unit
 

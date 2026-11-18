@@ -2,7 +2,7 @@
 """Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scripted scenarios.
 Usage: view.py [port]  then open http://127.0.0.1:PORT/   (the screens renderer is used when built, else the bare face: no touch then)
 Click the screen to tap, drag across it to swipe; the side panel calls any tool by name, shows the call log and plays scenarios in real time.
-The server runs the fake clock at real speed (about 10 frames a second) and serves /frame.png, POST /call and /state.
+The server runs the fake clock at real speed (20 frames a second) and serves /frame.png, POST /call and /state.
 The head follows self.robot.set_head_angles on the fake clock and the 12 ring lights show self.robot.set_led_colors.
 Dev tool, loopback only. The page loads three.js (pinned) from cdnjs for the 3D drawing; nothing from the unit leaves this Mac.
 Placement: host-side development tool; no firmware change. Upstream: none."""
@@ -41,6 +41,7 @@ _is.loader.exec_module(imu)
 PICKUP = imu.PickupRule()
 PHYSICS = {"driven": False, "imu": None}
 PLAYING = {"name": None}
+STEP_MS = 50  # the fake clock and the screen advance 20 times a second, the rate of the dances' light shows
 COVER_RENDER = HERE.parents[1] / ".runs" / "vu-screens" / "cover" / "cover_render"
 APPLIED = {"status": None, "tired": 0, "cover_ring": []}
 
@@ -133,8 +134,9 @@ def motion_state():
 def pump():
     global FRAME
     while True:
+        began = time.monotonic()
         with LOCK:
-            UNIT.advance(100)
+            UNIT.advance(STEP_MS)
             was_dancing = HW.dance
             HW.tick(UNIT.now_ms)
             if was_dancing and not HW.dance:
@@ -161,7 +163,7 @@ def pump():
                     APPLIED["cover_ring"] = []
                     apply_body()
                     FRAME = UNIT.snapshot()
-        time.sleep(0.1)
+        time.sleep(max(0.0, STEP_MS / 1000 - (time.monotonic() - began)))
 
 
 class Handler(BaseHTTPRequestHandler):

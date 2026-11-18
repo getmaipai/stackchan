@@ -385,3 +385,37 @@ def test_second_pass_openings_are_real_and_every_screw_is_a_node():
     assert button == ["button"] and min(mats["button"]["pbrMetallicRoughness"]["baseColorFactor"][:3]) > 0.7, "the side button is a white key"
     assert [j["materials"][p["material"]]["name"] for p in j["meshes"][by["reset_button"][1]["mesh"]]["primitives"]] == ["button"]
     assert "0x58d68d" not in (VU / "view3d.js").read_text(), "the view does not tint the side button"
+
+
+def test_rear_internals_seen_in_the_owners_photo_are_named_nodes():
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    head, yaw, base = descendants(j, by["head"][0]), descendants(j, by["yaw_joint"][0]), descendants(j, by["base"][0])
+    for name in ["ring_board", "green_connector", "flex_cable_ring", "board_7p", "light_bar_left", "light_bar_right"] + [f"ring_led_{i}" for i in range(12)]:
+        assert name in head and "mesh" in by[name][1], f"{name} is drawn and rides on the head"
+    assert {"black_bracket", "coil"} <= yaw - head and "base_board" in base - yaw
+    assert by["base_board"][1]["extras"]["basis"] == "assumed" and "no picture of the open base" in by["base_board"][1]["extras"]["note"]
+    mat = lambda name: [j["materials"][p["material"]]["name"] for p in j["meshes"][by[name][1]["mesh"]]["primitives"]]
+    assert "silk" in mat("board_7p") and mat("green_connector") == ["conn_green"] and "flex_ink" in mat("flex_cable_ring")
+    assert mat("light_bar_left") == ["light_bar"] and by["light_bar_left"][1]["extras"]["lights"] == [0, 1, 2, 3, 4, 5] and by["light_bar_right"][1]["extras"]["lights"] == [11, 10, 9, 8, 7, 6]
+    pcb = next(m for m in j["materials"] if m["name"] == "pcb")["pbrMetallicRoughness"]["baseColorFactor"]
+    assert max(pcb[:3]) < 0.05, "the boards are black, as in the owner's photo"
+    for i in range(12):   # each small light sits on the ring board, inboard of its bar, at the same place along the head
+        led, bar = by[f"ring_led_{i}"][1], by[f"ring_light_{i}"][1]
+        assert led["extras"]["light"] == i and abs(led["translation"][2] - bar["translation"][2]) < 1e-4
+        assert abs(led["translation"][0]) < abs(bar["translation"][0]) and led["translation"][0] * bar["translation"][0] > 0 and led["translation"][1] < bar["translation"][1]
+    for i in range(3):
+        assert set(mat(f"touch_back_{i}")) == {"touch_pad", "print"}, "each pad has an outline so it shows on the head top"
+    assert "lit while the unit has USB power (observed by the owner 2026-11-18)" in by["back_charge_led"][1]["extras"]["what"]
+    assert "lit with USB power, same as the rear one" in by["screen_bottom_led"][1]["extras"]["what"]
+
+
+def test_the_view_lights_glow_without_a_second_outside_script():
+    js = (VU / "view3d.js").read_text()
+    html = (VU / "view.html").read_text()
+    assert "AdditiveBlending" in js and "PointLight" in js and "vertexColors" in js, "halos, light on nearby parts, and color along each bar"
+    assert "UnrealBloom" not in js and "EffectComposer" not in js and html.count("<script src=") == 1, "one pinned outside script only"
+    assert 'id="rich"' in html and 'id="dim"' in html and "richLights" in js and "dimRoom" in js
+    assert "st.hw.vbus" in js, "both small power lights follow USB power"
+    assert "touch_pad: 1" not in js, "the touch pads stay solid in Show inside"
+    assert "STEP_MS = 50" in (VU / "view.py").read_text() and "},50);}" in html, "the unit and the page run at 20 a second"
