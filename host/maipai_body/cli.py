@@ -31,7 +31,8 @@ def main() -> int:
     commands.add_parser("pair", help="show a one-use pairing code")
     commands.add_parser("status", help="say what is running and what is not, per robot and per part")
     service = commands.add_parser("service", help="install the host as a service that starts at boot or login and restarts itself")
-    service.add_argument("action", choices=["install", "status", "start", "stop", "logs", "uninstall"])
+    service.add_argument("action", choices=["install", "status", "start", "stop", "logs", "uninstall", "update"])
+    service.add_argument("--from", dest="source", default=None, help="for update: where to install the new version from (a pip address or a folder)")
     units = commands.add_parser("units", help="list known units with their name and online state")
     units.add_argument(
         "--host-url", default="http://127.0.0.1:8051", help="the running host's settings page"
@@ -217,6 +218,10 @@ def main() -> int:
         return 0
     if args.command == "service":
         from maipai_body.service_cmd import Service
+        if args.action == "update":
+            from maipai_body.host_update import run_update
+
+            return run_update(args.source)
 
         service = Service()
         return {"install": service.install, "status": service.status, "start": service.start, "stop": service.stop, "logs": service.logs, "uninstall": service.uninstall}[args.action]()
