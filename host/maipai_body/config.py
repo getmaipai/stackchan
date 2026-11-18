@@ -163,6 +163,13 @@ class UnitConfig(StrictModel):
         return out
 
 
+class LocalStackConfig(StrictModel):
+    """The minimal local stack (brain_setup): written by the Brain page, read by the host to start the model server."""
+
+    enabled: bool = False
+    choice: Literal["small", "better"] = "small"
+
+
 class RobotConfig(StrictModel):
     brain: Literal["llm", "home", "standalone"] = "llm"
     units: dict[str, UnitConfig] = Field(default_factory=dict)
@@ -172,6 +179,7 @@ class RobotConfig(StrictModel):
     settings: SettingsPageConfig = Field(default_factory=SettingsPageConfig)
     remote: RemoteConfig = Field(default_factory=RemoteConfig)
     update: UpdateConfig = Field(default_factory=UpdateConfig)
+    local_stack: LocalStackConfig = Field(default_factory=LocalStackConfig)
 
     @model_validator(mode="after")
     def check_unit_ids_differ(self):

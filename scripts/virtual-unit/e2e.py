@@ -104,8 +104,12 @@ class FakeModels:
         self.port = free_port()
         self._runner: web.AppRunner | None = None
 
+    async def _models(self, request):
+        return web.json_response({"data": [{"id": "scripted"}]})
+
     async def start(self) -> None:
         app = web.Application(client_max_size=50 * 1024 * 1024)
+        app.router.add_get("/v1/models", self._models)
         app.router.add_post("/v1/chat/completions", self._chat)
         app.router.add_post("/v1/audio/transcriptions", self._stt)
         app.router.add_post("/v1/audio/speech", self._tts)
@@ -511,8 +515,44 @@ async def readme_steps(rig: Rig, check) -> None:
 from e2e_extra import EXTRA  # noqa: E402
 from e2e_hostile import EXTRA_HOSTILE  # noqa: E402
 
-SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, **EXTRA, **EXTRA_HOSTILE}
-NEEDS_SETTINGS_PAGE = {"key_exchange", "hostile_settings"}
+async def brain_modes(rig: Rig, check) -> None:
+    """The Brain page: the host serves it, the three test buttons answer for the scripted stack (way 2), way 1 saves Home's address, and the local stack (way 3)
+    states its sizes and addresses before it would download anything (the download itself is covered by a fake downloader in host/tests/test_brain_setup.py)."""
+    import urllib.request
+
+    base = f"http://127.0.0.1:{rig.settings_port}"
+
+    def http(method, path, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(base + path, data=data, method=method, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return r.status, r.read()
+        except Exception as error:  # noqa: BLE001
+            return getattr(error, "code", 0), error.read() if hasattr(error, "read") else b""
+
+    status, page = await asyncio.to_thread(http, "GET", "/brain")
+    check("the host serves the Brain page", status == 200 and b"Choose a brain" in page, str(status))
+    models = f"http://127.0.0.1:{rig.models.port}"
+    for kind, url in (("model", models), ("stt", models + "/v1/audio/transcriptions"), ("tts", models + "/v1/audio/speech")):
+        status, raw = await asyncio.to_thread(http, "POST", "/api/stackchan/brain/test", {"kind": kind, "url": url, "model": "scripted"})
+        check(f"the {kind} test button answers ok for the scripted stack", status == 200 and json.loads(raw).get("ok") is True, raw[:160].decode(errors="replace"))
+    status, raw = await asyncio.to_thread(http, "POST", "/api/stackchan/brain/test", {"kind": "model", "url": "http://127.0.0.1:9"})
+    check("a wrong address says so in plain words", status == 200 and b"Nothing answered" in raw, raw[:160].decode(errors="replace"))
+    status, raw = await asyncio.to_thread(http, "GET", "/api/stackchan/brain")
+    view = json.loads(raw)
+    check("the page state names the current way and the local stack's sizes and addresses", view.get("mode") == "own" and view["overview"].get("supported") in (True, False) and (not view["overview"].get("supported") or "github.com" in view["overview"]["options"]["small"]["addresses"]), str(view)[:200])
+    status, raw = await asyncio.to_thread(http, "POST", "/api/stackchan/brain/apply", {"mode": "home", "url": "http://192.0.2.20:8000"})
+    config = (rig.home / ".config" / "maipai" / "robot.toml").read_text()
+    check("way 1 saves Home's address", status == 200 and 'url = "http://192.0.2.20:8000"' in config and 'brain = "home"' in config, raw[:160].decode(errors="replace"))
+    status, raw = await asyncio.to_thread(http, "POST", "/api/stackchan/brain/apply", {"mode": "own", "llm_url": models, "model": "scripted", "stt_url": models, "tts_url": models})
+    check("way 2 saves the three addresses", status == 200 and 'brain = "llm"' in (rig.home / ".config" / "maipai" / "robot.toml").read_text(), raw[:160].decode(errors="replace"))
+    status, raw = await asyncio.to_thread(http, "POST", "/api/stackchan/brain/install", {"choice": "huge"})
+    check("an install of an unknown size is refused in plain words", status == 400 and b"small or the better" in raw, raw[:160].decode(errors="replace"))
+
+
+SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, "brain_modes": brain_modes, **EXTRA, **EXTRA_HOSTILE}
+NEEDS_SETTINGS_PAGE = {"key_exchange", "hostile_settings", "brain_modes"}
 SCENARIO_TIMEOUT_S = {"soak": 4 * 3600, "hostile_unauthenticated": 600, "hostile_paired_peer": 900, "hostile_settings": 600}  # the soak is long on purpose; the others stop after three minutes
 
 

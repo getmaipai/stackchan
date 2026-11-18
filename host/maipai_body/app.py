@@ -3398,6 +3398,19 @@ def _wire_look_owner(voice, units, behavior, polish, stop_event) -> None:
     threading.Thread(target=runner.run, name="look-lease", daemon=True).start()
 
 
+def _wire_brain_page(backend) -> None:
+    """The Brain page and the first-run page (brain_setup): three ways to get a brain; starts the local model server when it is the brain."""
+    from maipai_body.brain_setup.controller import BrainSetup
+    from maipai_body.config import example_config_path
+
+    setup = BrainSetup(example_config_path(), _data_dir() / "local-stack")
+    backend.brain_setup = setup
+    if setup.start_if_enabled():
+        logger.info("The local model server is running on this computer.")
+    elif setup.needs_choice():
+        logger.info("No brain is set yet. Open the settings page on this computer at /brain to choose one of three ways.")
+
+
 def _wire_idle_setting(backend, units, behavior, voice) -> None:
     """The page's "Idle movement" (off, calm, lively; default off) sets the one idle level every
     ambient head move is gated on. It is applied at start, when a unit connects, and on each save."""
@@ -3546,6 +3559,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
         link=link_security,
     )
     _wire_idle_setting(backend, units, behavior, voice)
+    _wire_brain_page(backend)
     if gate_bridge is not None:
         gate_bridge.remote_active = lambda device_id: backend.activity.session_active(device_id)
     from maipai_body.settings_server import SettingsServer

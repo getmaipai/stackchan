@@ -36,6 +36,10 @@ Installed by pip from `host/pyproject.toml` (exact versions in `host/uv.lock`); 
 | segno | BSD-3-Clause | The QR code that logs a phone in to the settings page |
 | reachy-mini (optional extra) | Apache-2.0 | The Reachy Mini body daemon client; only for the Reachy body code that is leaving this repository |
 | esp-idf-nvs-partition-gen | Apache-2.0 | Building the robot's settings partition |
+| llama.cpp `llama-server` (downloaded at install, not shipped) | MIT | Runs the small local language model |
+| Qwen2.5 0.5B and 1.5B Instruct GGUF (downloaded at install, not shipped) | Apache-2.0 | The small local language model |
+| Moonshine tiny English (sherpa-onnx package, downloaded at install, not shipped) | MIT | The small local speech-to-text model |
+| Piper `en_US-ljspeech-medium` (sherpa-onnx package, downloaded at install, not shipped) | MIT code; voice data from the public-domain LJ Speech set | The small local text-to-speech voice |
 | openwakeword, sherpa-onnx (optional extras) | Apache-2.0 | Wake word scoring and offline command recognition |
 
 ## Licenses of this repository's own files

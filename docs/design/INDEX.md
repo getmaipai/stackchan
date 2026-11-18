@@ -17,7 +17,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `LICENSE` (664): no header
 - `NOTICE` (30): no header
 - `README.md` (89): MaiPai for StackChan
-- `THIRD-PARTY.md` (44): Third-party notices
+- `THIRD-PARTY.md` (48): Third-party notices
 - `docs/STYLE.md` (52): Writing style
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
@@ -125,7 +125,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/contributing.md` (24): Contributing
 - `docs/dev/cross-review-status.md` (45): Cross-review bugs: fixed and still open
 - `docs/dev/draft-names.md` (131): Draft names to confirm
-- `docs/dev/e2e-virtual-unit.md` (48): End to end on the virtual unit (the spoken-turn check without hardware)
+- `docs/dev/e2e-virtual-unit.md` (49): End to end on the virtual unit (the spoken-turn check without hardware)
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
@@ -285,6 +285,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/home-work-brief.md` (48): Brief for a session in the Home repository: the StackChan robot side (2026-11-18)
 - `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
+- `docs/plan/minimal-stack.md` (65): The minimal local stack and the three ways to get a brain
 - `docs/plan/mouth-cues-append.md` (16): Mouth cues for replies of more than one sentence
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
@@ -325,11 +326,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
 - `docs/user/camera.md` (78): Use the camera
 - `docs/user/character-packs.md` (17): Character packs
+- `docs/user/choose-a-brain.md` (27): Choose a brain
 - `docs/user/coding-companion.md` (35): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
 - `docs/user/face-and-look.md` (117): Change how the robot looks
 - `docs/user/faq.md` (50): Questions people ask
-- `docs/user/features.md` (163): What the robot can do
+- `docs/user/features.md` (164): What the robot can do
 - `docs/user/find-and-remote.md` (73): Find the robot and control it remotely
 - `docs/user/games-and-pet.md` (83): Play games and care for your pet
 - `docs/user/getting-started.md` (86): Getting started with MaiPai for StackChan
@@ -340,6 +342,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/install-the-host.md` (50): Install, update and remove the host
 - `docs/user/languages.md` (26): Switch the language
 - `docs/user/lights-and-sounds.md` (62): Lights and sounds
+- `docs/user/local-stack.md` (30): Install the small stack
 - `docs/user/local-vs-home.md` (52): What you get with your own model and with MaiPai Home
 - `docs/user/lock.md` (30): Lock the robot with a code
 - `docs/user/memory-notes.md` (30): Memory notes (optional package)
@@ -359,13 +362,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/try-the-virtual-robot.md` (28): Try the virtual robot
 - `docs/user/updates.md` (58): Update the robot
 - `docs/user/use-it-anywhere.md` (32): Use the robot away from home
+- `docs/user/use-your-own-stack.md` (13): Use your own stack
 - `docs/user/voice.md` (83): Talk to the robot
 - `docs/user/wake-word-maker.md` (20): Make your own wake word (optional)
 - `docs/user/watch-and-alerts.md` (75): Watch your room and get alerts
 - `docs/user/watch-the-room.md` (52): Watch the room
 - `docs/user/web-flasher.md` (18): Flash the robot from a web page
 - `docs/user/which-setup.md` (48): Which setup is right for me?
-- `docs/user/with-maipai-home.md` (55): Use MaiPai Home as the brain
+- `docs/user/with-maipai-home.md` (57): Use MaiPai Home as the brain
 - `firmware/.gitkeep` (0): no header
 - `firmware/BASE` (5): The pinned upstream bases that firmware/patches/ORDER applies onto (read by scripts/fw-rebuild.sh).
 - `firmware/configs/sdkconfig.aec.defaults` (4): Talk over the robot (patches SF15 and SF29): microphone 1 plus the speaker loopback, the echo canceller on the
@@ -706,7 +710,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (4962): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (4976): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
 - `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
@@ -992,11 +996,19 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/brain/home.py` (89): Home brain adapter. Existing clients retain transport behavior and timing."""
 - `host/maipai_body/brain/interface.py` (63): Typed interface between the body host and its answering brain."""
 - `host/maipai_body/brain/own_llm.py` (377): Own-LLM brain using owner-configured HTTP services and optional local speech models."""
+- `host/maipai_body/brain_page.py` (78): ruff: noqa: E501
+- `host/maipai_body/brain_setup/__init__.py` (1): Three ways to get a brain (docs/plan/minimal-stack.md): MaiPai Home, the person's own stack, or a minimal loca
+- `host/maipai_body/brain_setup/catalog.py` (106): The pinned downloads of the minimal local stack (docs/plan/minimal-stack.md).
+- `host/maipai_body/brain_setup/controller.py` (126): The Brain page's one object: what is set now, the test buttons, applying a mode, and the local stack's install
+- `host/maipai_body/brain_setup/installer.py` (288): Install, stop and remove the minimal local stack. The downloader is injected, so tests never touch the network
+- `host/maipai_body/brain_setup/modes.py` (102): Apply one of the three modes to robot.toml with a small line editor that keeps the rest of the file (comments 
+- `host/maipai_body/brain_setup/runner.py` (112): Start and stop the local model server (llama.cpp `llama-server`) and time one test turn. Both are injectable f
+- `host/maipai_body/brain_setup/tester.py` (58): The test buttons of mode (b): each answers in plain words. A session is injected so tests never touch the netw
 - `host/maipai_body/character_pack.py` (366): Shareable illustrated character packs."""
 - `host/maipai_body/child_gate.py` (30): Whether a child is near any unit, as Home last said (the `child_present` hub command). Shared by the command b
 - `host/maipai_body/cli.py` (587): ruff: noqa: E501
 - `host/maipai_body/command_bus.py` (370): ruff: noqa: E501
-- `host/maipai_body/config.py` (298): Configuration for the StackChan host."""
+- `host/maipai_body/config.py` (306): Configuration for the StackChan host."""
 - `host/maipai_body/dashboard/__init__.py` (12): EXPR-05: a body-agnostic web dashboard.
 - `host/maipai_body/dashboard/__main__.py` (73): no header
 - `host/maipai_body/dashboard/server.py` (498): The dashboard's stdlib HTTP server: a page, a JSON API, and a server-sent-event feed."""
@@ -1060,7 +1072,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_fill/pt_6.json` (65): no header
 - `host/maipai_body/i18n_fill/pt_7.json` (65): no header
 - `host/maipai_body/i18n_fill/pt_8.json` (24): no header
-- `host/maipai_body/i18n_link.py` (51): ruff: noqa: E501
+- `host/maipai_body/i18n_link.py` (53): ruff: noqa: E501
 - `host/maipai_body/i18n_literals.py` (138): ruff: noqa: E501
 - `host/maipai_body/i18n_lock.py` (79): ruff: noqa: E501
 - `host/maipai_body/i18n_more.py` (615): ruff: noqa: E501
@@ -1182,13 +1194,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
 - `host/maipai_body/service_threads.py` (50): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (62): Settings keys shared by body settings consumers."""
-- `host/maipai_body/settings_page.py` (915): ruff: noqa: E501
+- `host/maipai_body/settings_page.py` (948): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (185): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (436): ruff: noqa: E501
 - `host/maipai_body/settings_ui.py` (748): ruff: noqa: E501
 - `host/maipai_body/settings_ui_character.py` (21): ruff: noqa: E501
 - `host/maipai_body/settings_ui_family.py` (39): ruff: noqa: E501
-- `host/maipai_body/settings_ui_link.py` (22): ruff: noqa: E501
+- `host/maipai_body/settings_ui_link.py` (23): ruff: noqa: E501
 - `host/maipai_body/settings_ui_lock.py` (36): ruff: noqa: E501
 - `host/maipai_body/settings_ui_pages.py` (129): ruff: noqa: E501
 - `host/maipai_body/settings_ui_polish.py` (171): ruff: noqa: E501
@@ -1897,6 +1909,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_brain_fake.py` (8): no header
 - `host/tests/test_brain_home.py` (43): no header
 - `host/tests/test_brain_interface.py` (45): no header
+- `host/tests/test_brain_setup.py` (266): The three ways to get a brain: pinned catalog, installer with a fake downloader, mode writer, address tests, c
 - `host/tests/test_bus_gates_fed.py` (58): The command-bus gates for a child present, a remote cue and a sleeping unit are fed from real state."""
 - `host/tests/test_camera_frame.py` (71): The fixture-backed `Camera.get_frame()` path added alongside
 - `host/tests/test_channel_client.py` (221): Reconnect replays the same event id; the handler remains exactly once.
@@ -2417,7 +2430,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
-- `scripts/virtual-unit/e2e.py` (611): End to end on the virtual unit, with no hardware and no real models.
+- `scripts/virtual-unit/e2e.py` (651): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
 - `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin

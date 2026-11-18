@@ -24,6 +24,7 @@ EN: dict[str, str] = {
     "ln.off_help": "Off: no encryption. For debugging only.",
     "ln.off_warning": "Warning: the link is not encrypted. Anyone on this network can read what the robot sends and hears. Turn it back to Allowed or Required when you are done.",
     "ln.unknown": "Not known: this page cannot reach the link settings",
+    "ln.plain_warning": "This robot is connecting without encryption. Anyone on your Wi-Fi could read what it says and hears. Choose Required once the robot has connected encrypted, or pair it again to get the encrypted link.",
 }
 
 ES: dict[str, str] = {
@@ -43,6 +44,7 @@ ES: dict[str, str] = {
     "ln.off_help": "Desactivado: sin cifrado. Solo para depurar.",
     "ln.off_warning": "Aviso: el enlace no está cifrado. Cualquiera en esta red puede leer lo que el robot envía y oye. Vuelve a Permitido u Obligatorio cuando termines.",
     "ln.unknown": "No se sabe: esta página no puede llegar a los ajustes del enlace",
+    "ln.plain_warning": "Este robot se conecta sin cifrado. Cualquiera en tu Wi-Fi podría leer lo que dice y oye. Elige Obligatorio cuando el robot ya se haya conectado cifrado, o empareja de nuevo el robot para tener el enlace cifrado.",
 }
 
 CATALOGS: dict[str, dict[str, str]] = {

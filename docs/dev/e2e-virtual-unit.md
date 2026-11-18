@@ -13,6 +13,7 @@ It runs as `host/tests/test_e2e_virtual_unit.py` in `scripts/test-all.sh` (the 1
 | `timer_by_voice` | "set a timer for four seconds" | the host sets `self.timer.set` 4 s on the unit without asking the model, speaks its confirmation, the unit rings when the time comes |
 | `pair_code` | `stackchan pair`, then an unpaired unit | six digits are printed, the unpaired unit is refused |
 | `second_unit` | a second paired unit connects | both stay connected, each gets its own tool calls, the host handles two units without an error |
+| `brain_modes` | the Brain page | the host serves it, the three test buttons answer for the scripted stack, way 1 and way 2 write `robot.toml`, an unknown install size is refused, the local stack states its sizes and addresses (the download itself is tested with a fake downloader) |
 | `readme_steps` | the README's steps on a clean install | `stackchan check` ok, `stackchan status` names the brain and unit, then `spoken_turn` |
 | `privacy_tap` | a tap on the mouth, a second tap, a hold, a tap on an eye | the unit's own gesture core (SF02) decides each press; the host follows the mute on and off (its privacy log lines) |
 | `listen_ended` | wake, then 8 s of silence | the unit's listening guard core (SF03) says 8 s; the host ends the quiet turn with no model request and reads the unit's `listen_ended` event |

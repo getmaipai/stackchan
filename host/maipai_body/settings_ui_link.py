@@ -12,6 +12,7 @@ async function linkCard(id){
  function draw(){
   if(!v){box.replaceChildren(h('p',{class:'hint'},T('ln.unknown')));return}
   const kids=[h('p',{class:'hint',role:'status'},T('ln.state')+': '+T('ln.state.'+v.state))];
+  if(v.state==='plain'||v.state==='plain_allowed')kids.push(h('p',{class:'hint',role:'alert'},T('ln.plain_warning')));
   if(v.mode==='off')kids.push(h('p',{class:'hint',role:'alert'},T('ln.off_warning')));
   kids.push(seg(T('ln.choice'),['required','allowed','off'].map(m=>({v:m,t:T('ln.'+m)})),v.mode,async m=>{const r=await api(unitPath(id,'link'),{mode:m});if(r.ok&&r.d.ok!==false){toast(r.d.message||S['settings.saved']);await reload();return true}toast((r.d&&r.d.error)||T('net_error'),'bad');return false}),
    h('p',{class:'hint'},T('ln.'+v.mode+'_help')));

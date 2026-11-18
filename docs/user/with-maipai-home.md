@@ -53,3 +53,5 @@ Timers, faces and reactions work the same either way. A feature that needs a ser
 ## Still need help?
 
 Run `stackchan check`, then read [Troubleshooting](troubleshooting.md). If that does not fix it, open an issue on the Issues tab and tell us what you saw.
+
+First time here? [Choose a brain](choose-a-brain.md) shows the three ways, and the Brain page on the host sets this one up.

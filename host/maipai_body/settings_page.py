@@ -70,6 +70,7 @@ class SettingsBackend:
         activity: activity_mod.RemoteActivity | None = None,
         link: Any = None,
     ) -> None:
+        self.brain_setup: Any = None  # brain_setup.controller.BrainSetup: the Brain page (set by the host)
         self.pair_code: Callable[[], str] | None = None  # mints a pairing code (set by the host)
         self.pair_exchange: Any = None  # the voice server (waiting_exchanges, approve_exchange); set by the host
         self.wakeword: Any = None  # the wake word maker package (set by the host only when switched on)
@@ -776,6 +777,14 @@ class SettingsBackend:
                 return 200, JSON, json.dumps(self.wakeword.state(word)).encode()
             except ValueError as error:
                 return 400, JSON, json.dumps({"error": str(error)}).encode()
+        if path in (BRAIN_PAGE, BRAIN) and self.brain_setup is not None:
+            if local_admin is not True:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            if path == BRAIN_PAGE:
+                from maipai_body.brain_page import render_brain_page
+
+                return 200, "text/html; charset=utf-8", render_brain_page()
+            return 200, JSON, json.dumps(self.brain_setup.view()).encode()
         if path == PAIR_WAITING:
             if local_admin is not True:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
@@ -805,6 +814,24 @@ class SettingsBackend:
             return 200, JSON, json.dumps(self.state(lang)).encode()
         return 404, JSON, json.dumps({"error": "not found"}).encode()
 
+    def _brain_post(self, action: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """The Brain page's buttons: test an address, apply a mode, install, stop and remove the local stack."""
+        setup = self.brain_setup
+        if action == "test":
+            return 200, setup.test(str(body.get("kind", "")), str(body.get("url", "")), str(body.get("model", "")), str(body.get("api_key", "")))
+        if action == "apply":
+            result = setup.apply(str(body.get("mode", "")), body)
+            return (200 if result.get("ok") else 400), result
+        if action == "install":
+            result = setup.install(str(body.get("choice", "")))
+            return (200 if result.get("ok") else 400), result
+        if action == "stop":
+            setup.installer.stop()
+            return 200, {"ok": True}
+        if action == "remove":
+            return 200, setup.remove()
+        return 404, {"error": "not found"}
+
     def route_post(
         self, path: str, body: dict[str, Any], local_admin: bool
     ) -> tuple[int, dict[str, Any]] | None:
@@ -819,6 +846,10 @@ class SettingsBackend:
             if local_admin is not True:
                 return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
             return self._wakeword_post(path[len(WAKEWORD) + 1 :], body)
+        if path.startswith(BRAIN + "/") and self.brain_setup is not None:
+            if local_admin is not True:
+                return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
+            return self._brain_post(path[len(BRAIN) + 1 :], body)
         if path == PAIR_CODE_ENTRY and self.pair_exchange is not None:
             if local_admin is not True:
                 return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
@@ -894,6 +925,8 @@ PAIRING_CODE = "/api/stackchan/pairings/code"
 PHONE_LINK = "/api/stackchan/phone-link"
 PAIR_WAITING = "/api/stackchan/pairings/waiting"
 PAIR_CODE_ENTRY = "/api/stackchan/pairings/code-entry"
+BRAIN = "/api/stackchan/brain"
+BRAIN_PAGE = "/brain"
 WAKEWORD = "/api/stackchan/wakeword"
 
 

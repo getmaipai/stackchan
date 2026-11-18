@@ -79,6 +79,7 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | **Remote controls on the settings page** | Beep, flash, find my robot (works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. | Robot | [Settings](settings.md) |
 | **Network test and version screen** | Settings, Network: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |
 | **Your own LLM or MaiPai Home** | Point the robot at any OpenAI-compatible chat address, or at a MaiPai Home hub. | Robot | [Which setup?](which-setup.md) |
+| **Choose a brain, no terminal** | At first run, pick MaiPai Home, your own stack, or a small stack the host installs on this computer. | Robot | [Choose a brain](choose-a-brain.md) |
 
 ## Set up and keep safe
 
