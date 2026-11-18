@@ -297,6 +297,30 @@ def holed(f, u0, u1, v0, v1, hole):
     return both(tris)
 
 
+def clipped(outline, axis, at, keep_low):
+    """A convex outline cut by a straight line: the part with coordinate `axis` below `at` (or above it)."""
+    out = []
+    for i in range(len(outline)):
+        p, q = outline[i], outline[(i + 1) % len(outline)]
+        pin, qin = (p[axis] <= at) == keep_low, (q[axis] <= at) == keep_low
+        if pin:
+            out.append(p)
+        if pin != qin:
+            t = (at - p[axis]) / (q[axis] - p[axis])
+            out.append((p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t))
+    return out
+
+
+def stroke(f, pts, w, c):
+    """A thin line through the points, drawn flat at height c."""
+    tris = []
+    for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+        ln = math.hypot(bx - ax, by - ay)
+        dx, dy = (bx - ax) / ln * w / 2, (by - ay) / ln * w / 2
+        tris += flat(f, [(ax - dx + dy, ay - dy - dx), (bx + dx + dy, by + dy - dx), (bx + dx - dy, by + dy + dx), (ax - dx - dy, ay - dy + dx)], c)
+    return tris
+
+
 def arc(cx, cy, rx, ry, a0, a1, n=10):
     return [(cx + rx * math.cos(math.radians(a0 + (a1 - a0) * i / n)), cy + ry * math.sin(math.radians(a0 + (a1 - a0) * i / n))) for i in range(n + 1)]
 
@@ -523,10 +547,16 @@ def assemble():
     for (u0, u1), hole in zip(zip(cuts, cuts[1:]), (a_hole, otg_hole, well)):
         core += holed(side, u0, u1, z0, z1, hole)
     geo['head']['port'] += tube(side, well, 0.0, -0.8) + flat(side, well, -0.8)          # the dark gap round the button
-    button_tris = tube(side, moved(rounded_outline(6.1, 8.7, 1.9), button_c[1], button_c[2]), -0.8, 0.35)
-    button_tris += flat(side, moved(rounded_outline(6.1, 8.7, 1.9), button_c[1], button_c[2]), 0.35)
-    prints += band(side, moved(circle(0.85, 16), top - 8.2, face - 8.0), moved(circle(0.6, 16), top - 8.2, face - 8.0), 0.02)   # the power mark above the button
-    prints += flat(side, [(top - 7.6, face - 8.12), (top - 7.0, face - 8.12), (top - 7.0, face - 7.88), (top - 7.6, face - 7.88)], 0.03)
+    # The key (owner's close-up): a rounded rectangle in a dark gap that is widest at the back; the back 60 percent of the key is flat and
+    # stands a little proud, the front part slopes down toward the glass, with a ridge between them.
+    key = moved(rounded_outline(6.1, 8.5, 1.9), button_c[1], button_c[2] + 0.2)
+    split = button_c[2] + 1.5
+    back_part, front_part = clipped(key, 1, split, True), clipped(key, 1, split, False)
+    button_tris = tube(side, back_part, -0.8, 0.35) + flat(side, back_part, 0.35) + tube(side, front_part, -0.8, 0.0) + flat(side, front_part, 0.0)
+    # the power mark above the key: a ring open toward the front, with a short line from its middle out through the opening
+    pc = (top - 8.2, face - 8.0)
+    prints += stroke(side, [(pc[0] + 0.8 * math.sin(math.radians(a)), pc[1] + 0.8 * math.cos(math.radians(a))) for a in range(40, 321, 20)], 0.22, 0.02)
+    prints += stroke(side, [(pc[0], pc[1] + 0.1), (pc[0], pc[1] + 1.0)], 0.22, 0.02)
     for k in range(4):                                        # the pin marks beside port A
         prints += flat(side, [(top - 38.6 - 2.0 * k, face - 4.6), (top - 39.5 - 2.0 * k, face - 4.6), (top - 39.5 - 2.0 * k, face - 4.2), (top - 38.6 - 2.0 * k, face - 4.2)], 0.02)
     otg_in = moved(rounded_outline(8.6, 2.7, 1.34), otg_c[1], otg_c[2])
@@ -551,7 +581,7 @@ def assemble():
     reset_c = (15.0, under, face - 6.6)
     led_bottom_c = (6.8, under - 0.02, face - 6.6)
     sd_hole = moved(rounded_outline(12.9, 1.3, 0.4), sd_c[0], sd_c[2])
-    reset_well = moved(rounded_outline(8.6, 6.4, 3.0), reset_c[0], reset_c[2])
+    reset_well = moved(rounded_outline(8.6, 6.4, 3.19, 8), reset_c[0], reset_c[2])   # a pill-shaped opening (owner's close-up)
     slots = [moved(rounded_outline(0.8, 2.9, 0.38, 4), dx, face - 11.0) for dx in (5.6, 7.5)]
     cuts = [-23.0, 1.0, 6.55, 9.5, 23.0]
     for (u0, u1), hole in zip(zip(cuts, cuts[1:]), (sd_hole, slots[0], slots[1], reset_well)):
@@ -563,10 +593,17 @@ def assemble():
     sd_pins = []                                              # the row of card contacts inside the slot
     for k in range(8):
         sd_pins += slab(below, sd_c[0] - 3.85 + 1.1 * k, sd_c[0] - 3.35 + 1.1 * k, sd_c[2] + 0.45, sd_c[2] + 0.6, -2.8, -1.2)
-    reset_cap = moved(rounded_outline(7.6, 5.4, 2.6), reset_c[0], reset_c[2])
-    reset_tris = tube(below, reset_cap, -0.8, 0.3) + flat(below, reset_cap, 0.3)
+    # the reset key: a pill in a pill-shaped gap; the half toward its mark stands proud, the half toward the light sits lower, with a ridge between
+    reset_cap = moved(rounded_outline(7.6, 5.4, 2.69, 8), reset_c[0] + 0.2, reset_c[2])
+    high, low = clipped(reset_cap, 0, reset_c[0] - 0.4, False), clipped(reset_cap, 0, reset_c[0] - 0.4, True)
+    reset_tris = tube(below, high, -0.8, 0.3) + flat(below, high, 0.3) + tube(below, low, -0.8, -0.05) + flat(below, low, -0.05)
     led_bottom_tris = flat(below, moved(circle(0.5, 12), led_bottom_c[0], led_bottom_c[2]), 0.02)
-    prints += band(below, moved(circle(0.95, 16), 20.9, face - 6.6), moved(circle(0.7, 16), 20.9, face - 6.6), 0.02)   # the restart mark beside the button
+    rc = (21.0, face - 6.6)                                   # the restart mark beside the key: an open ring that ends in an arrowhead
+    ring_pts = [(rc[0] + 0.85 * math.cos(math.radians(a)), rc[1] + 0.85 * math.sin(math.radians(a))) for a in range(70, 351, 20)]
+    prints += stroke(below, ring_pts, 0.22, 0.02)
+    tip_a = math.radians(70)
+    prints += flat(below, [(rc[0] + 0.45 * math.cos(tip_a), rc[1] + 0.45 * math.sin(tip_a)), (rc[0] + 1.25 * math.cos(tip_a), rc[1] + 1.25 * math.sin(tip_a)),
+                           (rc[0] + 0.85 * math.cos(tip_a) + 0.6 * math.sin(tip_a), rc[1] + 0.85 * math.sin(tip_a) - 0.6 * math.cos(tip_a))], 0.02)
     quads, length = lettering('M5', 6.0, 0.8)                  # the raised two-character mark on the speaker side, under the grille (side photo)
     geo['head']['emboss'] = []
     for quad in quads:
@@ -890,7 +927,7 @@ def assemble():
            {'screen': {'pixels': [320, 240], 'size_m': [mm(SCREEN_MM[0]), mm(SCREEN_MM[1])],
                        'uv': '0,0 top-left to 1,1 bottom-right as seen from the front; set the live 320x240 frame as the material texture'}})
     g.node('power_button', head, sub(button_c, PITCH_O), g.mesh('power_button', [g.primitive(button_tris, button_c, 'button')]),
-           {'what': "power button on the controller's right side: a white key in a dark gap", 'size': [mm(8.7), mm(6.1)]})
+           {'what': "power button on the controller's right side: a white key in a dark gap, flat at the back and sloping toward the glass (owner's close-up)", 'size': [mm(8.5), mm(6.1)]})
     g.node('usb_c_otg', head, sub(otg_c, PITCH_O), g.mesh('usb_c_otg', many(otg, otg_c)),
            {'what': "USB-C (OTG) on the controller's right side: an open socket with its tongue", 'opening': {'size': [mm(3.3), mm(9.2)], 'depth': mm(5.5)}})
     g.node('port_a', head, sub(port_a_c, PITCH_O), g.mesh('port_a', many(port_a, port_a_c)),

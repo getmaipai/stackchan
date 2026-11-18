@@ -181,6 +181,7 @@ All are the owner's own photos, kept out of this repository in the session's not
 - There is no gap between the controller and the body. The model showed a slit at that joint, because the shell file's front lip is rounded; a plate just inside the lip now closes it.
 - The lights do not leak onto any part of the controller or its screen. The view's thrown light now points down and back from the ring board, and each halo is small enough to stay on its bar.
 - Nothing on the outside of the head marks the touch pads. They are drawn under the shell top.
+- Two close-ups of the keys. The power key is a rounded rectangle in a dark gap that is widest at the back; its back part is flat and its front part slopes toward the glass. Its mark is a ring open toward the front with a short line through the opening. The reset key is a pill in a pill-shaped gap with a ridge across it, and its mark is an open ring ending in an arrowhead. The light beside it is round and red; the two slots have rounded ends. All now drawn that way.
 
 ## What to compare on the unit
 
