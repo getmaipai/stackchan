@@ -105,3 +105,69 @@ Gaps to build:
 4. The installed-pack start path in `self.game.start` and `self.game.list`.
 
 Each rule set is one SF patch with a host test and a budget row. Nothing here changes the quiet, mute, lock and limiter rules: a game that needs one of those exceptions is not built.
+
+## 8. Accelerometer games (tilt maze, marble, steering, balance, hot potato, shake)
+
+Added 2026-11-18 at the owner's request. **Read** means read from the b49 tree; **estimate** means to measure.
+
+### 8.1 What the unit's motion sensor gives a game today
+
+| Item | Value | Source |
+|---|---|---|
+| Sensor | BMI270 (accelerometer and gyroscope) on the controller. No magnetometer is read: the tree has no code for one | read (`hal_imu.cpp`, `drivers/bmi270`) |
+| Accelerometer | 100 Hz output rate, range plus or minus 2 g, normal mode with 4-sample averaging | read |
+| Gyroscope | 100 Hz, range plus or minus 2000 degrees a second; it is read by the driver but nothing feeds it to a feature | read |
+| Task rhythm | the IMU task wakes every 20 ms; a fresh sample goes to the pickup detector, the movement limiter and the games (`maipai_games_imu_feed`), so a game sees up to 50 samples a second; shake, orientation and the stall of the main loop run every fifth pass (100 ms) | read |
+| Calibration | none: no offset or scale is stored; the rest pose of a game's tilt is the pose the unit held for 0.8 s (`MGI_SETTLE_SAMPLES` 8 at the 100 ms tilt rate) | read |
+| Filtering | tilt: one-pole low pass, alpha 0.6; orientation: alpha 0.5; both reject a total pull outside 0.8 to 1.2 g as "moving" | read |
+| Orientation bands | which axis is down (six poses) with a 5-sample hold; the limiter maps them to upright, tilted, side, inverted, unknown (older than 2 s) | read (`maipai_orient_core.h`, `maipai_motion_limit_core.h`) |
+| Shake and tilt for games | shake: sum of axis change over 100 ms above 9.0 m/s squared; a harder one is "easy" (no points); tilt: 0.38 g (about 22 degrees) in four directions, must return within 0.15 g to re-arm, no tilt for 700 ms after a shake | read |
+
+**Exposed to packs today:** only the events (shake, easy, tilt left, right, forward, back, and pet). A pack never sees a number. A tilt maze that steps one cell per tilt event works now; a rolling marble, a steering wheel, a balance game and hot potato do not.
+
+### 8.2 Engine work
+
+1. **An IMU input kind: "motion frame".** The engine receives a filtered tilt vector at a fixed 30 ms tick (the game timer): roll and pitch in tenths of a degree (computed from the accelerometer, low pass alpha about 0.3), plus a shake energy and, optionally, the gyro rate on one axis for a "turn" game. It replaces no existing event. A rolling marble and a steering wheel read roll; balance reads pitch and roll; hot potato reads shake energy and "still". One small pure core (`maipai_games_tilt_core.h`) with a host test over recorded sample sequences; no allocation.
+2. **Counters or a cell array cannot hold physics.** Marble roll, racing and flying need a position and velocity per tick: they belong to the rule sets of the grid engine in section 4 (a physics rule set with fixed-point positions), not to the declarative player.
+3. **Orientation-aware screen rotation for held play.** Steering by holding the unit like a wheel turns the screen sideways. LVGL can rotate the display (a software rotation costs time and a full-frame buffer; a transform on the game's own root object is cheaper). Rotation only inside a game, locked to the pose at the start, restored when the game ends. Cost: to measure (the flush path is the tight one: strip rate is 44.7 fps on the face today).
+4. **Calibration:** store no offsets; use the held rest pose at the start of every game ("hold it the way you like, then start"), which removes the need for a factory calibration.
+5. **Cost (estimate):** the tilt core is under 1 KB of flash, a few floats of state, no task, no allocation; a physics rule set 2 to 3 KB of flash each; CPU per 30 ms tick under 0.2 ms; the display, not the logic, is the limit.
+
+### 8.3 Safety rules for held games
+
+| Rule | How |
+|---|---|
+| **Free-fall pause.** A drop pauses the game and the head holds | a free-fall detector: total pull under about 0.3 g for 100 ms or more (two samples at 50 Hz; at plus or minus 2 g the impact saturates, so the detector uses only the fall), then the game pauses with a "Dropped: tap to resume" screen, the ring light shows amber, and the game stops after 10 s. A new small core (`mff_*`) next to the pickup core, host-tested with falling and shaking sequences (a hard shake is not a fall: it alternates; a fall is sustained) |
+| **Carried rule** | the head stays still as today (the limiter's carried flag): games never move the head, and this stays true |
+| **Hold with both hands** | before a held-motion game starts the screen asks for two taps at once (two regions held for 0.5 s, so both hands are on the unit) or one tap on "I am holding it"; a person who sets the unit down gets the tabletop variant (a tilt maze runs on the table as step events) |
+| **Session cap** | a held-motion game ends after 3 minutes without a person's tap and always after 10 minutes, with a rest screen (arm fatigue and drops); the cap is a constant in the core, never a setting a pack can raise |
+| **Not startable when** | full quiet, update, lock (as now); battery under 20 percent and not charging; the servo temperature reading hot (SF48 telemetry, hot means 55 degrees and over: to confirm against the servo's data sheet); the limiter on a long unreliable cable is irrelevant because games never move the head |
+| **No head, no torque** | a game never calls a motion function; the host test for each rule set checks the file has none |
+| **Gentle** | no cue or sound louder than the sound policy allows; a shake game counts only the "gentle" band (the existing easy threshold) so the unit is not thrown about |
+
+### 8.4 Head as a joystick: feasibility (research only, no test run)
+
+**What the code allows (read):**
+- The servo layer can switch torque per servo (`EnableTorque`), read torque state, read the position (`ReadPos`: a raw 0 to 4095 count, about 0.09 degrees a step, valid-checked) and bus telemetry (voltage, load 0 to 1000, current, temperature) with one `FeedBack` call, which SF48 uses already.
+- **The head is already free at rest.** The servo layer has "auto release torque on rest" on (`_auto_torque_release_enabled = true`): after a move finishes it checks every 200 ms and turns torque off. So today a person can already turn the head by hand when it is idle; the stall guard and the limiter act only when the unit drives the servo.
+- Reading the position with torque off works (a read is a bus read; it does not need torque).
+
+**What the joystick needs:** hold torque off for the game, poll `ReadPos` of both servos at 20 to 30 Hz under the servo bus lock, map the angles to the game input with a dead zone, and never send a position command.
+
+**Risks:**
+1. **Gears and end stops.** A person can push the head past the soft limits; with torque off nothing resists. The gear train of the servo is not rated for back-driving force that this repo documents (to read in the servo's data sheet before any test; do not assume the maker's numbers). Mitigation: a hard soft-limit watch in the game (at 70 percent of the travel the game shows a warning; at 90 percent it ends the game and re-enables torque, which holds the head where it is: a hold, not a move), and the on-screen text "turn gently".
+2. **Re-enabling torque at a pushed pose** makes the servo hold the angle it has at that moment: it commands its present position, so it does not jump (the unit already does this: `stop_motion_at_angle`). To verify on the unit before any game uses it.
+3. **The limiter and the stall guard.** The stall guard watches load and current rises while a target is set; with no target (torque off) it does not run. The limiter's carried and quiet rules do not apply to a head the unit is not driving, but the carried rule must also end the game (a held unit makes the head swing).
+4. **Overload:** a person pushing hard shows as load in the telemetry only while torque is on; with torque off the load reads near zero, so **there is no overload signal while free**. The only safety is the travel watch above and the speed of the angle change (a change faster than about 300 degrees a second is a shove: end the game).
+5. **Bus time:** two reads every 30 ms is about 2 of every 30 ms on a shared bus, with the servo supply telemetry task of SF48 and the face's own pitch writes also using it; the games must use the same servo bus lock and a lower rate when the face is moving. To measure (the bench's `power_probe` reads both servos in one pass).
+6. **Wear and trust:** the owner and a child will push it; a head that ends a game on a hard shove teaches the right push.
+
+**Recommendation: do the test, as a read-only bench probe first; do not build the game yet.** The head is already free at rest, the position reading exists, and the feature costs nothing in flash or RAM while off. The risk is the push, not the code. The head joystick is worth building only if the test shows a clean, low-noise reading and the owner finds a gentle push natural; otherwise the head pads (the touch strip already gives "pet") and the IMU cover the same games.
+
+**Test plan (silent bench test, with the owner's OK, nobody pushes hard):**
+1. New bench tool `self.bench.head_read {seconds, hz}` (to build, bench only): torque off for both servos, logs `ReadPos` and the load at the rate, returns min, max, noise (standard deviation at rest), the read rate achieved and the bus errors; torque back on at the end at the present angle; aborts and holds on any angle change faster than 300 degrees a second or past 70 percent of travel.
+2. Rest: torque off, nobody touching, 10 s: noise and drift of the position (expected a few counts).
+3. Gentle push by the owner within 30 percent of the travel, 10 s each axis: does the reading follow without steps; the latency of one read.
+4. Re-enable torque after a pushed pose: the head must hold the pose, not jump (the one result that decides whether it is safe).
+5. Bus load: the achieved read rate with the face moving, with `self.bench.power_probe` running at the same time.
+6. Pass: noise under 3 counts, no jump on torque enable, reads at 20 Hz or better; fail on any jump or an error rate above 1 percent. Quiet rules apply: volume 0 and hard mute before the test; no motion command is sent in any step.
