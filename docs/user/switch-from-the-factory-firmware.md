@@ -11,7 +11,7 @@ You can move to MaiPai for StackChan and back. The robot's hardware does not cha
 ## Switch to MaiPai for StackChan
 
 1. Follow [Getting started](getting-started.md). The web flasher puts the firmware on over USB.
-2. Pair the robot with your host and set `url` under `[llm]` in `robot.toml`.
+2. Pair the robot with your host, then [choose a brain](choose-a-brain.md) on the Brain page.
 3. You'll know it worked when the robot answers a spoken question and `stackchan check` shows every line ok.
 
 ## Go back to the factory firmware

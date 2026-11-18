@@ -46,7 +46,7 @@ The banner row at the top and the subtitles at the bottom stay where they are wh
 
 ## The control sheet
 
-It shows volume and brightness sliders, a line with the Wi-Fi signal, the time and the battery, and one row of six buttons: Mute, Quiet, Lock, Apps, Games and Settings. The listening light switch is in Settings, on the General tab. Settings also has the Network tab (saved Wi-Fi networks and the network test), the Faces tab, and an Info tab that shows the firmware version and other details directly, with no hidden taps.
+It shows volume and brightness sliders, a line with the Wi-Fi signal, the time and the battery, and one row of six buttons: Mute, Quiet, Lock, Apps, Games and Settings. The listening light switch is in Settings, on the General tab. Settings also has the Network tab (saved Wi-Fi networks; the network test is on the host), the Faces tab, and an Info tab that shows the firmware version and other details directly, with no hidden taps.
 
 ![The control sheet: volume and brightness sliders, the time, Wi-Fi and battery, and the buttons Mute, Sleep, Lock, Apps, Games and Setup.](../images/vu-control-sheet.png)
 

@@ -26,20 +26,20 @@ These are the figures from our design notes. We will publish measured numbers fo
 
 ## Host a model
 
-The robot's host does not run a model itself. It asks a model server over the web, using the OpenAI-compatible chat address that most local model apps offer. You need one of those running somewhere you control.
+The host can install and run a small model itself: see [Install the small stack](local-stack.md). For a bigger model, the host asks a model server over the network, using the OpenAI-compatible chat address that most local model apps offer. You need one of those running somewhere you control.
 
 1. **Pick a model server app** that can load a model and serve an OpenAI-compatible chat address. Apps such as Ollama, LM Studio, llama.cpp's server and vLLM do this.
 2. **Download a model** that fits your computer's memory, and load it in the app.
 3. **Turn on the server** and note its address. It looks like `http://192.0.2.10:8080/v1`. Replace the numbers with your computer's address.
 4. **Let the host reach it.** If the model runs on a different computer from the host, make the server listen on your network, not only on that computer. Keep it on a network you trust.
-5. **Set `llm_url`** in `robot.toml` to that address, then run `stackchan check`. You'll know it worked when the check lists the model and every line says ok.
+5. **Type that address** on the Brain page ([Use your own stack](use-your-own-stack.md)), then run `stackchan check`. You'll know it worked when the check lists the model and every line says ok.
 
 If you use a model that cannot call actions, the voice commands still work. See [If answers are slow or wrong](#if-answers-are-slow-or-wrong).
 
 ## Choose where the model runs
 
-1. **On the host.** One small computer runs the host and a small model. It is the simplest and works well for short answers.
-2. **On a bigger computer on your network.** Point `llm_url` at it. The host stays small and the model runs where there is more memory.
+1. **On the host.** One small computer runs the host and a small model, which the Brain page installs for you. It is the simplest and works well for short answers.
+2. **On a bigger computer on your network.** Give its address to the Brain page. The host stays small and the model runs where there is more memory.
 3. **On MaiPai Home.** If you use MaiPai Home as the brain, it runs the models for you on its own machine. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 ## If answers are slow or wrong
