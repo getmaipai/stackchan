@@ -45,3 +45,7 @@ host/tests/test_firmware_fx_cores.py :: MP_NAMES_COLOUR
 
 # Generated index: it quotes the Intent lines of the firmware patch files, which keep their old spelling until the patches are swept with a replay check.
 docs/design/INDEX.md :: *
+
+# Virtual unit tool handlers: key and value names copied from the flashed firmware's tool arguments and the unit's saved settings (colour, Colour memory).
+scripts/virtual-unit/tools/* :: [Cc]olour
+host/tests/test_vu_tools_*.py :: [Cc]olour

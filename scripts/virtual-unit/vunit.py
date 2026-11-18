@@ -159,7 +159,8 @@ class VirtualUnit:
             self._speak_until = self.now_ms + seconds * 1000
             return {"ok": True}
         if name in _tools.REGISTRY:
-            return _tools.REGISTRY[name](self, args)
+            result = _tools.REGISTRY[name](self, args)
+            return result if isinstance(result, dict) else ({"ok": result} if isinstance(result, bool) else {"result": result})  # a bare bool or a JSON array
         if name == "self.robot.get_head_angles":
             return self.head()
         if name == "self.robot.set_head_angles":
