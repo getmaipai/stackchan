@@ -9,3 +9,11 @@ id = "private-network-auth-key"
 description = "Private-network auth key"
 regex = '''tskey-[A-Za-z0-9]+-[A-Za-z0-9]{8,}'''
 keywords = ["tskey-"]
+
+[allowlist]
+description = "Obvious test fakes and a file hash, never real secrets"
+regexes = [
+  '''FAKETESTKEY''',
+  '''private-secret-123''',
+]
+paths = ['''host/maipai_body/bodies/reachy_mini/fixtures/README\.md''']

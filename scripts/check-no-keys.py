@@ -29,9 +29,12 @@ def scan_file(path):
         return [(path, f"unreadable ({exc.strerror})", 0)]
     hits = []
     for label, rx in KINDS:
-        m = rx.search(data)
-        if m:
+        # Test fixtures use the marker FAKETESTKEY; every other match is refused.
+        for m in rx.finditer(data):
+            if b"FAKETESTKEY" in m.group(0):
+                continue
             hits.append((path, label, m.start()))
+            break
     return hits
 
 
