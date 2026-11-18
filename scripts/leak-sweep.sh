@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Intent: before the repo goes public, no tracked file names a review finding id or describes a flaw the way the private review did.
+# Intent: before the repo goes public, no tracked file carries labels or wording from the private reviews.
 # Fails (exit 1, one line per hit) when a tracked text file matches a pattern below and the line is not in scripts/leak-sweep-allow.txt.
 # Usage: bash scripts/leak-sweep.sh            tree check (this is what check.sh runs)
 #        bash scripts/leak-sweep.sh --history  also list commit messages on the current branch that match (a list for the owner, never fails)
