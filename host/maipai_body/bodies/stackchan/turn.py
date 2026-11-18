@@ -717,13 +717,12 @@ class StackChanTurnBridge:
         )
         self._clock = clock
         self.cache_dir = cache_dir
-        self.stt_factory, self.turn_factory, self.tts_factory = (
-            stt_factory,
-            turn_factory,
-            tts_factory,
-        )
+        from maipai_body.bodies.stackchan.speech_backend import HubBackend, LocalBackend
+
+        self.backend = HubBackend(stt_factory, turn_factory, tts_factory)
         self._local_speech = self._local_speech_from(units)
         if self._local_speech is not None:
+            self.backend = LocalBackend(stt_factory, turn_factory, tts_factory)
             from maipai_body.speech.local_speech import LocalSttClient, LocalTtsClient
 
             from maipai_body.speech.local_speech import builtin_stt_factory, builtin_tts_factory
@@ -988,7 +987,7 @@ class StackChanTurnBridge:
         first = True
         retries = 0
         while True:
-            stt = self.stt_factory(base, cookie)
+            stt = self.backend.stt(base, cookie)
             self._set_live(True)
             try:
                 if first and followup:
@@ -1136,6 +1135,31 @@ class StackChanTurnBridge:
             LOG.warning("StackChan attribution dropped: malformed person id %r", person_id)
             return None
 
+    # The three client factories live on the backend; the older names stay (tests and callers replace them).
+    @property
+    def stt_factory(self):
+        return self.backend.stt_factory
+
+    @stt_factory.setter
+    def stt_factory(self, value) -> None:
+        self.backend.stt_factory = value
+
+    @property
+    def turn_factory(self):
+        return self.backend.turn_factory
+
+    @turn_factory.setter
+    def turn_factory(self, value) -> None:
+        self.backend.turn_factory = value
+
+    @property
+    def tts_factory(self):
+        return self.backend.tts_factory
+
+    @tts_factory.setter
+    def tts_factory(self, value) -> None:
+        self.backend.tts_factory = value
+
     @staticmethod
     def _local_speech_from(units):
         """(stt_url, tts_url, timeout, llm) when robot.toml sets a model and the brain is not Home:
@@ -1230,7 +1254,7 @@ class StackChanTurnBridge:
         """This unit's turn client: its own model when it chose one, else the Home turn client."""
         if self.units is not None and self.units.has_own_llm(device_id):
             return self.units.turn_for(device_id)
-        return self.turn_factory(base, cookie)
+        return self.backend.turn(base, cookie)
 
     def _unit_pitch(self, device_id: str) -> float:
         """The voice record's offset plus this unit's own pitch setting."""
@@ -1277,7 +1301,7 @@ class StackChanTurnBridge:
             base = getattr(self.link.hub_client, "active_base_url", None) or (
                 pairing.base_url if pairing else None
             )
-            if self._local_speech is not None:
+            if self.backend.local:
                 base, cookie = "local", "local"
                 store = getattr(self.units, "store", None)
                 level = store.get(device_id).get("wait_after_talking") if store else None
@@ -1726,7 +1750,7 @@ class StackChanTurnBridge:
             nonlocal tts
             index = len(spoken)
             if tts is None:
-                tts = self.tts_factory(base, cookie, playback)
+                tts = self.backend.tts(base, cookie, playback)
             if index == 0:
                 now = self._clock()
                 marks["first_sentence"] = now
@@ -2005,7 +2029,7 @@ class StackChanTurnBridge:
             base = getattr(self.link.hub_client, "active_base_url", None) or (
                 pairing.base_url if pairing else None
             )
-            if self._local_speech is not None:
+            if self.backend.local:
                 base, cookie = "local", "local"
             if not cookie or not base:
                 return False
@@ -2106,7 +2130,7 @@ class StackChanTurnBridge:
         """Speak one short line through the hub's voice (a confirmation, not a chat reply)."""
         try:
             self._caption(playback, text)
-            self.tts_factory(base, cookie, playback).speak(text)
+            self.backend.tts(base, cookie, playback).speak(text)
             playback.stop()
             playback.end()
         except Exception:
@@ -2122,7 +2146,7 @@ class StackChanTurnBridge:
                 LOG.debug("StackChan error earcon failed", exc_info=True)
         try:
             self._caption(playback, "I couldn't understand that. Please try again.")
-            self.tts_factory(base, cookie, playback).speak(
+            self.backend.tts(base, cookie, playback).speak(
                 "I couldn't understand that. Please try again."
             )
             playback.stop()

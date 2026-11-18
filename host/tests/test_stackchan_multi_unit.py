@@ -123,7 +123,7 @@ def test_volume_cap_is_the_units_own(registry):
 
 def test_voice_link_picks_the_units_turn_client(registry):
     home = object()
-    bridge = SimpleNamespace(units=registry, turn_factory=lambda base, cookie: home)
+    bridge = SimpleNamespace(units=registry, backend=SimpleNamespace(turn=lambda base, cookie: home))
     pick = StackChanTurnBridge._turn_for
     kitchen_turn = pick(bridge, KITCHEN, "b", "c")
     assert kitchen_turn is not home and kitchen_turn._brain.config.llm.model == "kitchen-model"
