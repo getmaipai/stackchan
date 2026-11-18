@@ -32,7 +32,7 @@ def build_cores(work: Path) -> Path:
         start = min(i for i in (text.find("diff --git"), text.find("\n--- ")) if i >= 0)
         diff.write_text(text[start:].lstrip("\n"))
         run = subprocess.run(
-            ["git", "apply", "--include=firmware/main/hal/*_core.h", str(diff)],
+            ["git", "apply", "--include=firmware/main/hal/*_core.h", "--include=firmware/main/hal/maipai_beat.h", "--include=firmware/main/hal/maipai_music_judge.h", str(diff)],
             cwd=work,
             capture_output=True,
             text=True,

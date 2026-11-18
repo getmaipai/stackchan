@@ -16,6 +16,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from firmware_order_cores import cores_dir
 
 from maipai_body import overlay_shapes, reply_tags, settings_ui
 
@@ -24,31 +25,12 @@ ROOT = HERE.parent.parent
 PATCHES = ROOT / "firmware" / "patches"
 DUMP = HERE / "firmware" / "overlay_dump.c"
 TREE = os.environ.get("MAIPAI_FW_TREE", "")
-CHAIN = [
-    "TA02-screen-effects-and-governor.patch",
-    "TA03-overlay-engine.patch",
-    "O01-overlay-engine-bigger-shapes-and-combinations.patch",
-]
 
 
 def _headers(tmp_path_factory: pytest.TempPathFactory) -> Path:
     if TREE and Path(TREE, "main", "hal", "maipai_overlay_core.h").is_file():
         return Path(TREE, "main", "hal")
-    if shutil.which("git") is None:
-        pytest.skip("git is not installed")
-    work = tmp_path_factory.mktemp("overlaycores")
-    for name in CHAIN:
-        text = (PATCHES / name).read_text()
-        diff = work / "p.diff"
-        diff.write_text(text[text.index("diff --git") :])
-        run = subprocess.run(
-            ["git", "apply", "--include=firmware/main/hal/*_core.h", str(diff)],
-            cwd=work,
-            capture_output=True,
-            text=True,
-        )
-        assert run.returncode == 0, f"{name}: {run.stderr}"
-    return work / "firmware" / "main" / "hal"
+    return cores_dir(tmp_path_factory)
 
 
 @pytest.fixture(scope="module")

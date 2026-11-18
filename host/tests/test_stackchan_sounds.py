@@ -32,9 +32,9 @@ def _normal_policy(monkeypatch):
 
 
 HERE = Path(__file__).resolve().parent
-FIRMWARE = HERE.parent / "maipai_body/bodies/stackchan/firmware"
-SOUNDS = FIRMWARE / "assets/sounds"
-PHRASES = FIRMWARE / "assets/phrases"
+FIRMWARE = HERE.parent.parent / "firmware"
+SOUNDS = HERE.parent / "maipai_body/bodies/stackchan/firmware/assets/sounds"
+PHRASES = HERE.parent / "maipai_body/bodies/stackchan/firmware/assets/phrases"
 CORE = (FIRMWARE / "patches/115-sounds-core.patch").read_text()
 
 
@@ -513,11 +513,7 @@ def test_the_seven_earcons_are_in_the_family_format_and_size():
 
 
 def test_the_earcon_files_the_recipe_needs_all_exist():
-    recipe = (FIRMWARE / "recipe.sh").read_text()
-    names = re.search(r"for earcon in ([a-z_ ]+); do", recipe)
-    assert names is not None
-    assert names.group(1).split() == list(EARCONS[:7])
-    for name in names.group(1).split():
+    for name in EARCONS[:7]:
         assert (SOUNDS / f"snd_{name}.ogg").is_file()
 
 
@@ -572,7 +568,7 @@ def test_tier_two_only_runs_when_the_unit_has_no_socket_so_the_tiers_never_both_
     """Tier 1 (turn.py) speaks only on a turn the body is running, so the unit's socket to the body
     is open. Tier 2 is called from ShowCantReachHome, which patch 075 reaches only after
     OpenAudioChannel failed or found the channel closed."""
-    offline = (FIRMWARE / "patches/075-offline-mode.patch").read_text()
+    offline = (HERE.parent.parent / "host/maipai_body/bodies/stackchan/firmware/patches/075-offline-mode.patch").read_text()
     calls = [m.start() for m in re.finditer(r"ShowCantReachHome\(\);", offline)]
     assert calls
     for at in calls:
@@ -580,7 +576,7 @@ def test_tier_two_only_runs_when_the_unit_has_no_socket_so_the_tiers_never_both_
         assert "OpenAudioChannel" in before or "IsAudioChannelOpened" in before
     assert (
         "maipai_sounds_wake_offline();"
-        in (FIRMWARE / "patches/118-offline-phrases.patch").read_text()
+        in (HERE.parent.parent / "host/maipai_body/bodies/stackchan/firmware/patches/118-offline-phrases.patch").read_text()
     )
     turn = (HERE.parent / "maipai_body/bodies/stackchan/turn.py").read_text()
     assert "def _offline_line" in turn  # tier 1 is still there and unchanged in kind

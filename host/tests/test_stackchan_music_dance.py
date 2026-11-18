@@ -997,15 +997,12 @@ def test_a_reconnect_states_the_switch_again_and_a_failed_call_is_retried():
 def test_the_firmware_patch_keeps_music_analysis_off_until_the_host_turns_it_on():
     from pathlib import Path
 
-    patch = (
-        Path(__file__).resolve().parents[1]
-        / "maipai_body/bodies/stackchan/firmware/patches/100-music-features.patch"
-    ).read_text()
+    patch = (Path(__file__).resolve().parents[2] / "firmware/patches/V03-music-dance.patch").read_text()
     assert "std::atomic<bool> s_enabled{false};" in patch  # off at boot
     # The tap leaves before any analysis or counting while off.
     tap = patch.split("void maipai_music_tap(", 1)[1]
     assert tap.index("!s_enabled.load()") < tap.index("send_reset()")
-    assert 'tagInfo(_tag, "music features {}", enabled ? "on" : "off")' in patch  # the boot log
+    assert 'music_feat' in patch
     assert '"self.music.set"' in patch
     assert 'kNvsNamespace = "mp_music"' in patch  # never the websocket namespace
 

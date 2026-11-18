@@ -68,6 +68,9 @@ def test_face_core_c_tests_pass(tmp_path, tmp_path_factory):
     run = subprocess.run([str(binary)], capture_output=True, text=True)
     assert run.returncode == 0, run.stdout + run.stderr
     assert "all passed" in run.stdout
+    look = (tmp_path / "maipai_look_core.h").read_text()
+    assert '"classic", 72, 70, -18, 56, ML_MOUTH_CUTE, 42,' in look
+    assert '"minimal", 40, 62, -10, 56, ML_MOUTH_CUTE, 44,' in look
 
 
 def test_face_patches_are_on_order_in_sequence_with_their_header_lines():

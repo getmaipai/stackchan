@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-PATCHES = Path(__file__).resolve().parents[1] / "maipai_body/bodies/stackchan/firmware/patches"
+PATCHES = Path(__file__).resolve().parents[2] / "firmware/patches"
 _HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+\d+(?:,\d+)? @@")
 
 
