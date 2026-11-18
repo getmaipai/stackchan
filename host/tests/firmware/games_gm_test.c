@@ -344,11 +344,11 @@ static void test_rps_layout(void)
 {
     const mg_pack_t* p = &g_rps;
     CHECK(p->n_regions == 5 && p->n_states == 15 && p->n_shapes <= 48);
-    int x_end = 20;
-    for (int i = 0; i < 3; i++) { /* three large tiles side by side across the whole width, each at least 93 by 94 */
+    int x_end = 12;   /* patch GM07: the tiles are 88 by 88 with 8 px gaps (the screen standard), so the first starts at 20 = 12 + 8 */
+    for (int i = 0; i < 3; i++) { /* three large tiles side by side across the whole width, 8 px apart */
         mg_region_t g;
         mg_region_get(p, i, &g);
-        CHECK(g.x == x_end && g.w >= 93 && g.h >= 94 && g.y >= 60 && g.y + g.h <= MG_SAFE_BOTTOM);
+        CHECK(g.x == x_end + 8 && g.w >= 88 && g.h >= 88 && g.y >= 60 && g.y + g.h + 8 <= 176 && g.y + g.h <= MG_SAFE_BOTTOM);
         x_end = g.x + g.w;
         CHECK(mg_region_at(p, g.x + 1, g.y + 1) == i && mg_region_at(p, g.x + g.w - 1, g.y + g.h - 1) == i);
     }

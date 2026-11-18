@@ -766,7 +766,7 @@ static void test_dice(void)
     for (int i = 0; i < 3; i++) {   /* the mode tiles */
         mg_region_t g;
         mg_region_get(p, i, &g);
-        CHECK(g.h >= 44 && g.w >= 92 && g.y >= MG_SAFE_TOP && g.y + g.h <= MG_SAFE_BOTTOM);
+        CHECK(g.h >= 44 && g.w >= 88 && g.y >= MG_SAFE_TOP && g.y + g.h <= MG_SAFE_BOTTOM);
     }
     int six = 0, heads = 0, tails = 0;
     for (uint32_t seed = 1; seed < 400; seed++) {

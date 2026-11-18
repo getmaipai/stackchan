@@ -1,0 +1,85 @@
+{
+ "bopit": {
+  "regions": 1,
+  "board_cells": 0,
+  "board_cell_px": null,
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": [],
+  "warns": []
+ },
+ "dice": {
+  "regions": 4,
+  "board_cells": 0,
+  "board_cell_px": null,
+  "targets": 4,
+  "fails": 0,
+  "warnings": 3,
+  "failures": [],
+  "warns": [
+   "target 88x54 px at 20,170: under the 56 px primary size",
+   "target 88x54 px at 116,170: under the 56 px primary size",
+   "target 88x54 px at 212,170: under the 56 px primary size"
+  ]
+ },
+ "eightball": {
+  "regions": 1,
+  "board_cells": 0,
+  "board_cell_px": null,
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": [],
+  "warns": []
+ },
+ "memory": {
+  "regions": 4,
+  "board_cells": 0,
+  "board_cell_px": null,
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": [],
+  "warns": []
+ },
+ "rps": {
+  "regions": 5,
+  "board_cells": 0,
+  "board_cell_px": null,
+  "targets": 5,
+  "fails": 0,
+  "warnings": 2,
+  "failures": [],
+  "warns": [
+   "target 136x48 px at 20,176: under the 56 px primary size",
+   "target 136x48 px at 164,176: under the 56 px primary size"
+  ]
+ },
+ "tictactoe": {
+  "regions": 9,
+  "board_cells": 9,
+  "board_cell_px": [
+   93,
+   56
+  ],
+  "targets": 0,
+  "fails": 0,
+  "warnings": 0,
+  "failures": [],
+  "warns": []
+ },
+ "whack": {
+  "regions": 9,
+  "board_cells": 9,
+  "board_cell_px": [
+   93,
+   57
+  ],
+  "targets": 0,
+  "fails": 0,
+  "warnings": 0,
+  "failures": [],
+  "warns": []
+ }
+}

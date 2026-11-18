@@ -34,3 +34,7 @@ mkdir -p "$OUT/grid"
 python3 "$(dirname "$0")/grid_gen.py" "$B" "$OUT/grid"
 clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$OUT/grid" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/grid_render.cc" "$OUT/lvgl.a" -o "$OUT/grid/grid_render" -lz
 echo "built $OUT/grid/grid_render"
+# the data-pack games' renderer (games_render.cc): used by games_audit.py to list every pack's touch regions
+mkdir -p "$OUT/games"
+clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/games_render.cc" "$OUT/lvgl.a" -o "$OUT/games/games_render" -lz
+echo "built $OUT/games/games_render"

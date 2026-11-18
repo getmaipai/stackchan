@@ -1,0 +1,9 @@
+{
+ "bopit": {"fails": 0},
+ "dice": {"fails": 0},
+ "eightball": {"fails": 0},
+ "memory": {"fails": 0},
+ "rps": {"fails": 0},
+ "tictactoe": {"fails": 0},
+ "whack": {"fails": 0}
+}

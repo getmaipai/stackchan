@@ -39,6 +39,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - [Four users review of the robot's screens (2026-11-18)](four-users-review.md)
 - [Frame cost baseline from the virtual unit (2026-11-18)](frame-cost-baseline-2026-11-18.md)
 - [Fuzzing the unit's parsers, and a hostile peer against the host](fuzzing-and-hostile-peer.md)
+- [Screen audit of the data-pack games](games-audit.md)
 - [Gate numbers (2026-11-18)](gate-numbers.md)
 - [Recording head moves on the unit (for the physics calibration)](head-recording.md)
 - [Head moves are about twice as fast as before (2026-11-18)](head-speed-real-time-clock.md)

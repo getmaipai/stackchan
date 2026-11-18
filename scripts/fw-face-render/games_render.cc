@@ -7,6 +7,7 @@
 //   board I V                set Tic-Tac-Toe cell I (0 empty, 1 the person, 2 the unit)
 //   guides on|off            draw the banner row, drag bar strip and bottom margin lines (y 28, 44 and 224) and the touch regions on the picture
 //   t MS / draw             the clock (for motion keyframes) and a draw at that time; snap draws at the present clock
+//   targets                  one line for every touch region of the loaded pack, in the format of the page renderer's ptargets (ptarget x1 y1 x2 y2 own x1 y1 x2 y2 scroll 0), for the screen audit
 //   snap FILE.png            draw and write the screen as a PNG
 //   sheet FILE.png COLS      a grid of every snap so far at half size
 // Build: bash scripts/fw-face-render/games_render.sh <firmware tree root> <out dir>
@@ -190,6 +191,13 @@ int main()
             printf("no game loaded for: %s\n", line.c_str());
         } else if (cmd == "clear") {  // forget the snaps so far (the next sheet starts fresh)
             g_tiles.clear();
+        } else if (cmd == "targets") {  // the pack's touch regions, for the screen audit (scripts/virtual-unit/games_audit.py)
+            for (int i = 0; i < g_pack.n_regions; i++) {
+                mg_region_t r;
+                mg_region_get(&g_pack, i, &r);
+                printf("ptarget %d %d %d %d own %d %d %d %d scroll 0\n", r.x, r.y, r.x + r.w - 1, r.y + r.h - 1, r.x, r.y, r.x + r.w - 1, r.y + r.h - 1);
+            }
+            fflush(stdout);
         } else if (cmd == "t") {  // the clock, in ms: motion keyframes are taken at chosen times after a change
             in >> g_now;
         } else if (cmd == "draw") {  // let the player see the change at the present time (starts its motion)
