@@ -40,3 +40,37 @@ test("a download that fails says which file", async () => {
   const m = parseManifest(await manifestFor([["boot.bin", 0, "boot"]]));
   await assert.rejects(fetchAndVerify(m.parts, async () => { throw new Error("offline"); }), /Could not download boot\.bin/);
 });
+
+import { resolveManifestUrl, verifyManifestSignature, rawKeyFromPem, canonicalJson, keyId } from "../flasher-core.js";
+import { generateKeyPairSync, sign, createPublicKey } from "node:crypto";
+
+test("a release list from another site is refused, the page's own folder is read", () => {
+  assert.throws(() => resolveManifestUrl("https://other.example/flash-manifest.json", "https://flasher.example/flasher/"), /own site/);
+  assert.equal(resolveManifestUrl(null, "https://flasher.example/flasher/").href, "https://flasher.example/flasher/flash-manifest.json");
+  assert.equal(resolveManifestUrl("../r1/flash-manifest.json", "https://flasher.example/flasher/").origin, "https://flasher.example");
+});
+
+async function signed(manifest) {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const pem = publicKey.export({ type: "spki", format: "pem" });
+  const raw = rawKeyFromPem(pem);
+  const payload = Buffer.from(canonicalJson(manifest));
+  const sig = sign(null, payload, privateKey).toString("base64");
+  return { manifest: { ...manifest, signature: { keyid: await keyId(raw), sig } }, raw };
+}
+
+test("a signed list passes with its key and fails with a changed byte, another key or no signature", async () => {
+  const base = { version: "1.0.0", builds: [{ chipFamily: "ESP32-S3", parts: [] }], note: "ü" };
+  const { manifest, raw } = await signed(base);
+  assert.equal((await verifyManifestSignature(manifest, [raw])).length, 16);
+  await assert.rejects(verifyManifestSignature({ ...manifest, version: "1.0.1" }, [raw]), /not valid/);
+  const other = (await signed(base)).raw;
+  await assert.rejects(verifyManifestSignature(manifest, [other]), /does not trust/);
+  await assert.rejects(verifyManifestSignature(base, [raw]), /not signed/);
+  await assert.rejects(verifyManifestSignature(manifest, []), /does not trust/);
+});
+
+test("two files at one address are refused", async () => {
+  const h = "a".repeat(64);
+  assert.throws(() => parseManifest({ builds: [{ chipFamily: "ESP32-S3", parts: [{ path: "a.bin", offset: 0, sha256: h }, { path: "b.bin", offset: 0, sha256: h }] }] }), /same place/);
+});

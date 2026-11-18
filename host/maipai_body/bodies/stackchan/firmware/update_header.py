@@ -77,6 +77,8 @@ def verify_package(package: bytes, image: bytes, public_key_path: str | Path, *,
         return Verdict(False, str(error))
     if fields["size"] != len(image) or not hmac.compare_digest(fields["sha256"], hashlib.sha256(image).hexdigest()):
         return Verdict(False, "The image does not match its signed header.", fields)
+    if fields["build_number"] == 0:
+        return Verdict(False, "The update's build number is 0, which the unit refuses. Ask for a release with a build number of 1 or more.", fields)
     if installed_build is not None and fields["build_number"] <= installed_build:
         return Verdict(False, f"This update is not newer than the one installed (build {fields['build_number']} is not higher than {installed_build}).", fields)
     return Verdict(True, "", fields)

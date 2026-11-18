@@ -1,9 +1,16 @@
 import { ESPLoader, Transport } from "./vendor/esptool-js-0.7.0.js";
-import { FlasherError, fetchAndVerify, parseManifest, toFileArray } from "./flasher-core.js";
+import { FlasherError, fetchAndVerify, parseManifest, rawKeyFromPem, resolveManifestUrl, toFileArray, verifyManifestSignature } from "./flasher-core.js";
 
 const $ = (id) => document.getElementById(id);
 const say = (text, kind = "") => { const el = $("status"); el.textContent = text; el.className = kind; };
-const MANIFEST = new URLSearchParams(location.search).get("manifest") || "flash-manifest.json";
+// Only this page's own site is read: a ?manifest= that names another site is refused (resolveManifestUrl).
+let MANIFEST;
+try {
+  MANIFEST = resolveManifestUrl(new URLSearchParams(location.search).get("manifest"), location.href).href;
+} catch (error) {
+  MANIFEST = null;
+  setTimeout(() => { $("install").disabled = true; say(error.message, "bad"); }, 0);
+}
 
 function setProgress(done, total) {
   const bar = $("progress");
@@ -12,15 +19,30 @@ function setProgress(done, total) {
   bar.value = done;
 }
 
+// The keys this page trusts: the release keys pinned in trusted-keys.json beside the page. A test release is signed with a throwaway key
+// that is in no list; the person says so with the box on the page and the key beside the release list is used for that one run.
+async function trustedKeys() {
+  const response = await fetch("trusted-keys.json", { cache: "no-store" });
+  const pinned = response.ok ? (await response.json()).keys || [] : [];
+  const keys = pinned.map(rawKeyFromPem);
+  if ($("testrelease").checked) {
+    const own = await fetch(new URL("release-key.pub.pem", MANIFEST), { cache: "no-store" });
+    if (own.ok) keys.push(rawKeyFromPem(await own.text()));
+  }
+  return keys;
+}
+
 async function loadManifest() {
   const response = await fetch(MANIFEST, { cache: "no-store" });
   if (!response.ok) throw new FlasherError("The release list could not be loaded. Check that you opened this page from a release.");
-  return parseManifest(await response.json());
+  const manifest = await response.json();
+  await verifyManifestSignature(manifest, await trustedKeys());  // before anything is shown or offered
+  return parseManifest(manifest);
 }
 
 async function install(release) {
   say("Checking the files...");
-  const base = new URL(MANIFEST, location.href);
+  const base = new URL(MANIFEST);
   const verified = await fetchAndVerify(release.parts, async (path) => {
     const response = await fetch(new URL(path, base), { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -59,29 +81,42 @@ async function install(release) {
   }
 }
 
+let current = null;
+
+async function showRelease() {
+  current = null;
+  $("install").disabled = true;
+  $("version").textContent = "?";
+  $("parts").replaceChildren();
+  say("Loading...");
+  try {
+    current = await loadManifest();
+  } catch (error) {
+    say(error instanceof FlasherError ? error.message : "The release list could not be loaded.", "bad");
+    return;
+  }
+  $("version").textContent = current.version;
+  $("parts").replaceChildren(...current.parts.map((p) => Object.assign(document.createElement("li"), { textContent: `${p.path} at 0x${p.offset.toString(16)}` })));
+  $("install").disabled = false;
+  say("Ready. Plug the robot in with a USB cable, then press Install.");
+}
+
 async function start() {
   if (!("serial" in navigator)) {
     $("install").disabled = true;
     say("This browser cannot talk to the robot. Open this page in Chrome or Edge on a computer.", "bad");
     return;
   }
-  let release;
-  try {
-    release = await loadManifest();
-  } catch (error) {
-    $("install").disabled = true;
-    say(error instanceof FlasherError ? error.message : "The release list could not be loaded.", "bad");
-    return;
-  }
-  $("version").textContent = release.version;
-  $("parts").replaceChildren(...release.parts.map((p) => Object.assign(document.createElement("li"), { textContent: `${p.path} at 0x${p.offset.toString(16)}` })));
+  if (MANIFEST === null) return;
+  $("testrelease").addEventListener("change", showRelease);
   $("install").addEventListener("click", async () => {
+    if (!current) return;
     $("install").disabled = true;
-    try { await install(release); }
+    try { await install(current); }
     catch (error) { say(error instanceof FlasherError ? error.message : "Something went wrong. Reload the page and try again.", "bad"); }
     finally { $("install").disabled = false; }
   });
-  say("Ready. Plug the robot in with a USB cable, then press Install.");
+  await showRelease();
 }
 
 start();

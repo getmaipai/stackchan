@@ -173,6 +173,14 @@ class ExchangeRegistry:
             self._wrong[key] = recent
             if len(recent) >= MAX_WRONG_CODES:
                 raise ExchangeError("Too many wrong codes for this robot. Wait 10 minutes, then pair again.")
+            held = self._live.get(key)
+            if held is not None and not held.aborted and not held.finished:
+                if self._clock() - held._started > EXCHANGE_TTL_S:
+                    self._live.pop(key, None)  # nobody finished it: it is gone
+                elif held._pk_u != pk_u:
+                    # Another start for the same unit while the owner reads the digits: keep the first (a peer that only knows the
+                    # unit's id must not push the owner's pairing out). The same unit starting again with its own key replaces it.
+                    raise ExchangeError("A pairing for this robot is already waiting for its code. Finish it, or wait a few minutes and start again.")
             exchange = HostExchange(rand=self._rand, clock=self._clock)
             exchange.start(key, pk_u)
             self._live[key] = exchange
@@ -211,4 +219,7 @@ class ExchangeRegistry:
     def pending_devices(self) -> list[str]:
         """Units whose six digits are waiting to be typed (for the pairing card)."""
         with self._lock:
+            now = self._clock()
+            for device in [d for d, e in self._live.items() if now - e._started > EXCHANGE_TTL_S]:
+                self._live.pop(device, None)  # a unit that dropped, or a made-up one, does not stay on the card
             return [d for d, e in self._live.items() if e._stage == "waiting_for_code" and not e.aborted]
