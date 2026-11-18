@@ -1,0 +1,225 @@
+# Intent: One game-over screen for every game (owner idea 2026-11-18, spec docs/design/game-over-screen.md). A face for the result (amber and smiling for a win, blue and sad for a loss, gray and level for a draw), the result in words (You won! / You lost / Draw), the game's own score line, the best line or the amber "New best!" mark, and two 148 by 56 px buttons, Play again and Quit, on the 8 px margin and gap of the screen standard. The screen is two new header-only files (the pure layout, texts and cues in maipai_game_over_core.h; the LVGL drawing in maipai_game_over.h) that the host renderer compiles too; a game shows it with mgo::build and routes touches with mgo_hit. This patch adds the shared screen and its tests only: wiring each game's end into it (and the sound and the restart) is the firmware track's, per the spec. Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_game_over_core.h, maipai_game_over.h (ours)
+# Check after a flash: (after the wiring) every game ends on the same screen with its result, score and best; Play again restarts the same game; Quit returns to the games page; a tap in the gap or the margin does nothing.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_game_over_core.h b/firmware/main/hal/maipai_game_over_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_game_over_core.h
+@@ -0,0 +1,95 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The one game-over screen every game shows (patch UX15; spec docs/design/game-over-screen.md): the pure data and layout, plain C99, no ESP and no LVGL call.
++ * A game supplies the result (won, lost, draw), a score line and a best line, and whether the score beats the old best. The screen is the same for every game:
++ * a face for the result, the result in words, the score, the best (marked new best when it beat the old one), and two 148 by 56 px buttons, Play again and Quit.
++ */
++#ifndef MAIPAI_GAME_OVER_CORE_H
++#define MAIPAI_GAME_OVER_CORE_H
++
++#include <stdint.h>
++
++enum { MGO_WON = 1, MGO_LOST = 2, MGO_DRAW = 3 };
++enum { MGO_BTN_NONE = 0, MGO_BTN_AGAIN = 1, MGO_BTN_QUIT = 2 };
++/* The sound for the moment the screen shows (the unit maps these to its clips: win MGS_C_FANFARE, lose MGS_C_GRID_LOSE, draw MGS_C_GRID_DRAW, new best MGS_C_TING after the win or loss sound). */
++enum { MGO_CUE_WIN = 1, MGO_CUE_LOSE = 2, MGO_CUE_DRAW = 3, MGO_CUE_NEW_BEST = 4 };
++
++/* Geometry on the 320 by 240 glass. The banner row (y 0 to 27) stays over the top of the screen as on every game. */
++#define MGO_W 320
++#define MGO_H 240
++#define MGO_ICON_CX 160
++#define MGO_ICON_CY 62
++#define MGO_ICON_R 28          /* the face is 56 px across: y 34 to 90 */
++#define MGO_TITLE_Y 94         /* the result in the 24 px font (line height about 28) */
++#define MGO_SCORE_Y 124        /* the score line in the 20 px font (about 23) */
++#define MGO_BEST_Y 150         /* the best line or the new best mark in the 16 px font (about 19) */
++#define MGO_BTN_W 148
++#define MGO_BTN_H 56           /* the primary target size of the screen standard */
++#define MGO_BTN_Y 176
++#define MGO_MARGIN 8
++#define MGO_BTN_GAP 8
++#define MGO_POP_MS 160u        /* the face pops when the screen appears: 100 percent to 112 and back, as the grid games' pop */
++
++static inline void mgo_button(int btn, int* x, int* y, int* w, int* h)
++{
++    *w = MGO_BTN_W;
++    *h = MGO_BTN_H;
++    *y = MGO_BTN_Y;
++    *x = btn == MGO_BTN_QUIT ? MGO_MARGIN + MGO_BTN_W + MGO_BTN_GAP : MGO_MARGIN;
++}
++
++/* Which button a touch is on (MGO_BTN_NONE for none). The gap and the margin hit nothing, so a slip never quits. */
++static inline int mgo_hit(int px, int py)
++{
++    for (int b = MGO_BTN_AGAIN; b <= MGO_BTN_QUIT; b++) {
++        int x, y, w, h;
++        mgo_button(b, &x, &y, &w, &h);
++        if (px >= x && px < x + w && py >= y && py < y + h) {
++            return b;
++        }
++    }
++    return MGO_BTN_NONE;
++}
++
++/* The words are plain ASCII (no accent, no inverted marks), as the games' other Spanish texts are: the games' 20 and 24 px fonts have no accented letters. */
++static inline const char* mgo_title(int result, int es)
++{
++    switch (result) {
++        case MGO_WON: return es ? "Ganaste" : "You won!";
++        case MGO_LOST: return es ? "Perdiste" : "You lost";
++        default: return es ? "Empate" : "Draw";
++    }
++}
++static inline const char* mgo_button_label(int btn, int es)
++{
++    return btn == MGO_BTN_AGAIN ? (es ? "Otra vez" : "Play again") : (es ? "Salir" : "Quit");
++}
++static inline const char* mgo_new_best_label(int es) { return es ? "Nuevo record" : "New best!"; }
++
++/* Does this score beat the old best (0 means none yet)? Lower is better for the timed and turn-counted games (Memory Match, Mine Finder). */
++static inline int mgo_beats_best(int score, int best, int lower_is_better)
++{
++    if (score <= 0) {
++        return 0;
++    }
++    return best <= 0 || (lower_is_better ? score < best : score > best);
++}
++
++/* The sound for the moment the screen shows; the unit plays MGO_CUE_NEW_BEST after it when the score is a new best. */
++static inline int mgo_cue(int result)
++{
++    return result == MGO_WON ? MGO_CUE_WIN : (result == MGO_LOST ? MGO_CUE_LOSE : MGO_CUE_DRAW);
++}
++
++/* The face's size in permille of its normal size, `elapsed` ms after the screen appeared: 1000 to 1120 and back (the pop). */
++static inline int mgo_icon_scale(uint32_t elapsed)
++{
++    if (elapsed >= MGO_POP_MS) {
++        return 1000;
++    }
++    const int half = (int)(MGO_POP_MS / 2), e = (int)elapsed;
++    return 1000 + 120 * (e < half ? e : (int)MGO_POP_MS - e) / half;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_game_over.h b/firmware/main/hal/maipai_game_over.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_game_over.h
+@@ -0,0 +1,114 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The shared game-over screen, drawn with LVGL only (patch UX15; spec docs/design/game-over-screen.md), so the host renderer draws the very screen the unit shows.
++ * Build it over the game on the top layer: mgo::build(). Taps are routed by the game's touch handler with mgo_hit() (maipai_game_over_core.h), so the screen needs no
++ * click callbacks of its own and the game that shows it decides what Play again and Quit do (Play again restarts the same game, Quit goes back to the games page).
++ */
++#ifndef MAIPAI_GAME_OVER_H
++#define MAIPAI_GAME_OVER_H
++
++#include <lvgl.h>
++#include "maipai_game_over_core.h"
++
++namespace mgo {
++
++struct Screen {
++    lv_obj_t* root;
++    lv_obj_t* icon;   // the face disc, popped by set_pop()
++};
++
++inline lv_obj_t* part(lv_obj_t* parent, int x, int y, int w, int h, uint32_t rgb, int radius)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_pos(o, x, y);
++    lv_obj_set_size(o, w, h);
++    lv_obj_set_style_bg_color(o, lv_color_hex(rgb), 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    lv_obj_set_style_radius(o, radius, 0);
++    return o;
++}
++
++inline lv_obj_t* words(lv_obj_t* parent, const char* t, const lv_font_t* font, uint32_t rgb, int y)
++{
++    lv_obj_t* l = lv_label_create(parent);
++    lv_label_set_text(l, t);
++    lv_obj_set_style_text_font(l, font, 0);
++    lv_obj_set_style_text_color(l, lv_color_hex(rgb), 0);
++    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_set_width(l, MGO_W);
++    lv_obj_set_pos(l, 0, y);
++    return l;
++}
++
++// result: MGO_WON, MGO_LOST or MGO_DRAW. score_text is the game's own score line ("Score 66", "Cleared in 96 s", "Length 31"), best_text its best line ("Best 70"); both may be empty.
++// new_best marks the score as beating the old best: the best line is replaced by the amber "New best!" mark.
++inline Screen build(lv_obj_t* parent, int result, const char* score_text, const char* best_text, bool new_best, bool es)
++{
++    Screen s = {};
++    s.root = lv_obj_create(parent);
++    lv_obj_remove_style_all(s.root);
++    lv_obj_remove_flag(s.root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(s.root, MGO_W, MGO_H);
++    lv_obj_set_pos(s.root, 0, 0);
++    lv_obj_set_style_bg_color(s.root, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(s.root, LV_OPA_COVER, 0);
++    // the face: amber and smiling for a win, blue and sad for a loss, gray and level for a draw
++    const uint32_t body = result == MGO_WON ? 0xF2B24A : (result == MGO_LOST ? 0x7FA0D0 : 0xB4B4B4);
++    const int cx = MGO_ICON_CX, cy = MGO_ICON_CY, r = MGO_ICON_R;
++    s.icon = part(s.root, cx - r, cy - r, 2 * r, 2 * r, body, LV_RADIUS_CIRCLE);
++    part(s.icon, r - 14, r - 12, 8, 8, 0x10141C, LV_RADIUS_CIRCLE);   // the eyes
++    part(s.icon, r + 6, r - 12, 8, 8, 0x10141C, LV_RADIUS_CIRCLE);
++    if (result == MGO_DRAW) {
++        part(s.icon, r - 9, r + 8, 18, 4, 0x10141C, 2);                 // a level mouth
++    } else {
++        lv_obj_t* m = lv_arc_create(s.icon);                            // a smile (the lower half of a circle) or a frown (the upper half, lower down)
++        lv_obj_remove_flag(m, LV_OBJ_FLAG_CLICKABLE);
++        lv_obj_remove_style(m, nullptr, LV_PART_KNOB);
++        lv_obj_set_size(m, 30, 30);
++        lv_obj_set_pos(m, r - 15, result == MGO_WON ? r - 6 : r + 6);
++        lv_arc_set_rotation(m, 0);
++        lv_arc_set_bg_angles(m, result == MGO_WON ? 25 : 205, result == MGO_WON ? 155 : 335);
++        lv_obj_set_style_arc_width(m, 4, LV_PART_MAIN);
++        lv_obj_set_style_arc_width(m, 0, LV_PART_INDICATOR);
++        lv_obj_set_style_arc_color(m, lv_color_hex(0x10141C), LV_PART_MAIN);
++        lv_obj_set_style_arc_rounded(m, true, LV_PART_MAIN);
++    }
++    words(s.root, mgo_title(result, es ? 1 : 0), &lv_font_montserrat_24, 0xFFFFFF, MGO_TITLE_Y);
++    if (score_text != nullptr && score_text[0] != '\0') {
++        words(s.root, score_text, &lv_font_montserrat_20, 0xE8E8E8, MGO_SCORE_Y);
++    }
++    if (new_best) {
++        words(s.root, mgo_new_best_label(es ? 1 : 0), &lv_font_montserrat_16, 0xF2B24A, MGO_BEST_Y);
++    } else if (best_text != nullptr && best_text[0] != '\0') {
++        words(s.root, best_text, &lv_font_montserrat_16, 0x9AA3B0, MGO_BEST_Y);
++    }
++    for (int b = MGO_BTN_AGAIN; b <= MGO_BTN_QUIT; b++) {
++        int x, y, w, h;
++        mgo_button(b, &x, &y, &w, &h);
++        lv_obj_t* o = part(s.root, x, y, w, h, b == MGO_BTN_AGAIN ? 0x2C3E7A : 0x242424, 12);
++        lv_obj_set_style_border_width(o, 1, 0);
++        lv_obj_set_style_border_color(o, lv_color_hex(b == MGO_BTN_AGAIN ? 0x6A86D8 : 0x4A4A4A), 0);
++        lv_obj_t* t = lv_label_create(o);
++        lv_label_set_text(t, mgo_button_label(b, es ? 1 : 0));
++        lv_obj_set_style_text_font(t, &lv_font_montserrat_20, 0);
++        lv_obj_set_style_text_color(t, lv_color_white(), 0);
++        lv_obj_center(t);
++    }
++    return s;
++}
++
++// The pop of the face, `elapsed` ms after the screen appeared (called from the game's tick until MGO_POP_MS has passed).
++inline void set_pop(const Screen& s, uint32_t elapsed)
++{
++    if (s.icon != nullptr) {
++        lv_obj_set_style_transform_scale(s.icon, mgo_icon_scale(elapsed) * 256 / 1000, 0);
++    }
++}
++
++}  // namespace mgo
++
++#endif
