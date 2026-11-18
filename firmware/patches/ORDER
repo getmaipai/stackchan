@@ -278,3 +278,4 @@ SF23-bench-head-and-tone-medians.patch
 SF24-mouth-cues-in-psram.patch
 SF25-signed-update-header-and-build-number.patch
 SF26-bench-slot-firstrun-tool.patch
+SF27-bench-servo-rate-firstrun-loop.patch

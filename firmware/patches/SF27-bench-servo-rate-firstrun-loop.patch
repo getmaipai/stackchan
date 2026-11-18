@@ -1,0 +1,238 @@
+# Intent: Bench tools and cleanup. The other TDM slots can be read only by a bench build (a release image reads slot 1, the speaker loopback; the slot setting in Kconfig is gone). New bench tools: self.bench.firstrun_loop opens and closes the first-run screen n times and answers the free internal RAM before and after; self.bench.servo_rate starts a head move and counts servo update calls and animation steps per second (each step advances the animation by a fixed 20 ms).
+# Placement: unit
+# Upstream: firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc and .h (nested tree, MIT); firmware/main (ours)
+# Check after a flash: on a bench image self.bench.servo_rate with yaw 40 answers steps_per_s (50 means the animation runs at its designed speed); self.bench.firstrun_loop answers a delta near 0.
+# Kconfig: CONFIG_MAIPAI_SERIAL_TOOLS, CONFIG_MAIPAI_TALK_OVER (existing); CONFIG_MAIPAI_TALK_OVER_SLOT removed
+
+diff --git a/firmware/main/hal/maipai_bench.cc b/firmware/main/hal/maipai_bench.cc
+--- a/firmware/main/hal/maipai_bench.cc
++++ b/firmware/main/hal/maipai_bench.cc
+@@ -11,6 +11,8 @@
+ #if CONFIG_MAIPAI_SERIAL_TOOLS
+ #include <hal/maipai_lat.h>
+ #include <mcp_server.h>
++#include <hal/maipai_firstrun_wire.h>
++#include <atomic>
+ #include <settings.h>
+ #include <hal/hal.h>
+ #include <stackchan/stackchan.h>
+@@ -27,6 +29,13 @@ extern const uint32_t g_bench_clip_off[];
+ extern const uint32_t g_bench_clip_len[];
+ extern const int16_t g_bench_clips[];
+ 
++namespace stackchan::motion {
++extern std::atomic<uint32_t> g_servo_update_calls;  // stackchan/motion/servo.cpp (patch SF27)
++extern std::atomic<uint32_t> g_servo_anim_steps;
++}  // namespace stackchan::motion
++using stackchan::motion::g_servo_update_calls;
++using stackchan::motion::g_servo_anim_steps;
++
+ namespace {
+ struct Run {
+     std::atomic<bool> active{false};
+@@ -145,6 +154,43 @@ void maipai_bench_register_tools() {
+                     }
+                     return std::string("{\"ok\":true}");
+                 });
++    // Bench only (patch SF27): the servo animation advances a fixed 20 ms per step; if the update task runs slower than 50 Hz, the head moves slower
++    // than the spring settings say. This starts an optional move and counts update calls and animation steps for window_ms.
++    mcp.AddTool("self.bench.servo_rate",
++                "Bench only: starts a head move (yaw, pitch in degrees, -9999 none) and counts, over window_ms, how many times the servo update was called and how many "
++                "animation steps it took (each step is 20 ms of animation): steps per second below 50 means the head moves slower than designed. Answers {calls_per_s, steps_per_s}.",
++                PropertyList({Property("yaw", kPropertyTypeInteger, -9999, -9999, 128), Property("pitch", kPropertyTypeInteger, -9999, -9999, 90),
++                              Property("speed", kPropertyTypeInteger, 1000, 100, 1000), Property("window_ms", kPropertyTypeInteger, 1000, 200, 5000)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const int yaw = properties["yaw"].value<int>();
++                    const int pitch = properties["pitch"].value<int>();
++                    const int window = properties["window_ms"].value<int>();
++                    const uint32_t calls0 = g_servo_update_calls.load();
++                    const uint32_t steps0 = g_servo_anim_steps.load();
++                    {
++                        LvglLockGuard lock;
++                        auto& motion = GetStackChan().motion();
++                        if (pitch != -9999) motion.pitchServo().moveWithSpeed(pitch * 10, properties["speed"].value<int>());
++                        if (yaw != -9999) motion.yawServo().moveWithSpeed(yaw * 10, properties["speed"].value<int>());
++                    }
++                    vTaskDelay(pdMS_TO_TICKS(window));
++                    const uint32_t calls = g_servo_update_calls.load() - calls0;
++                    const uint32_t steps = g_servo_anim_steps.load() - steps0;
++                    char out[120];
++                    snprintf(out, sizeof(out), "{\"ok\":true,\"calls_per_s\":%.1f,\"steps_per_s\":%.1f}", calls * 1000.0 / window, steps * 1000.0 / window);
++                    return std::string(out);
++                });
++    mcp.AddTool("self.bench.firstrun_loop",
++                "Bench only: opens and closes the first-run screen n times (the record is not touched) and answers the free internal RAM before and after. "
++                "A leak shows as an after value that stays lower; the median over a minute should return.",
++                PropertyList({Property("n", kPropertyTypeInteger, 20, 1, 200)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    int before = 0, after = 0;
++                    maipai_firstrun_bench_cycle(properties["n"].value<int>(), &before, &after);
++                    char out[96];
++                    snprintf(out, sizeof(out), "{\"ok\":true,\"free_before\":%d,\"free_after\":%d,\"delta\":%d}", before, after, after - before);
++                    return std::string(out);
++                });
+     mcp.AddTool("self.bench.noise",
+                 "Bench only: loops a pink-noise clip into the microphone path for seconds at gain_pct percent.",
+                 PropertyList({Property("seconds", kPropertyTypeInteger, 60, 1, 7200),
+diff --git a/firmware/main/hal/maipai_firstrun_wire.cc b/firmware/main/hal/maipai_firstrun_wire.cc
+--- a/firmware/main/hal/maipai_firstrun_wire.cc
++++ b/firmware/main/hal/maipai_firstrun_wire.cc
+@@ -15,6 +15,7 @@
+ #include <settings.h>
+ #include <ssid_manager.h>
+ #include <esp_log.h>
++#include <esp_heap_caps.h>
+ #include <atomic>
+ #include <cstdio>
+ 
+@@ -75,3 +76,21 @@ void maipai_firstrun_boot_poll(bool xiaozhi_ready)
+     maipai_firstrun_start();
+     ESP_LOGI(kTag, "first run started");
+ }
++
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++// Patch SF27 (bench): opens and closes the first-run screen n times and reports the free internal RAM before and after (a leak in the screen's
++// objects shows as a drop that does not come back). The record is not touched.
++void maipai_firstrun_bench_cycle(int n, int* free_before, int* free_after)
++{
++    static const maipai_firstrun_host_t host = {wifi_set, hub_known, apply_language, open_wifi_setup, finished};
++    LvglLockGuard lock;
++    maipai_firstrun_init(&host);
++    maipai_firstrun_close();
++    *free_before = static_cast<int>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
++    for (int i = 0; i < n; i++) {
++        maipai_firstrun_start();
++        maipai_firstrun_close();
++    }
++    *free_after = static_cast<int>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
++}
++#endif
+diff --git a/firmware/main/hal/maipai_firstrun_wire.h b/firmware/main/hal/maipai_firstrun_wire.h
+--- a/firmware/main/hal/maipai_firstrun_wire.h
++++ b/firmware/main/hal/maipai_firstrun_wire.h
+@@ -2,3 +2,7 @@
+ // Patch SF09: the first-run flow (screens from patch UX05b) is started once, at the first standby of a unit that has no saved answers.
+ // Called about every 20 ms from the update loop; it costs one flag read once the record exists.
+ void maipai_firstrun_boot_poll(bool xiaozhi_ready);
++#include <sdkconfig.h>
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++void maipai_firstrun_bench_cycle(int n, int* free_before, int* free_after);  // patch SF27 (bench)
++#endif
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -331,15 +331,6 @@ config MAIPAI_TALK_OVER
+         First step of barge-in (patch SF15). The second input channel becomes MIC3 (the speaker loopback) instead of MIC2, and a bench
+         tool measures a tone on both channels. Off: the build is the one without it (MIC1 and MIC2), no code and no memory.
+ 
+-config MAIPAI_TALK_OVER_SLOT
+-    int "TDM slot read as the second channel (1 to 3)"
+-    depends on MAIPAI_TALK_OVER
+-    range 1 3
+-    default 1
+-    help
+-        The ES7210 does not necessarily put MIC1, MIC2, MIC3 and MIC4 in slots 0 to 3 in that order: the base firmware reads slot 1 as its
+-        echo reference. The bench tool measures which slot follows the speaker; build once with 1 and once with 2.
+-
+ config MAIPAI_MIC3_GAIN_DB
+     int "Gain of the MIC3 channel in dB (0 to 37)"
+     depends on MAIPAI_TALK_OVER
+diff --git a/firmware/main/stackchan/motion/servo.cpp b/firmware/main/stackchan/motion/servo.cpp
+--- a/firmware/main/stackchan/motion/servo.cpp
++++ b/firmware/main/stackchan/motion/servo.cpp
+@@ -3,12 +3,14 @@
+  *
+  * SPDX-License-Identifier: MIT
+  */
++#include <sdkconfig.h>
+ #include "servo.h"
+ #include <hal/hal.h>
+ #include <hal/maipai_privacy.h>
+ #include <hal/maipai_pickup.h>
+ #include <hal/maipai_motion_limit.h>
+ #include <cmath>
++#include <atomic>
+ #include <mutex>
+ 
+ using namespace uitk;
+@@ -30,6 +32,12 @@ static SpringOptions_t _default_spring_options = {
+     .visualDuration = 0.0,
+ };
+ 
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++// Patch SF27 (bench): how often the servo update was called and how often it advanced the animation (each advance is a fixed 20 ms of animation).
++std::atomic<uint32_t> g_servo_update_calls{0};
++std::atomic<uint32_t> g_servo_anim_steps{0};
++#endif
++
+ namespace {
+ // Patch SF08: the two servos share one bus, and their commands come from several tasks. Every command and the update
+ // take this one lock (recursive: the update calls the commands). It is never held while waiting for another lock.
+@@ -50,6 +58,9 @@ void Servo::init()
+ void Servo::update()
+ {
+     std::lock_guard<std::recursive_mutex> servo_lock(s_servo_mutex);
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++    g_servo_update_calls.fetch_add(1, std::memory_order_relaxed);
++#endif
+     // Keep update in at most 50Hz
+     if (GetHAL().millis() - _last_tick < 20) {
+         return;
+@@ -67,6 +78,9 @@ void Servo::update()
+     // Apply animation
+     if (!_angle_anim.done()) {
+         maipai_pickup_own_activity();  // patch TB04: the head is moving itself: the body is not read as a lift for 1.5 s
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++        g_servo_anim_steps.fetch_add(1, std::memory_order_relaxed);
++#endif
+         _angle_anim.updateWithDelta(0.02f);  // Fixed delta time for consistency
+         set_angle_impl(static_cast<int>(_angle_anim.directValue()));
+     }
+diff --git a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
+--- a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
++++ b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.cc
+@@ -15,7 +15,12 @@
+ 
+ static CoreS3AudioCodec* s_instance = nullptr;
+ #if CONFIG_MAIPAI_TALK_OVER
+-static int s_talk_slot = CONFIG_MAIPAI_TALK_OVER_SLOT;  // patch SF26
++// Patch SF27: slot 1 is the speaker loopback (measured on the unit). Only a bench build can read another slot (slot 2 is a real microphone, slot 3 is silent).
++#if CONFIG_MAIPAI_SERIAL_TOOLS
++static int s_talk_slot = 1;
++#else
++static constexpr int s_talk_slot = 1;
++#endif
+ #endif
+ 
+ CoreS3AudioCodec::CoreS3AudioCodec(void* i2c_master_handle, int input_sample_rate,
+@@ -363,7 +368,7 @@ int CoreS3AudioCodec::Write(const int16_t* data, int samples) {
+     return written;
+ }
+ 
+-#if CONFIG_MAIPAI_TALK_OVER
++#if CONFIG_MAIPAI_TALK_OVER && CONFIG_MAIPAI_SERIAL_TOOLS
+ // Patch SF26 (bench): which TDM slot is the second channel; the input is reopened when it is on.
+ void CoreS3AudioCodec::SetTalkSlot(int slot) {
+     if (slot < 1 || slot > 3 || slot == s_talk_slot) {
+@@ -383,7 +388,9 @@ void maipai_mic3_set_slot(int slot) {
+ }
+ 
+ int maipai_mic3_get_slot() { return s_talk_slot; }
++#endif
+ 
++#if CONFIG_MAIPAI_TALK_OVER
+ // Patch SF15 (bench): a new MIC3 gain while the input is open.
+ void maipai_mic3_set_gain_db(int db) {
+     auto* codec = CoreS3AudioCodec::Instance();
+diff --git a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h
+--- a/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h
++++ b/firmware/xiaozhi-esp32/main/boards/m5stack/core-s3/cores3_audio_codec.h
+@@ -40,7 +40,7 @@ public:
+     // read-back matches what a powered-down chip shows.
+     static CoreS3AudioCodec* Instance();
+     void SetMic3GainDb(float db);  // patch SF15 (CONFIG_MAIPAI_TALK_OVER, bench)
+-    void SetTalkSlot(int slot);    // patch SF26 (CONFIG_MAIPAI_TALK_OVER, bench)
++    void SetTalkSlot(int slot);    // patch SF26 (bench only; a release image reads slot 1)
+     bool MaipaiMicOff(char* regs, size_t regs_size);
+ };
+ 
