@@ -1,0 +1,261 @@
+# Intent: A cartoon face style as data (docs/design/face-styles.md, owner request 2026-11-19): a glossy eye design, three color slots and a tongue. The eye is a white oval, a colored iris that follows the gaze and rests looking up and to the side, a dark pupil and one small highlight. A recipe carries the iris color, the eye-white color and the tongue color in its two spare bytes (byte 14 the iris, byte 15 the tongue in the high four bits and the white in the low four; each is an index into one 15-color table, 0 meaning the style's default), so the recipe stays 44 bytes and older recipes (both bytes zero) read as before. The shape list gains three color slots; the avatar fills them when the style or the face color changes. An open smile (a thick mouth stroke) draws a small tongue in its lower middle. The iris is the face color unless that is white, then brown; the eye white is near-white; the tongue is pink. Original shapes only.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_look_core.h and firmware/main/stackchan/avatar/skins/default/ (ours, patches X01, V10, UXF01)
+# Check after a flash: install the cartoon style asset and apply it; the eyes are white with a colored iris looking up and aside, the smile shows a pink tongue when it opens, a happy eye closes to an arch, a sleepy lid covers the top; a recipe with both color bytes zero draws the default colors; the memory row is the same as for any other recipe.
+# Kconfig: none
+# Memory cost: three colors (6 bytes of internal RAM), no objects. Flash about 0.4 KB.
+
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
+@@ -50,7 +50,8 @@
+ #define ML_LOOK_NEON 2  /* a hollow ring with a soft glow, an iris and a spark */
+ #define ML_LOOK_SLIT 3  /* a vertical slit pupil */
+ #define ML_LOOK_HEART 4 /* the eye is a heart */
+-#define ML_LOOK_MAX 4
++#define ML_LOOK_GLOSS 5 /* a white eye, a colored iris, a dark pupil and a highlight */
++#define ML_LOOK_MAX 5
+ #define ML_X_NONE 0
+ #define ML_X_CAT 1    /* ears and whiskers */
+ #define ML_X_ROBOT 2  /* an antenna and two bolts */
+@@ -84,6 +85,9 @@
+     uint8_t look;       /* ML_LOOK_*, patch UXF01 */
+     uint8_t extras;     /* ML_X_* */
+     uint8_t lid_min;    /* the lid never opens past 100 minus this, percent (a sleepy look) */
++    uint8_t iris;       /* ML_PAL index of the iris color, 0 the default (patch UXF03) */
++    uint8_t tongue;     /* of the tongue */
++    uint8_t white;      /* of the eye white */
+ } ml_style_t;
+ 
+ static const ml_style_t ML_STYLES[ML_STYLE_COUNT] = {
+@@ -91,17 +95,25 @@
+      * Positions are from the middle of the FACE ZONE (screen y 106: the zone is y 28 to 184, patch N04), not of the screen.
+      * Big eyes is the approved design at 0.82; Eyes only, Stock, Classic and Minimal keep their sizes. Every mouth centre is
+      * at screen y 162 (offset 56; the bar 152), its tallest open shape ends by y 180; every eye top is at y 36 or lower. */
+-    {"big_eyes", 85, 70, -14, 56, ML_MOUTH_CUTE, 38, 7, 0, 79, 85, 100, 1, 1, 5, 7, 0, 0, 0},
+-    {"eyes_only", 80, 70, 0, 56, ML_MOUTH_NONE, 0, 0, 0, 76, 80, 55, 0, 0, 6, 0, 0, 0, 0},
+-    {"stock", 20, 70, -8, 46, ML_MOUTH_BAR, 90, 6, 1, 20, 20, 100, 0, 0, 3, 0, 0, 0, 0},
+-    {"classic", 72, 70, -18, 56, ML_MOUTH_CUTE, 42, 6, 0, 56, 72, 90, 0, 1, 5, 7, 0, 0, 0},
+-    {"minimal", 40, 62, -10, 56, ML_MOUTH_CUTE, 44, 3, 0, 28, 40, 100, 0, 0, 5, 4, 0, 0, 0},
+-    {"recipe", 85, 70, -14, 56, ML_MOUTH_CUTE, 38, 7, 0, 79, 85, 100, 1, 1, 5, 7, 0, 0, 0},   /* the template of the writable row */
++    {"big_eyes", 85, 70, -14, 56, ML_MOUTH_CUTE, 38, 7, 0, 79, 85, 100, 1, 1, 5, 7, 0, 0, 0, 0, 0, 0},
++    {"eyes_only", 80, 70, 0, 56, ML_MOUTH_NONE, 0, 0, 0, 76, 80, 55, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0},
++    {"stock", 20, 70, -8, 46, ML_MOUTH_BAR, 90, 6, 1, 20, 20, 100, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0},
++    {"classic", 72, 70, -18, 56, ML_MOUTH_CUTE, 42, 6, 0, 56, 72, 90, 0, 1, 5, 7, 0, 0, 0, 0, 0, 0},
++    {"minimal", 40, 62, -10, 56, ML_MOUTH_CUTE, 44, 3, 0, 28, 40, 100, 0, 0, 5, 4, 0, 0, 0, 0, 0, 0},
++    {"recipe", 85, 70, -14, 56, ML_MOUTH_CUTE, 38, 7, 0, 79, 85, 100, 1, 1, 5, 7, 0, 0, 0, 0, 0, 0},   /* the template of the writable row */
+ };
+ 
+ /* Screen y of the middle of the eyes of a style (patch O02: the glow and the overlays' eye protection use it; styles are measured from the
+  * middle of the face zone, y 106, not from the middle of the screen, y 120). */
+ static inline int ml_eye_center_y(const ml_style_t* st) { return ML_ZONE_CENTER_Y + st->eye_y; }
++
++/* The 15 colors a recipe may name for its iris, tongue and eye white; index 0 is the style's default. */
++#define ML_PAL_COUNT 16
++static const char* const ML_PAL_NAMES[ML_PAL_COUNT] = {"default", "white", "ice", "cream", "brown", "hazel", "green", "teal", "blue", "violet", "pink", "red", "coral", "amber", "gray", "ink"};
++static const uint8_t ML_PAL_RGB[ML_PAL_COUNT][3] = {
++    {0, 0, 0}, {0xF8, 0xFA, 0xFF}, {0xDD, 0xEB, 0xFF}, {0xF4, 0xEA, 0xD0}, {0x8A, 0x5A, 0x3C}, {0x9A, 0x7A, 0x3A}, {0x4F, 0xA6, 0x6A}, {0x3A, 0xAF, 0xA9},
++    {0x4A, 0x86, 0xE8}, {0x8A, 0x63, 0xD2}, {0xF0, 0x7A, 0xA0}, {0xE0, 0x48, 0x4E}, {0xF2, 0x84, 0x6C}, {0xF2, 0xB2, 0x4A}, {0x7A, 0x84, 0x94}, {0x1B, 0x1F, 0x2A},
++};
+ 
+ /* The writable row: one instance for the whole program (an inline function's static is shared by every file that includes this). */
+ #ifdef __cplusplus
+@@ -123,7 +135,7 @@
+ }
+ 
+ /* A recipe: 44 bytes (a style asset holds up to 256). Little endian.
+- *   0 "MPS1"  4 version (1)  5 look  6 extras  7 lid_min  8 mouth  9 r_pct  10 pupil  11 brows  12 drift  13 blw  14 to 15 zero
++ *   0 "MPS1"  4 version (1)  5 look  6 extras  7 lid_min  8 mouth  9 r_pct  10 pupil  11 brows  12 drift  13 blw  14 iris  15 tongue (high 4 bits) and eye white (low 4)
+  *   16 name (12 bytes, ASCII, NUL padded)  28 eight int16: eye_d, eye_x, eye_y, mouth_y, mouth_w, mouth_t, ew, eh
+  * ml_recipe_parse checks every number against what the face can draw, so a recipe cannot put a shape outside the face zone. */
+ #define ML_RECIPE_BYTES 44
+@@ -141,7 +153,7 @@
+     const int look = b[5], extras = b[6], lid_min = b[7], mouth = b[8], r_pct = b[9], pupil = b[10], brows = b[11], drift = b[12], blw = b[13];
+     const int eye_d = ml_rcp_i16(b + 28), eye_x = ml_rcp_i16(b + 30), eye_y = ml_rcp_i16(b + 32), mouth_y = ml_rcp_i16(b + 34);
+     const int mouth_w = ml_rcp_i16(b + 36), mouth_t = ml_rcp_i16(b + 38), ew = ml_rcp_i16(b + 40), eh = ml_rcp_i16(b + 42);
+-    if (look > ML_LOOK_MAX || extras > ML_X_MAX || mouth > ML_MOUTH_BAR || r_pct > 100 || pupil > 1 || brows > 1 || lid_min > 70 || drift > 12 || blw > 12) {
++    if (look > ML_LOOK_MAX || b[14] > 15 || extras > ML_X_MAX || mouth > ML_MOUTH_BAR || r_pct > 100 || pupil > 1 || brows > 1 || lid_min > 70 || drift > 12 || blw > 12) {
+         *why = "A choice in this face recipe is not one this unit knows (eye design, decoration, mouth, roundness, brows or lid). Make it again with scripts/face-recipe.py."; return 4;
+     }
+     if (!ml_rcp_between(ew, 10, 120) || !ml_rcp_between(eh, 10, 110) || !ml_rcp_between(eye_d, 10, 120) || !ml_rcp_between(eye_x, 30, 110) || !ml_rcp_between(eye_y, -60, 40)) {
+@@ -155,6 +167,7 @@
+     out->mouth = (uint8_t)mouth; out->mouth_w = (int16_t)mouth_w; out->mouth_t = (int16_t)mouth_t; out->stock_look = 0;
+     out->ew = (int16_t)ew; out->eh = (int16_t)eh; out->r_pct = (uint8_t)r_pct; out->pupil = (uint8_t)pupil; out->brows = (uint8_t)brows;
+     out->drift = (uint8_t)drift; out->blw = (uint8_t)blw; out->look = (uint8_t)look; out->extras = (uint8_t)extras; out->lid_min = (uint8_t)lid_min;
++    out->iris = b[14]; out->tongue = (uint8_t)(b[15] >> 4); out->white = (uint8_t)(b[15] & 15);
+     if (name_out != NULL) {
+         int i = 0;
+         for (; i < 12 && b[16 + i] >= 32 && b[16 + i] < 127; i++) name_out[i] = (char)b[16 + i];
+@@ -721,6 +734,9 @@
+ #define ML_COL_FG 0    /* the face colour (after the tint) */
+ #define ML_COL_BG 1    /* the screen colour */
+ #define ML_COL_HL 2    /* a highlight: the face colour, never tinted away */
++#define ML_COL_IRIS 3   /* patch UXF03: the style's iris, eye white and tongue colors */
++#define ML_COL_WHITE 4
++#define ML_COL_TONGUE 5
+ #define ML_MAX_SHAPES 48
+ 
+ typedef struct {
+@@ -775,7 +791,7 @@
+     t[MP_EW] = (float)st->ew * s.sw; t[MP_EH] = (float)st->eh * s.sh; t[MP_DY] = s.dy; t[MP_LID] = s.lid; t[MP_SLANT] = s.slant;
+     t[MP_CHEEK] = s.cheek; t[MP_RSCALE] = s.rscale; t[MP_RLIFT] = s.rlift; t[MP_MCURVE] = s.mcurve; t[MP_MOPEN] = s.mopen;
+     t[MP_MW] = (float)st->mouth_w * s.smw; t[MP_MON] = st->mouth == ML_MOUTH_NONE ? 0.0f : s.mon; t[MP_MTILT] = s.mtilt; t[MP_MX] = s.mx;
+-    t[MP_BROW] = st->brows ? s.brow : 0.0f; t[MP_BLIFT] = s.blift; t[MP_BTILT] = s.btilt; t[MP_BR] = s.br; t[MP_HEART] = s.heart;
++    t[MP_BROW] = st->brows ? (st->look == ML_LOOK_GLOSS && s.brow < 0.55f ? 0.55f : s.brow) : 0.0f;   /* patch UXF03: the cartoon eye keeps soft brows at rest */ t[MP_BLIFT] = s.blift; t[MP_BTILT] = s.btilt; t[MP_BR] = s.br; t[MP_HEART] = s.heart;
+     t[MP_DIM] = s.dim; t[MP_GX] = s.gx; t[MP_GY] = s.gy;
+ }
+ 
+@@ -867,7 +883,7 @@
+             ml_shape_t* g = ml_sh(out, &n, max, ML_SH_RRECT, ML_COL_FG, eyeA * 0.28f);
+             if (g) { g->v[0] = 0; g->v[1] = 0; g->v[2] = ww + 8.0f; g->v[3] = hh + 8.0f; g->v[4] = rad + 4.0f; }
+         }
+-        ml_shape_t* e = ml_sh(out, &n, max, ML_SH_RRECT, ML_COL_FG, eyeA);
++        ml_shape_t* e = ml_sh(out, &n, max, ML_SH_RRECT, look == ML_LOOK_GLOSS ? ML_COL_WHITE : ML_COL_FG, eyeA);
+         if (e) { e->v[0] = 0; e->v[1] = 0; e->v[2] = ww; e->v[3] = hh; e->v[4] = rad; }
+         if (look == ML_LOOK_NEON) { /* hollow: the screen color inside the ring, then an iris that follows the gaze, a pupil and a spark */
+             float tk = sm * 0.12f; tk = tk < 4.0f ? 4.0f : (tk > 9.0f ? 9.0f : tk);
+@@ -884,6 +900,19 @@
+                 if (c) { c->v[0] = px + ir * 0.12f; c->v[1] = py + ir * 0.14f; c->v[2] = ir * 0.46f; }
+                 c = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_HL, eyeA);
+                 if (c) { c->v[0] = px - ir * 0.40f; c->v[1] = py - ir * 0.44f; c->v[2] = ir * 0.24f; }
++            }
++        } else if (look == ML_LOOK_GLOSS) { /* a colored iris with a dark pupil and a small highlight, resting up and to the side, moving with the gaze */
++            const float ir = sm * 0.30f * (1.0f - bl * 0.15f);
++            float px = in->gx * 1.5f - sm * 0.10f, py = in->gy * 1.5f - sm * 0.13f;
++            const float lim = sm * 0.5f - ir - 2.0f, dist = sqrtf(px * px + py * py);
++            if (lim > 0.0f && dist > lim) { px *= lim / dist; py *= lim / dist; }
++            if (bl < 0.7f) {
++                ml_shape_t* c = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_IRIS, eyeA);
++                if (c) { c->v[0] = px; c->v[1] = py; c->v[2] = ir; }
++                c = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_BG, eyeA);
++                if (c) { c->v[0] = px; c->v[1] = py; c->v[2] = ir * 0.52f; }
++                c = ml_sh(out, &n, max, ML_SH_CIRCLE, ML_COL_WHITE, eyeA);
++                if (c) { c->v[0] = px - ir * 0.36f; c->v[1] = py - ir * 0.40f; c->v[2] = ir * 0.26f; }
+             }
+         } else if (look == ML_LOOK_SLIT) { /* a vertical slit that follows the gaze */
+             float px = in->gx * 1.0f, py = in->gy * 0.6f;
+diff --git a/firmware/main/stackchan/avatar/skins/default/eyes.cpp b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/eyes.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/eyes.cpp
+@@ -64,6 +64,9 @@
+ float stackchan::avatar::g_ml_voice = 0.0f;
+ int stackchan::avatar::g_ml_emotion = ML_NEUTRAL;
+ uint32_t stackchan::avatar::g_ml_wink_until_ms = 0;  // patch MD02
++lv_color_t stackchan::avatar::g_ml_iris_c;           // patch UXF03: the style's iris, eye white and tongue colors
++lv_color_t stackchan::avatar::g_ml_white_c;
++lv_color_t stackchan::avatar::g_ml_tongue_c;
+ bool stackchan::avatar::g_ml_shut_eyes          = false;
+ bool stackchan::avatar::g_ml_tongue             = false;
+ 
+@@ -79,11 +82,21 @@
+ 
+ // Draw a shape list around (cx, cy). Rounded boxes, circles, a border ring, triangles (a quad is four, so no seam shows
+ // between them) and round-ended lines: no mask and no layer.
++static lv_color_t slot_color(int col, lv_color_t fg)
++{
++    switch (col) {
++        case ML_COL_IRIS: return stackchan::avatar::g_ml_iris_c;
++        case ML_COL_WHITE: return stackchan::avatar::g_ml_white_c;
++        case ML_COL_TONGUE: return stackchan::avatar::g_ml_tongue_c;
++        default: return fg;
++    }
++}
++
+ static void draw_shapes(lv_layer_t* layer, const ml_shape_t* sh, int n, int cx, int cy, lv_color_t fg, lv_color_t bg)
+ {
+     for (int i = 0; i < n; i++) {
+         const ml_shape_t& s = sh[i];
+-        const lv_color_t col = s.col == ML_COL_BG ? bg : fg;
++        const lv_color_t col = s.col == ML_COL_BG ? bg : slot_color(s.col, fg);
+         switch (s.kind) {
+             case ML_SH_RRECT:
+             case ML_SH_CIRCLE:
+@@ -787,6 +800,11 @@
+     if (g_msp_off || _nsh == 0) {
+         return;
+     }
++    for (int i = 0; i < _nsh; i++) {
++        if (_sh[i].col >= ML_COL_IRIS) {
++            return;   // patch UXF03: the picture holds two colors
++        }
++    }
+     msp_box_t b;
+     if (!msp_eye_plain(_sh, _nsh, &b)) {
+         return;
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.cpp b/firmware/main/stackchan/avatar/skins/default/default.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/default.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/default.cpp
+@@ -55,6 +55,17 @@
+     return NULL;
+ }
+ 
++// Patch UXF03: the colors a style's shapes name (iris, eye white, tongue). A palette index of 0 is the default: the iris is the face color unless that is
++// white (then brown), the eye white is near white, the tongue is pink.
++static void gloss_colors(const ml_style_t* st, lv_color_t fg)
++{
++    auto pal = [](int i) { return lv_color_make(ML_PAL_RGB[i][0], ML_PAL_RGB[i][1], ML_PAL_RGB[i][2]); };
++    g_ml_white_c  = st->white ? pal(st->white) : lv_color_make(0xF8, 0xFA, 0xFF);
++    g_ml_tongue_c = st->tongue ? pal(st->tongue) : lv_color_make(0xF0, 0x6A, 0x8A);
++    const bool light = fg.red > 235 && fg.green > 235 && fg.blue > 235;
++    g_ml_iris_c   = st->iris ? pal(st->iris) : (light ? lv_color_make(0x8A, 0x5A, 0x3C) : fg);
++}
++
+ // The colour the face is drawn in after the tint: set on the eyes, the mouth and the thinking dots.
+ void DefaultAvatar::apply_color()
+ {
+@@ -68,6 +79,7 @@
+     if (_extras != nullptr) {
+         lv_obj_invalidate(_extras);   // patch UXF01: the decorations follow the face color
+     }
++    gloss_colors(ml_style(_style), c);
+     if (auto* eye = dynamic_cast<DefaultEyes*>(_key_elements.leftEye.get())) {
+         eye->setColors(c, secondaryColor);
+     }
+@@ -128,6 +140,7 @@
+         k = -1;
+     }
+     rebuild_extras();
++    gloss_colors(ml_style(_style), shownColor());
+ }
+ 
+ // Patch UXF01: the decorations of the style, one object in the face zone that draws a short shape list; it is deleted when the style has none.
+diff --git a/firmware/main/stackchan/avatar/skins/default/default.h b/firmware/main/stackchan/avatar/skins/default/default.h
+--- a/firmware/main/stackchan/avatar/skins/default/default.h
++++ b/firmware/main/stackchan/avatar/skins/default/default.h
+@@ -162,6 +162,10 @@
+ 
+ // The voice level (0 to 1) the mouth follows, shared so the eyes-only style can pulse with it (patch V10).
+ extern float g_ml_voice;
++// Patch UXF03: the colors the shape slots ML_COL_IRIS, ML_COL_WHITE and ML_COL_TONGUE draw in.
++extern lv_color_t g_ml_iris_c;
++extern lv_color_t g_ml_white_c;
++extern lv_color_t g_ml_tongue_c;
+ // Draw a shape list around (cx, cy) and measure it (patch V10); the eyes, the brows and the mouth use them.
+ void ml_draw_shape_list(lv_layer_t* layer, const ml_shape_t* sh, int n, int cx, int cy, lv_color_t fg, lv_color_t bg);
+ void ml_shape_list_bounds(const ml_shape_t* sh, int n, int b[4]);
+diff --git a/firmware/main/stackchan/avatar/skins/default/mouth.cpp b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+--- a/firmware/main/stackchan/avatar/skins/default/mouth.cpp
++++ b/firmware/main/stackchan/avatar/skins/default/mouth.cpp
+@@ -340,6 +340,22 @@
+                 tg->v[4] = 8.0f;
+             }
+         }
++        if (st->look == ML_LOOK_GLOSS && (P[MP_MOPEN] > 0.2f || (speaking && _cur.t >= 10.0f)) && n > 0) {  // patch UXF03: an open smile shows a tongue in its lower middle
++            float low = -1.0e9f;
++            for (int i = 0; i < n; i++) {
++                if (tmp[i].kind == ML_SH_LINE) {
++                    low = fmaxf(low, fmaxf(tmp[i].v[1], tmp[i].v[3]) + tmp[i].v[4] * 0.5f);
++                }
++            }
++            ml_shape_t* tg = low > -1.0e8f ? ml_sh(tmp, &n, ML_MAX_SHAPES, ML_SH_RRECT, ML_COL_TONGUE, 1.0f) : nullptr;
++            if (tg != nullptr) {
++                tg->v[0] = 0.0f;
++                tg->v[1] = low - 4.0f;
++                tg->v[2] = 18.0f;
++                tg->v[3] = 11.0f;
++                tg->v[4] = 5.5f;
++            }
++        }
+         for (int i = 0; i < n; i++) {
+             for (int k = 0; k < 8; k++) {
+                 tmp[i].v[k] = roundf(tmp[i].v[k]);

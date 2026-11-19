@@ -1,4 +1,4 @@
-"""Golden renders of every face style (docs/plan/face-styles-verdict.md): a digest of the thirteen mood pictures of each style in each of four face colors on each of three backgrounds, drawn by the
+"""Golden renders of every face style (docs/plan/face-styles-verdict.md): a digest of the thirteen mood pictures of each style in each of four face colors on each of four backgrounds, drawn by the
 unit's own face code in the host renderer. A changed look shows as a changed digest; update on purpose with UPDATE_GOLDEN=1. Skipped while the renderer is not built from a tree that has patch UXF01
 (the recipe styles need its `recipe` command) or at all."""
 import hashlib

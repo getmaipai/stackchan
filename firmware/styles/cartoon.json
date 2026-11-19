@@ -1,0 +1,23 @@
+{
+ "name": "cartoon",
+ "title": "Cartoon",
+ "about": "Big glossy white eyes with a colored iris and a small highlight, soft brows and an open smile with a pink tongue.",
+ "eye_d": 80,
+ "eye_x": 64,
+ "eye_y": -12,
+ "mouth_y": 56,
+ "mouth_w": 56,
+ "mouth_t": 9,
+ "ew": 78,
+ "eh": 84,
+ "mouth": "cute",
+ "r_pct": 100,
+ "pupil": 0,
+ "brows": 1,
+ "drift": 8,
+ "blw": 6,
+ "look": "gloss",
+ "extras": "none",
+ "tongue": "pink",
+ "white": "white"
+}

@@ -13,9 +13,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIR = ROOT / "firmware" / "styles"
-LOOKS = {"std": 0, "pie": 1, "neon": 2, "slit": 3, "heart": 4}
+LOOKS = {"std": 0, "pie": 1, "neon": 2, "slit": 3, "heart": 4, "gloss": 5}
 EXTRAS = {"none": 0, "cat": 1, "robot": 2, "blush": 3, "hose": 4, "neon": 5}
 MOUTHS = {"none": 0, "cute": 1, "bar": 2}
+# Color names for iris, tongue and eye white. Index 0 means the style's default; 1 to 15 index this list.
+PAL = ["white", "ice", "cream", "brown", "hazel", "green", "teal", "blue", "violet", "pink", "red", "coral", "amber", "gray", "ink"]
+
+
+def pal_index(spec: dict, key: str) -> int:
+    value = spec.get(key)
+    if value is None:
+        return 0
+    if value not in PAL:
+        raise SystemExit(f"{spec['name']}: {key} color \"{value}\" is not known. Use one of: {', '.join(PAL)}.")
+    return PAL.index(value) + 1
 
 
 def encode(spec: dict) -> bytes:
@@ -34,7 +45,7 @@ def encode(spec: dict) -> bytes:
         problems.append("a choice is out of range (roundness 0 to 100, pupil and brows 0 or 1, lid floor 0 to 70, drift and brow thickness 0 to 12)")
     if problems:
         raise SystemExit(f"{name}: " + "; ".join(problems) + ". Fix the JSON and run this again.")
-    head = b"MPS1" + bytes([1, look, extras, lid_min, mouth, r_pct, pupil, brows, drift, blw, 0, 0])
+    head = b"MPS1" + bytes([1, look, extras, lid_min, mouth, r_pct, pupil, brows, drift, blw, pal_index(spec, "iris"), (pal_index(spec, "tongue") << 4) | pal_index(spec, "white")])
     return head + name.encode().ljust(12, b"\0") + struct.pack("<8h", n["eye_d"], n["eye_x"], n["eye_y"], n["mouth_y"], n["mouth_w"], n["mouth_t"], n["ew"], n["eh"])
 
 
