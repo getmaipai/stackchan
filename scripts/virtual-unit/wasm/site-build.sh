@@ -35,7 +35,9 @@ fetch_tree() {
   fi
   FW="$TREE/firmware"
   [ -d "$WORK/lvgl" ] || git clone -q --depth 1 --branch v9.5.0 https://github.com/lvgl/lvgl "$WORK/lvgl"
-  [ -d "$WORK/fonts" ] || git clone -q --depth 1 https://github.com/78/xiaozhi-fonts "$WORK/fonts"
+  # the fonts of the replayed tree itself (the exact glyphs the unit draws with); only when the tree has none is the font package fetched
+  if [ -d "$FW/managed_components/78__xiaozhi-fonts/src" ]; then rm -rf "$WORK/fonts"; cp -R "$FW/managed_components/78__xiaozhi-fonts" "$WORK/fonts"
+  elif [ ! -d "$WORK/fonts" ]; then git clone -q --depth 1 https://github.com/78/xiaozhi-fonts "$WORK/fonts"; fi
   [ -d "$WORK/zlib" ] || git clone -q --depth 1 --branch "$ZLIB_TAG" https://github.com/madler/zlib "$WORK/zlib"
   python3 -I "$HERE/gen_sdkconfig.py" "$FW" "$WORK/inc/sdkconfig.h" >/dev/null
   # the tree layout cover_gen.py and the native build scripts expect (managed_components as the IDF would leave them), made of links
@@ -49,8 +51,8 @@ fetch_tree() {
 build_program() {   # NAME NATIVE_SRC EXTRA_CXX_FILES(space list) EXTRA_C_FILES(space list) EXTRA_DEFS EXTRA_INC
   local name="$1" src="$2" cxx="$3" cfiles="$4" defs="$5" inc="$6"
   local L="$WORK/lvgl" H="$FW/main/hal" S="$FW/main/stackchan/avatar/skins/default" U="$FW/components/smooth_ui_toolkit/src"
-  local CF=(-O2 -w -I"$WORK/inc" -I"$R/stub" -I"$L" -I"$L/src" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1)
-  local CXXF=(-std=gnu++20 -O2 -w -I"$WORK/inc" -I"$R" -I"$R/stub" -I"$L" -I"$L/src" -I"$WORK/zlib" -DESP_PLATFORM=1 -DMAIPAI_HOST_RENDER=1 -DMD_HOST_SWITCH=1 -DLV_CONF_SKIP=1 -I"$U" -I"$U/lvgl" -I"$U/.." -I"$FW/main" -I"$H" $inc $defs)
+  local CF=(-O2 -w -I"$WORK/inc" -I"$R/stub" -I"$L" -I"$L/src" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 -DLV_USE_FONT_PLACEHOLDER=0)
+  local CXXF=(-std=gnu++20 -O2 -w -I"$WORK/inc" -I"$R" -I"$R/stub" -I"$L" -I"$L/src" -I"$WORK/zlib" -DESP_PLATFORM=1 -DMAIPAI_HOST_RENDER=1 -DMD_HOST_SWITCH=1 -DLV_CONF_SKIP=1 -DLV_USE_FONT_PLACEHOLDER=0 -I"$U" -I"$U/lvgl" -I"$U/.." -I"$FW/main" -I"$H" $inc $defs)
   mkdir -p "$WORK/shim" "$WORK/obj-wasm/$name" "$WORK/obj-wasm/lv" "$WORK/obj-wasm/zlib"
   python3 -I "$HERE/shim_main.py" "$src" "$WORK/shim/$(basename "$src")" >/dev/null
   # LVGL and zlib objects: built once, kept, shared by every program

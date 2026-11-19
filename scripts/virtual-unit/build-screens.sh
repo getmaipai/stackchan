@@ -22,19 +22,19 @@ bash "$R/build.sh" "$OUT"
 # the passcode lock screen and keypad are drawn by their own small program (patch LK02)
 mkdir -p "$OUT/lock"
 L="$B/firmware/managed_components/lvgl__lvgl"
-clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/lock_render.cc" "$OUT/lvgl.a" -o "$OUT/lock/lock_render" -lz
+clang++ -std=gnu++20 -O1 -ffp-contract=off -w -I"$OUT/inc" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/lock_render.cc" "$OUT/lvgl.a" -o "$OUT/lock/lock_render" -lz
 echo "built $OUT/lock/lock_render"
 # the link covers (Wi-Fi connecting, Wi-Fi setup, waiting for approval): the unit's own code, cut out of stackchan_display.cc
 mkdir -p "$OUT/cover"
 python3 "$(dirname "$0")/cover_gen.py" "$B" "$OUT/cover"
-clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$OUT/cover" -I"$B/firmware/main" -I"$L" -I"$L/src" -I"$R/stub" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$(dirname "$0")/cover_render.cc" "$OUT/obj/font_noto_sans_basic_20_4.c.o" "$OUT/lvgl.a" -o "$OUT/cover/cover_render" -lz
+clang++ -std=gnu++20 -O1 -ffp-contract=off -w -I"$OUT/inc" -I"$OUT/cover" -I"$B/firmware/main" -I"$L" -I"$L/src" -I"$R/stub" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$(dirname "$0")/cover_render.cc" "$OUT/obj/font_noto_sans_basic_20_4.c.o" "$OUT/lvgl.a" -o "$OUT/cover/cover_render" -lz
 echo "built $OUT/cover/cover_render"
 # the grid games in play (Four in a Row, Memory Match, Hangman, Mine Finder): the unit's own drawing code cut out of maipai_grid.cc (grid_gen.py)
 mkdir -p "$OUT/grid"
 python3 "$(dirname "$0")/grid_gen.py" "$B" "$OUT/grid"
-clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$OUT/grid" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 $(grep -q MGO_TIMEUP "$B/firmware/main/hal/maipai_game_over_core.h" && echo -DHAVE_MGO_NEUTRAL) "$R/grid_render.cc" "$OUT/lvgl.a" -o "$OUT/grid/grid_render" -lz
+clang++ -std=gnu++20 -O1 -ffp-contract=off -w -I"$OUT/inc" -I"$OUT/grid" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 $(grep -q MGO_TIMEUP "$B/firmware/main/hal/maipai_game_over_core.h" && echo -DHAVE_MGO_NEUTRAL) "$R/grid_render.cc" "$OUT/lvgl.a" -o "$OUT/grid/grid_render" -lz
 echo "built $OUT/grid/grid_render"
 # the data-pack games' renderer (games_render.cc): used by games_audit.py to list every pack's touch regions
 mkdir -p "$OUT/games"
-clang++ -std=gnu++20 -O1 -w -I"$OUT/inc" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/games_render.cc" "$OUT/lvgl.a" -o "$OUT/games/games_render" -lz
+clang++ -std=gnu++20 -O1 -ffp-contract=off -w -I"$OUT/inc" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/games_render.cc" "$OUT/lvgl.a" -o "$OUT/games/games_render" -lz
 echo "built $OUT/games/games_render"

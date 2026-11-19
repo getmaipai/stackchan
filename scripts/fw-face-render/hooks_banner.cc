@@ -8,6 +8,10 @@
 #include "maipai_firstrun.h"
 #define MAIPAI_HAVE_FIRSTRUN 1
 #endif
+#if __has_include("maipai_brain_notice.h")
+#include "maipai_brain_notice.h"
+#define MAIPAI_HAVE_BRAIN_NOTICE 1
+#endif
 #include <esp_timer.h>
 #include "maipai_look_core.h"
 #include "maipai_banner.h"
@@ -280,6 +284,13 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
         else if (a == "step") { int st = 0, l = 0, m = -1; in >> st >> l >> m; maipai_firstrun_show_step(st, l, m); }
         else if (a == "wifi") { maipai_firstrun_wifi_done(); }
         else if (a == "close") { maipai_firstrun_close(); }
+        return true;
+    }
+#endif
+#ifdef MAIPAI_HAVE_BRAIN_NOTICE
+    if (c == "bnotice") {   // bnotice LANG: the "Hosted link removed" screen (patch UX20)
+        int l = 0; in >> l;
+        mbn::build(lv_layer_top(), l, nullptr, nullptr);
         return true;
     }
 #endif

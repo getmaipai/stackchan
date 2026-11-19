@@ -80,6 +80,7 @@ SCREENS: dict[str, list] = {
     "first-run-1": [("raw", "frun step 0 0 -1"), ("advance", 400)],
     "first-run-2": [("raw", "frun step 1 0 -1"), ("advance", 400)],
     "first-run-4": [("raw", "frun step 3 0 -1"), ("advance", 400)],
+    "first-run-4c": [("raw", "frun step 3 0 9"), ("advance", 400)],
     "first-run-5": [("raw", "frun step 4 0 -1"), ("advance", 400)],
     "first-run-6": [("raw", "frun step 5 0 -1"), ("advance", 400)],
     "first-run-next": [("raw", "frun step 7 0 -1"), ("advance", 400)],
@@ -136,6 +137,18 @@ GRID_SCENARIOS = {
     "game-match-flipping": ["game match 5", "tap 0", "advance 90", "snap {out}"],
     "game-hangman-mid": ["game hangman 1", "tap 4", "advance 400", "tap 0", "advance 400", "tap 17", "advance 400", "tap 19", "advance 400", "snap {out}"],
     "game-mines-open": ["game mines 3", "tap 20", "advance 500", "snap {out}"],
+    "game-hilo-start": ["game c4 3", "hilo 38 0|0|0|0|en", "snap {out}"],
+    "game-hilo-streak": ["game c4 3", "hilo 21 0|0|0|7|en", "snap {out}"],
+    "game-hilo-right": ["game c4 3", "hilo 4 23|1|1|8|en", "snap {out}"],
+    "game-hilo-wrong": ["game c4 3", "hilo 12 13|1|2|3|en", "snap {out}"],
+    "game-hilo-same": ["game c4 3", "hilo 9 22|1|3|5|en", "snap {out}"],
+    "game-hilo-streak-es": ["game c4 3", "hilo 47 0|0|0|12|es", "snap {out}"],
+    "game-reversi-start": ["game c4 3", "reversi |0|en", "snap {out}"],
+    "game-reversi-opening": ["game c4 3", "reversi 19|0|en", "snap {out}"],
+    "game-reversi-thinking": ["game c4 3", "reversi 19 44|1|en", "snap {out}"],
+    "game-reversi-midgame": ["game c4 3", "reversi 19 44 3 29 9 45 26 51|0|en", "snap {out}"],
+    "game-reversi-pass": ["game c4 3", "reversi board PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPU.|1|55|1|en", "snap {out}"],
+    "game-reversi-midgame-es": ["game c4 3", "reversi 19 44 3 29 9 45 26 51|0|es", "snap {out}"],
     "game-dicepoker-start": ["game c4 3", "poker 1 1 1 1 1|0|0|1|0|0|en", "snap {out}"],
     "game-dicepoker-first-roll": ["game c4 3", "poker 2 5 3 5 6|0|2|1|0|1|en", "snap {out}"],
     "game-dicepoker-pair-held": ["game c4 3", "poker 2 5 3 5 6|10|1|1|0|1|en", "snap {out}"],
@@ -290,6 +303,8 @@ for _li, _lang in enumerate(LANGS):
     for _st in (0, 1, 3, 4, 5):
         SCREENS.setdefault(f"first-run-{_st + 1}-{_lang}", [("raw", f"frun step {_st} {_li} -1"), ("advance", 400)])
     SCREENS.setdefault(f"first-run-next-{_lang}", [("raw", f"frun step 7 {_li} -1"), ("advance", 400)])   # the last screen after All set! (patch UX12)
+    SCREENS.setdefault(f"brain-removed-{_lang}", [("raw", f"bnotice {_li}"), ("advance", 400)])   # the Hosted link removed notice (patch UX20)
+    SCREENS.setdefault(f"first-run-4c-{_lang}", [("raw", f"frun step 3 {_li} 9"), ("advance", 400)])   # the Custom page of the brain step: the three ways (patch UX19; preview value 9)
 for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("apps-wall", [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700)]),
                       ("settings-general", [("raw", "pshow settings"), ("advance", 500)]), ("settings-info", [("raw", "pshow settings"), ("advance", 400), ("raw", "pscrollby 40 150 64"), ("advance", 100), ("raw", "pclick 40 190"), ("advance", 500)]),
                       ("page-timers", [("raw", "pshow timers"), ("advance", 600)]), ("page-actions", [("raw", "pshow actions"), ("advance", 600)])):
@@ -384,6 +399,10 @@ _ORDER = set((ROOT / "firmware" / "patches" / "ORDER").read_text().split()) if (
 REQUIRES = [
     (r"^(screen-page-timers-one|screen-page-timers-more|screen-alarms-app)$", "UX13f-timers-and-alarms-at-finger-size.patch"),
     (r"dicepoker", "UX18-dice-poker.patch"),
+    (r"^game(-over)?-hilo", "UX21-higher-or-lower.patch"),
+    (r"^game(-over)?-reversi", "UX22-reversi.patch"),
+    (r"^first-run-4c", "UX19-brain-two-equal-routes.patch"),
+    (r"^brain-removed", "UX20-hosted-link-removed-notice.patch"),
     (r"^game-over-(colormemory|whack|doit|snake|2048)-", "UX15c-game-over-neutral-end-after-sf82.patch"),
     (r"^mumble-", "UX16-offline-mumble-core.patch"),
     (r"^game-(riddle|joke|trivia|twenty)-|^game-over-(trivia|twenty)-", "UX17-question-and-answer-game-screens.patch"),
