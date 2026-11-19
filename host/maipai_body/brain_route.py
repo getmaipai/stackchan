@@ -1,8 +1,8 @@
 # ruff: noqa: E501
 """The two brain routes (owner decision 34): hosted by M5Stack/Xiaozhi, or custom (your own key, a community server, your own host or MaiPai Home, a model on your computer).
 
-The host keeps one word in robot.toml, ``brain_route = "hosted" | "custom"`` (no word means custom). It tells each connected unit that word with the tool
-``self.brain.route.set {"route": ...}`` (proposed contract; a unit that does not announce the tool is never sent anything). The hosted route stays planned until a test
+The host keeps one word in robot.toml, ``brain_route = "hosted" | "custom"`` (no word means custom). The unit owns the route: it sends the event ``brain_route {route}`` and the host
+keeps the word in step; leaving hosted calls ``self.brain.set_route {"route": "custom"}`` on each unit (never repeated on connect: it shows the unit's notice and restarts). The hosted route stays planned until a test
 build proves the vendor's server accepts this firmware (``docs/plan/cloud-brain-firmware-test.md``): while ``HOSTED_PROVEN`` is false the page shows it as planned and
 the host refuses to save it, so nobody is moved onto a route that cannot work."""
 
@@ -15,7 +15,7 @@ from typing import Any
 
 HOSTED_PROVEN = False
 ROUTES = ("hosted", "custom")
-TOOL = "self.brain.route.set"
+TOOL = "self.brain.set_route"  # firmware SF98; the unit also answers self.brain.status and sends the event brain_route
 
 VOICE_LINE = {
     "hosted": "Your voice goes to M5Stack/Xiaozhi's servers, outside your home.",
@@ -36,35 +36,27 @@ def read(config_path: Path) -> str:
     return "hosted" if raw.get("brain_route") == "hosted" else "custom"
 
 
-class RoutePush:
-    """Tells each unit the saved route once after it connects and again when the route changes. A unit without the tool is skipped."""
+def on_event(config_path: Path, kind: str, extra: dict[str, Any] | None) -> bool:
+    """The unit's ``brain_route`` event (firmware patch SF98) says which route it is on; the host keeps the saved word in step. True when the file changed."""
+    if kind != "brain_route":
+        return False
+    route = (extra or {}).get("route")
+    if route not in ROUTES or read(config_path) == route:
+        return False
+    from maipai_body.brain_setup import modes
 
-    def __init__(
-        self,
-        *,
-        route: Callable[[], str],
-        units: Callable[[], list[str]],
-        has_tool: Callable[[str], bool],
-        send: Callable[[str, dict[str, Any]], object],
-    ) -> None:
-        self._route, self._units, self._has_tool, self._send = route, units, has_tool, send
-        self._told: dict[str, str] = {}
+    modes.set_values(Path(config_path), "", {"brain_route": route})
+    return True
 
-    def tick(self) -> None:
-        """One pass. Never raises."""
+
+def leave_hosted(units: list[str], has_tool: Callable[[str], bool], send: Callable[[str, dict[str, Any]], object]) -> int:
+    """Ask each unit that has the tool to go to route custom (it erases the vendor link and shows its own notice). Returns how many were asked. Never raises."""
+    asked = 0
+    for unit in units:
         try:
-            route = self._route()
-            live = set(self._units())
+            if has_tool(unit):
+                send(unit, {"route": "custom"})
+                asked += 1
         except Exception:
-            return
-        for unit in list(self._told):
-            if unit not in live:
-                del self._told[unit]  # told again when it comes back
-        for unit in live:
-            if self._told.get(unit) == route or not self._has_tool(unit):
-                continue
-            try:
-                self._send(unit, {"route": route})
-                self._told[unit] = route
-            except Exception:
-                continue  # tried again next pass
+            continue
+    return asked

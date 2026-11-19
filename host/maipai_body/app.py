@@ -2245,6 +2245,16 @@ def _wire_light_and_health(voice, behavior: StackChanBehavior, avatar, sounds, p
 
     behavior.score_book = ScoreBook(_data_dir() / "game-scores.json")
 
+    def _brain_route_event(kind: str, extra: dict) -> None:
+        try:
+            setup = getattr(backend, "brain_setup", None)
+            if setup is not None:
+                from maipai_body import brain_route
+
+                brain_route.on_event(setup.config_path, kind, extra)
+        except Exception:
+            logger.warning("the unit's brain route could not be filed", exc_info=True)
+
     def _heal_event(kind: str, extra: dict) -> None:
         if kind == "game_ended":
             try:
@@ -2253,6 +2263,7 @@ def _wire_light_and_health(voice, behavior: StackChanBehavior, avatar, sounds, p
                 logger.warning("a finished game could not be filed", exc_info=True)
         voice.heal.observe(kind, extra)
         voice.wake_tester.on_event(kind, extra)
+        _brain_route_event(kind, extra)
         behavior.privacy.observe(kind, extra)
         updater = getattr(behavior, "firmware_updater", None)
         if updater is not None and kind.startswith("firmware_update_"):
@@ -2980,6 +2991,7 @@ def _wire_timers_and_announcements(
             try:
                 state.observe(kind, extra)
                 tester.on_event(kind, extra)
+                _brain_route_event(kind, extra)
             except Exception:
                 logger.warning("a self-heal event of one unit failed", exc_info=True)
 
@@ -3722,6 +3734,7 @@ def _wire_brain_page(backend) -> None:
 
     setup = BrainSetup(example_config_path(), _data_dir() / "local-stack")
     backend.brain_setup = setup
+    setup.on_leave_hosted = lambda: _leave_hosted_units(voice)
     if setup.start_if_enabled():
         logger.info("The local model server is running on this computer.")
         from maipai_body import service_threads
@@ -4058,20 +4071,11 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
             send=lambda unit, args: voice.robot.client.for_unit(unit)._call("self.banner.set", args),
         )
 
-        from maipai_body import brain_route as _brain_route
-
-        route_push = _brain_route.RoutePush(
-            route=lambda: _brain_route.read(backend.brain_setup.config_path) if getattr(backend, "brain_setup", None) is not None else "custom",
-            units=lambda: list(voice._sessions),
-            has_tool=lambda unit: getattr(getattr(voice, "polish", None), "probe", None) is not None and voice.polish.probe.has(unit, "brain_route") is True,
-            send=lambda unit, args: voice.robot.client.for_unit(unit)._call(_brain_route.TOOL, args),
-        )
         banner_stop = threading.Event()
 
         def _banner_loop() -> None:
             while not banner_stop.wait(10.0):
                 banner.tick()
-                route_push.tick()
 
         service_threads.start(_banner_loop, name="degraded-banner", stop=banner_stop)
         holder = {"server": server}
@@ -4912,6 +4916,18 @@ def _start_wake_word_maker(backend) -> None:
 
     folder = Path(cfg.folder) if cfg.folder else default_pairing_path().parent / "wakeword"
     backend.wakeword = WakeWordMaker(WakeStore(folder))
+
+
+def _leave_hosted_units(voice) -> int:
+    """The person left the hosted route on the Brain page: each connected unit that has the tool erases its vendor link."""
+    from maipai_body import brain_route
+
+    probe = getattr(getattr(voice, "polish", None), "probe", None)
+    return brain_route.leave_hosted(
+        list(voice._sessions),
+        lambda unit: probe is not None and probe.has(unit, "brain_route") is True,
+        lambda unit, args: voice.robot.client.for_unit(unit)._call(brain_route.TOOL, args),
+    )
 
 
 def _start_pantry(backend, voice=None) -> None:

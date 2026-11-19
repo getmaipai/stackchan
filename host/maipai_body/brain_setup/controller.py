@@ -24,6 +24,7 @@ class BrainSetup:
         timer: Callable[[str, str], dict[str, Any]] | None = None,
     ) -> None:
         self.config_path = Path(config_path)
+        self.on_leave_hosted: Callable[[], object] | None = None  # the host asks each unit to erase its vendor link
         self.llama = llama or runner.LlamaServer()
         self._session = session
         self._timer = timer or self._measure
@@ -75,6 +76,11 @@ class BrainSetup:
     def apply(self, mode: str, body: dict[str, Any]) -> dict[str, Any]:
         was_hosted = brain_route.read(self.config_path) == "hosted"
         leave = {"note": brain_route.LEAVE_NOTE} if was_hosted else {}
+        if was_hosted and mode in ("home", "own") and self.on_leave_hosted is not None:
+            try:
+                self.on_leave_hosted()
+            except Exception:
+                pass  # the saved route still changes; the unit keeps its link until asked again
         try:
             if mode == "hosted":
                 if not brain_route.HOSTED_PROVEN:

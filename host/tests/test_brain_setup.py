@@ -311,12 +311,19 @@ def test_leaving_hosted_says_the_vendor_keeps_its_record(tmp_path, monkeypatch):
     assert "note" not in setup.apply("home", {"url": "http://192.0.2.10:8000"})
 
 
-def test_route_push_tells_each_unit_once_and_again_on_change():
-    from maipai_body.brain_route import RoutePush
+def test_unit_event_keeps_the_saved_route_and_leaving_hosted_asks_the_units(tmp_path, monkeypatch):
+    from maipai_body import brain_route
+    from maipai_body.brain_setup.controller import BrainSetup
 
-    route, sent = ["custom"], []
-    push = RoutePush(route=lambda: route[0], units=lambda: ["a", "b"], has_tool=lambda u: u == "a", send=lambda u, a: sent.append((u, a["route"])))
-    push.tick(); push.tick()
-    assert sent == [("a", "custom")]
-    route[0] = "hosted"; push.tick()
-    assert sent[-1] == ("a", "hosted") and len(sent) == 2
+    cfg = tmp_path / "robot.toml"
+    cfg.write_text('brain = "llm"\n', encoding="utf-8")
+    assert brain_route.on_event(cfg, "brain_route", {"route": "hosted"}) is True and brain_route.read(cfg) == "hosted"
+    assert brain_route.on_event(cfg, "brain_route", {"route": "hosted"}) is False
+    assert brain_route.on_event(cfg, "other", {"route": "custom"}) is False
+    sent = []
+    setup = BrainSetup(cfg, tmp_path / "stack")
+    setup.on_leave_hosted = lambda: brain_route.leave_hosted(["a", "b"], lambda u: u == "a", lambda u, a: sent.append((u, a)))
+    assert setup.apply("home", {"url": "http://192.0.2.10:8000"})["ok"]
+    assert sent == [("a", {"route": "custom"})] and brain_route.read(cfg) == "custom"
+    setup.apply("home", {"url": "http://192.0.2.10:8000"})
+    assert len(sent) == 1  # not repeated once the route is custom

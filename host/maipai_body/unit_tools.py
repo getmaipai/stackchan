@@ -32,7 +32,7 @@ PROBES: dict[str, tuple[str, dict[str, Any]]] = {
     "pages": ("self.pages.status", {}),  # the swipe pages and the control sheet (firmware patches P10 to P13)
     "lock": ("self.lock.status", {}),  # the passcode lock (unit_lock.py); read-only, never returns the code or its hash
     "remote": ("self.remote.session", {"active": False, "label": ""}),
-    "brain_route": ("self.brain.route.set", {"route": ""}),  # empty route only asks; the host sends hosted or custom (brain_route.py, proposed contract)
+    "brain_route": ("self.brain.status", {}),  # read-only; the unit also has self.brain.set_route (firmware SF98)
     "banner": ("self.banner.set", {"text": "", "kind": "degraded"}),  # a part that needs you, on the unit's banner row (firmware SF97); empty text clears, so asking is harmless  # the remote cue: glyph, banner, message bubble
 }
 
