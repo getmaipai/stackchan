@@ -12,13 +12,14 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 CHUNK = 4096
 IMMUTABLE = "private, max-age=31536000, immutable"
-_RANGE = re.compile(r"^bytes=(\d*)-(\d*)$")
+_RANGE = re.compile(r"^bytes=(\d{0,15})-(\d{0,15})$")
 
 
 @dataclass(frozen=True)
@@ -35,17 +36,30 @@ class SigningKey:
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
+        self._lock = threading.Lock()
 
     def _ensure(self) -> None:
-        if self.path.exists():
-            return
-        from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
+        with self._lock:
+            try:
+                if self.path.stat().st_size > 0:
+                    return
+            except FileNotFoundError:
+                pass
+            from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        os.close(fd)
-        subprocess.run([openssl_cli(), "genpkey", "-algorithm", "Ed25519", "-out", str(self.path)], check=True, capture_output=True)
-        self.path.chmod(0o600)
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            fd, temp_name = tempfile.mkstemp(prefix=".asset-key-", dir=self.path.parent)
+            os.close(fd)
+            temp = Path(temp_name)
+            try:
+                temp.unlink()  # genpkey writes the file itself; the name stays unique and ours
+                subprocess.run([openssl_cli(), "genpkey", "-algorithm", "Ed25519", "-out", str(temp)], check=True, capture_output=True)
+                temp.chmod(0o600)
+                if temp.stat().st_size == 0:
+                    raise OSError("OpenSSL wrote an empty key. Check the disk space and the OpenSSL install, then try again.")
+                os.replace(temp, self.path)
+            finally:
+                temp.unlink(missing_ok=True)
 
     def sign(self, message: bytes) -> bytes:
         from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli

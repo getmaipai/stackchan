@@ -95,3 +95,42 @@ def test_the_routes_need_the_units_session_ticket_and_serve_ranges(tmp_path):
             assert (await http.get(base + "/data", headers={"Authorization": f"Bearer {token}"})).status == 403  # the pairing token is never the key
 
     asyncio.run(run())
+
+
+def test_review_fix_a_long_range_header_answers_416(tmp_path):
+    service = AssetService(SigningKey(tmp_path / "k.pem"), lambda d, a: Asset("a", "language", "n", 1, b"abc"))
+    for header in ("bytes=" + "9" * 5000 + "-", "bytes=0-" + "9" * 5000, "bytes=-" + "9" * 5000):
+        status, body, headers = service.data("d", "a", header)
+        assert status == 416 and body == b"" and headers["Content-Range"] == "bytes */3"
+
+
+def test_review_fix_a_failed_key_generation_leaves_no_empty_file_and_recovers(tmp_path, monkeypatch):
+    path = tmp_path / "asset-signing.pem"
+    real = subprocess.run
+    state = {"fail": True}
+
+    def flaky(cmd, *a, **k):
+        if "genpkey" in cmd and state["fail"]:
+            raise subprocess.CalledProcessError(1, cmd)
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(subprocess, "run", flaky)
+    key = SigningKey(path)
+    with pytest.raises(subprocess.CalledProcessError):
+        key.sign(b"m")
+    assert not path.exists() and list(tmp_path.iterdir()) == []
+    state["fail"] = False
+    assert len(key.public_raw()) == 32 and path.stat().st_size > 0
+
+
+def test_review_fix_an_empty_key_file_is_replaced_and_threads_share_one_key(tmp_path):
+    import threading
+
+    path = tmp_path / "asset-signing.pem"
+    path.write_bytes(b"")
+    key = SigningKey(path)
+    out = []
+    threads = [threading.Thread(target=lambda: out.append(key.public_raw())) for _ in range(4)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert len(out) == 4 and len(set(out)) == 1 and len(out[0]) == 32
