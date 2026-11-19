@@ -9,7 +9,7 @@ diff --git a/firmware/main/hal/maipai_pantry_core.h b/firmware/main/hal/maipai_p
 new file mode 100644
 --- /dev/null
 +++ b/firmware/main/hal/maipai_pantry_core.h
-@@ -0,0 +1,337 @@
+@@ -0,0 +1,340 @@
 +/*
 + * SPDX-License-Identifier: MIT
 + *
@@ -265,7 +265,8 @@ new file mode 100644
 +    return h->counter;
 +}
 +
-+/* The host says never again: the record is denied for good (a deny entry is never dropped to make room). */
++/* The host says never again: the record is denied for good (a deny entry is never dropped to make room).
++ * Returns 0 when there is no room, 1 when the id was already denied (nothing changes, so nothing needs writing), 2 for a new deny. */
 +static inline int mph_deny(mph_t* h, const uint8_t* id8)
 +{
 +    const uint32_t id = mph_id32(id8);
@@ -276,9 +277,11 @@ new file mode 100644
 +        h->e[i].id32 = id;
 +        h->e[i].counter = 0;
 +        h->e[i].flags = 0;
++    } else if (h->e[i].flags & MPH_DENY) {
++        return 1;
 +    }
 +    h->e[i].flags = (uint8_t)((h->e[i].flags | MPH_DENY) & ~MPH_SYNCED);
-+    return 1;
++    return 2;
 +}
 +
 +/* The host acknowledged every entry up to this counter. */

@@ -115,10 +115,16 @@ int main(void)
     CHECK(mph_mark_heard(&h, r.id) == 3);
     CHECK(mpy_pick(&sh, MPY_TRIVIA, MPY_KID, &h, 5) == 3);
     mpy_get(&sh, 3, &r);
-    CHECK(mph_deny(&h, r.id) == 1);                                                      /* never again */
+    CHECK(mph_deny(&h, r.id) == 2);                                                      /* never again: a new deny */
+    {   /* review fix: the same id told again is "already denied" (1), changes nothing and so costs no flash write */
+        mph_t before = h;
+        int writes = 0;
+        for (int again = 0; again < 3; again++) { const int got = mph_deny(&h, r.id); CHECK(got == 1); writes += got == 2; }
+        CHECK(writes == 0 && memcmp(&before, &h, sizeof(h)) == 0);
+    }
     CHECK(mpy_pick(&sh, MPY_TRIVIA, MPY_KID, &h, 5) == 2 && mpy_pick(&sh, MPY_TRIVIA, MPY_KID, &h, 9) == 2);
     mpy_get(&sh, 2, &r);
-    mph_deny(&h, r.id);
+    CHECK(mph_deny(&h, r.id) == 2);
     CHECK(mpy_pick(&sh, MPY_TRIVIA, MPY_KID, &h, 5) == -1);                              /* nothing left of that kind */
     CHECK(mpy_pick(&sh, MPY_JOKE, MPY_KID, &h, 5) == 0);
 

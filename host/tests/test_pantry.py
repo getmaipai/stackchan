@@ -350,3 +350,147 @@ def test_the_dashboard_view_counts_offline_lines_by_situation_and_shows_the_tag(
     assert view["situations"] == {"greeting_morning": 2, "goodnight": 1}
     assert {r["situation"] for r in view["rows"]} == {"greeting_morning", "goodnight"}
     assert pantry.view(kind="line", language="en", query="goodnight")["total"] == 1  # the situation is searchable
+
+
+# -- review fixes (api45) -------------------------------------------------------------------------------------------------------------
+def test_a_bad_never_again_id_is_refused_and_a_damaged_list_does_not_stop_generation(tmp_path):
+    from maipai_body.settings_page import PANTRY, SettingsBackend
+
+    backend = SettingsBackend.__new__(SettingsBackend)
+    backend.pantry = Pantry(tmp_path, good_model, seed=False)
+    backend.language = "en"
+    for action in ("never-again", "delete"):
+        for bad in ("not-hex", "ABCDEF0123456789", "abcd", "0123456789abcdef00"):
+            assert backend.route_post(PANTRY + "/" + action, {"id": bad}, True)[0] == 400, f"{action} {bad}"
+    assert backend.pantry.library.refused() == set()
+    with pytest.raises(ValueError, match="16"):
+        backend.pantry.library.never_again("not-hex")
+    # a rejected.json already damaged by an older build still lets the library work and keeps garbage away from the units
+    good_id = "0123456789abcdef"
+    (tmp_path / "rejected.json").write_text(json.dumps(["not-hex", good_id, 5]))
+    assert backend.pantry.library.refused() == {good_id} and backend.pantry.library.refused_ids() == {bytes.fromhex(good_id)}
+    assert generate(backend.pantry.library, good_model, "joke", "en")["added"] == 2
+    unit = FakeUnit([])
+    run_unit(backend.pantry.library, unit, "kitchen", UnitState())
+    assert unit.denied == [good_id]
+    # garbage in a heard list is skipped, not fatal
+    assert backend.pantry.library.note_heard("kitchen", [{"id": "zz"}, {"id": 5}, "x", {"id": backend.pantry.library.records()[0].id_hex[:8], "counter": "bad"}]) == 0
+
+
+def test_an_empty_model_reply_stops_the_fact_and_riddle_checks_and_a_loose_match_is_not_a_pass(tmp_path):
+    wrong = Record("trivia", "en", "kid", "What is the capital of France?", "Berlin", "Rome|Madrid")
+    for record in (wrong, RIDDLE):
+        for silent in ("", "   \n", None):
+            with pytest.raises(ModelDown, match="empty"):
+                filter_records([record], lambda p, _s=silent: _s if "suitable" not in p else "Yes")
+    two = Record("riddle", "en", "kid", "What has hands but cannot clap?", "a clock")
+    kept, report = filter_records([two], lambda p: "none" if "different" in p else "Yes")
+    assert kept == [two] and report.kept == 1
+    kept, report = filter_records([two], lambda p: "!!!" if "different" in p else "Yes")
+    assert kept == [] and report.dropped == {"riddle has two answers": 1}, "a reply with no words is not 'none'"
+    ant = Record("trivia", "en", "kid", "Which small insect lives in a colony?", "ant", "bee|fly")
+    for got in ("a", "elephant", "an"):
+        kept, report = filter_records([ant], lambda p, _g=got: "Yes" if "suitable" in p else _g)
+        assert kept == [] and report.dropped == {"fact not confirmed": 1}, got
+    assert filter_records([ant], lambda p: "Yes" if "suitable" in p else "An ant.")[0] == [check(ant)]
+    # the generator stops the run and keeps nothing on a silent model
+    library = Library(tmp_path)
+    silent = generate(library, lambda p: json.dumps([{"text": "What is 2 plus 2? ", "answer": "4", "extra": "5|6"}]) if "Write" in p else "", "trivia", "en", rating="adult", adult_allowed=True)
+    assert silent["added"] == 0 and "empty" in silent["stopped"] and library.records() == []
+
+
+def test_the_unit_is_told_each_never_again_id_once_in_small_batches_and_a_refusal_is_tried_again(tmp_path):
+    from maipai_packages.pantry.unit_link import ToolUnitLink
+
+    library = Library(tmp_path)
+    ids = [f"{i:08x}{i:08x}" for i in range(1, 41)]
+    for rid in ids:
+        library.never_again(rid)
+    sent, flash = [], {"writes": 0, "denied": set(), "reject": False}
+
+    def call(unit, tool, args):
+        if tool == "self.pantry.heard":
+            return {"ok": True, "counter": 0, "more": False, "entries": []}
+        if tool == "self.pantry.status":
+            return {"ok": True, "shelves": []}
+        if tool == "self.pantry.deny":
+            wanted = args["ids"].split(",")
+            sent.append(wanted)
+            if flash["reject"]:
+                return {"ok": True, "denied": 0, "new": 0}
+            fresh = [w for w in wanted if w not in flash["denied"]]
+            flash["denied"] |= set(fresh)
+            flash["writes"] += 1 if fresh else 0  # the unit writes flash only for a new deny
+            return {"ok": True, "denied": len(wanted), "new": len(fresh)}
+        return {"ok": False}
+
+    link = ToolUnitLink(call)
+    run_unit(library, link, "kitchen", UnitState(idle=False))
+    assert sum(len(b) for b in sent) == 40 and max(len(b) for b in sent) <= 16 and flash["writes"] == len(sent)
+    sent.clear()
+    before = flash["writes"]
+    run_unit(library, link, "kitchen", UnitState(idle=False))
+    run_unit(library, link, "kitchen", UnitState(idle=False))
+    assert sent == [] and flash["writes"] == before, "nothing is sent twice"
+    library.never_again("000000ff000000ff")
+    run_unit(library, link, "kitchen", UnitState(idle=False))
+    assert sent == [["000000ff"]]
+    # a unit that does not take the id gets it again on the next pass, and a second unit has its own list
+    sent.clear()
+    flash["reject"] = True
+    library.never_again("000000ee000000ee")
+    run_unit(library, link, "kitchen", UnitState(idle=False))
+    flash["reject"] = False
+    run_unit(library, link, "kitchen", UnitState(idle=False))
+    assert [b for b in sent] == [["000000ee"], ["000000ee"]]
+    sent.clear()
+    run_unit(library, link, "bedroom", UnitState(idle=False))
+    assert sum(len(b) for b in sent) == 42
+
+
+def test_two_refills_of_one_kind_and_language_run_one_after_the_other_and_share_the_daily_cap(tmp_path):
+    import threading
+
+    library = Library(tmp_path)
+    started = threading.Event()
+
+    def slow(prompt: str) -> str:
+        started.set()
+        time.sleep(0.15)
+        return good_model(prompt)
+
+    results = []
+    first = threading.Thread(target=lambda: results.append(generate(library, slow, "joke", "en", daily_cap=22)))
+    first.start()
+    started.wait(2)
+    second = generate(library, slow, "joke", "en", daily_cap=22)
+    first.join()
+    assert results[0]["added"] == 2 and second["added"] == 0
+    assert second["stopped"] == "the daily cap of model calls is reached", "the second run checks the cap after the first one counted its calls"
+    assert len(library.records("joke", "en")) == 2, "no record is added twice"
+    # the dashboard facade does not hold a second request open behind a running refill
+    pantry = Pantry(tmp_path / "p", slow, seed=False)
+    started.clear()
+    runner = threading.Thread(target=lambda: results.append(pantry.refill("joke", "en")))
+    runner.start()
+    started.wait(2)
+    busy = pantry.refill("joke", "en")
+    runner.join()
+    assert busy["added"] == 0 and "already running" in busy["stopped"]
+    assert results[-1]["added"] == 2
+
+
+def test_letters_without_an_ascii_fold_keep_their_own_ids_and_kid_generation_needs_a_word_list(tmp_path):
+    assert normalize("Straße Łódź") == "strasse lodz"
+    assert normalize("Ærø ı Øl") == "aero i ol"
+    one = Record("joke", "en", "kid", "Привет мир | Ха")
+    two = Record("joke", "en", "kid", "Совсем другая шутка | Ха-ха")
+    assert one.id != two.id and one.id == Record("joke", "en", "kid", "привет, мир! | ха").id
+    assert Record("joke", "pl", "kid", "Łódź | a").id != Record("joke", "pl", "kid", "Odz | a").id, "two different words no longer merge"
+    assert Record("joke", "en", "kid", "Straße | x").id == Record("joke", "en", "kid", "strasse | x").id
+    library = Library(tmp_path)
+    called = []
+    stopped = generate(library, lambda p: called.append(p) or "[]", "joke", "nl", rating="kid")
+    assert called == [] and "word list" in stopped["stopped"] and stopped["added"] == 0
+    generate(library, lambda p: called.append(p) or "[]", "joke", "es", rating="kid")
+    assert called, "a language with a word list still asks the model"

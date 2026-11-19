@@ -56,11 +56,15 @@ class ToolUnitLink:
         return out, counter
 
     def deny(self, unit: str, ids: list[str]) -> bool:
-        # The unit takes the first 4 bytes of each id as 8 hex digits.
-        short = ",".join(sorted({i[:8] for i in ids if len(i) >= 8}))
+        """Tell the unit to refuse these ids (the first 4 bytes of each, as 8 hex digits). True only when the unit counts every one of them, new or already denied."""
+        short = sorted({i[:8] for i in ids if len(i) >= 8})
         if not short:
             return True
-        return _dict(self._call(unit, "self.pantry.deny", {"ids": short})).get("ok") is True
+        reply = _dict(self._call(unit, "self.pantry.deny", {"ids": ",".join(short)}))
+        try:
+            return reply.get("ok") is True and int(reply.get("denied", 0)) >= len(short)
+        except (TypeError, ValueError):
+            return False
 
     def install_shelf(self, unit: str, kind: str, language: str, body: bytes) -> bool:
         if self._installer is None:
