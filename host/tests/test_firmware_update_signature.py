@@ -24,7 +24,7 @@ def _updater(*, signature=b"sig", verify=lambda image, sig: True, with_signature
     updater = FirmwareUpdater(
         ask_home=lambda: answer,
         download=lambda path: path.write_bytes(IMAGE),
-        serve_once=lambda path, sig=None: served.append((path.read_bytes(), sig)) or "http://body/x",
+        serve_once=lambda path, signature=None: served.append((path.read_bytes(), signature)) or "http://body/x",
         call_tool=lambda name, args: calls.append((name, args)),
         situation=lambda: BASE.copy(),
         battery=lambda: {"percent": 80, "charging": False},

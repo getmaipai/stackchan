@@ -101,10 +101,12 @@ class FirmwareUpdater:
         report: Callable[[bool, int | None], object] | None = None,
         download_signature: Callable[[], bytes | None] | None = None,
         verify: Callable[[bytes, bytes], bool] | None = None,
+        on_installed: Callable[[], object] | None = None,
     ) -> None:
         # Without a trusted key (`verify`) no image from Home is served: the hash Home sends comes from
         # the same place as the image, so it proves nothing about who built it.
         self.download_signature, self.verify = download_signature, verify
+        self.on_installed = on_installed or (lambda: None)
         self.ask_home, self.download, self.serve_once = ask_home, download, serve_once
         self.call_tool, self.situation, self.battery = call_tool, situation, battery
         self.unit_version, self.now = unit_version, now
@@ -202,7 +204,7 @@ class FirmwareUpdater:
             signature = self.download_signature()
             if not signature or not self.verify(path.read_bytes(), signature):
                 raise ValueError("image_signature_invalid")
-            url = self.serve_once(path, signature)
+            url = self.serve_once(path, signature=signature)  # by name: the real server method is (path, device_id=None, signature=None)
             LOG.info("StackChan firmware update: calling unit update tool")
             self.report(True, None)
             self.call_tool(
@@ -253,6 +255,7 @@ class FirmwareUpdater:
             else:
                 self.failed_at = self.failed_version = self.failure_reason = None
                 self.done_version, self.done_at = self.target_version, now
+                self.on_installed()  # the build number is recorded now, not when the image was checked
         elif kind == "firmware_update_validated":
             self.done_version = self.done_at = None
         elif kind == "firmware_update_rolled_back":

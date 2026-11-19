@@ -68,7 +68,7 @@ def _updater(tmp_path, *, reported=None):
     updater = FirmwareUpdater(
         ask_home=lambda: answer,
         download=lambda path: path.write_bytes(reported if reported is not None else image),
-        serve_once=lambda path, sig=None: served.append(path.read_bytes()) or "http://body/one-time",
+        serve_once=lambda path, signature=None: served.append(path.read_bytes()) or "http://body/one-time",
         download_signature=lambda: b"sig",
         verify=lambda image, sig: True,
         call_tool=lambda name, args: calls.append((name, args)),
@@ -166,3 +166,14 @@ def test_validated_event_clears_the_pending_check(tmp_path):
     updater.on_unit_event("firmware_update_done", {"version": "1.1.0"}, 100_010)
     updater.on_unit_event("firmware_update_validated", {}, 100_090)
     assert updater.done_version is None and updater.failure_reason is None
+
+
+def test_the_install_done_event_calls_on_installed_and_a_failure_does_not(tmp_path):
+    """Review fix R2-23: the host notes the accepted build only when the unit says the install is done."""
+    updater, *_ = _updater(tmp_path)
+    seen = []
+    updater.on_installed = lambda: seen.append(1)
+    updater.on_unit_event("firmware_update_failed", {"reason": "battery"}, 100_005)
+    assert seen == []
+    updater.on_unit_event("firmware_update_done", {"version": "1.1.0"}, 100_010)
+    assert seen == [1]

@@ -135,7 +135,7 @@ def test_the_hosts_update_path_serves_the_package_and_refuses_a_rollback(tmp_pat
         updater = FirmwareUpdater(
             ask_home=lambda: {"available": True, "version": version, "sha256": hashlib.sha256(image).hexdigest(), "size": len(image)},
             download=lambda p: p.write_bytes(image),
-            serve_once=lambda p, sig=None: served.append(server.serve_firmware_once(p, unit, sig)) or served[-1],
+            serve_once=lambda p, signature=None: served.append(server.serve_firmware_once(p, unit, signature)) or served[-1],
             call_tool=lambda n, a: calls.append(n), situation=lambda: dict(base), battery=lambda: {"percent": 80, "charging": False},
             unit_version=lambda: "0.9.0", now=lambda: 100_000, download_signature=lambda: package, verify=check,
         )
@@ -151,3 +151,64 @@ def test_the_hosts_update_path_serves_the_package_and_refuses_a_rollback(tmp_pat
     served, calls, updater = run("0.9.5", 9, b"older image")  # a validly signed older build
     assert not served and not calls and updater.failure_reason == "image_signature_invalid"
     assert builds.highest() == 10
+
+
+def test_the_updater_works_with_the_real_image_server_call_shape(tmp_path):
+    """Review fix: the updater passes the signature by name to the real serve method; no wrapper stands between them."""
+    import asyncio
+    import hashlib
+    from types import SimpleNamespace
+
+    from maipai_body.bodies.stackchan.firmware_update import FirmwareUpdater
+    from maipai_body.bodies.stackchan.xiaozhi.pairing import PairingStore
+    from maipai_body.bodies.stackchan.xiaozhi.server import XiaozhiServer
+
+    unit = "aa:bb:cc:dd:ee:08"
+    server = XiaozhiServer(PairingStore(), robot=None)
+    server._sessions = {unit: object()}
+    server.advertised_vision_url = "http://192.0.2.1:8767/vision/x"
+    image = b"image eleven"
+    base = {"link_healthy": True, "in_turn": False, "in_call": False, "timer_active": False, "timers_unknown": False, "alarm_active": False, "timer_due_in": None, "muted": False, "full_quiet": False}
+    package = b"H" * 56 + b"S" * 64
+    calls = []
+    updater = FirmwareUpdater(
+        ask_home=lambda: {"available": True, "version": "1.0.0", "sha256": hashlib.sha256(image).hexdigest(), "size": len(image)},
+        download=lambda p: p.write_bytes(image),
+        serve_once=server.serve_firmware_once,
+        call_tool=lambda n, a: calls.append((n, a)),
+        situation=lambda: dict(base),
+        battery=lambda: {"percent": 80, "charging": False},
+        unit_version=lambda: "0.9.0",
+        now=lambda: 100_000,
+        download_signature=lambda: package,
+        verify=lambda image, sig: True,
+    )
+    updater.tick(100_000)
+    assert calls, "the unit tool was never called: the image server refused the call"
+    url = calls[0][1]["url"] if "url" in calls[0][1] else str(calls[0][1])
+    token = url.rsplit("/", 1)[1]
+    hdr = asyncio.run(server._serve_firmware_file(SimpleNamespace(match_info={"device_id": unit, "token": token + ".hdr"})))
+    sig = asyncio.run(server._serve_firmware_file(SimpleNamespace(match_info={"device_id": unit, "token": token + ".hdr.sig"})))
+    assert len(hdr.body) == 56 and len(sig.body) == 64
+
+
+def test_a_failed_install_can_be_tried_again_with_the_same_build(tmp_path):
+    """Review fix R2-23: the build number is recorded when the unit reports the install done, not when the image was checked."""
+    import subprocess
+
+    from maipai_body.app import _update_check, _UpdateBuilds
+    from maipai_body.bodies.stackchan.firmware.openssl_cli import openssl_cli
+
+    private, public = tmp_path / "k.pem", tmp_path / "k.pub"
+    subprocess.run([openssl_cli(), "genpkey", "-algorithm", "Ed25519", "-out", str(private)], check=True, capture_output=True)
+    public.write_bytes(subprocess.run([openssl_cli(), "pkey", "-in", str(private), "-pubout"], check=True, capture_output=True).stdout)
+    image = b"image twelve"
+    package = uh.sign_package(uh.build_header(12, image), private)
+    builds = _UpdateBuilds(tmp_path / "builds.json")
+    check = _update_check(public, builds, lambda: 5)
+    assert check(image, package) is True      # attempt one: the signature is good
+    assert builds.highest() is None           # nothing is recorded yet: the unit has not installed it
+    assert check(image, package) is True      # attempt two after a failed install: still accepted
+    check.accepted()                          # the unit reported the install done
+    assert builds.highest() == 12
+    assert check(image, package) is False     # now the same build is not newer

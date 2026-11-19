@@ -77,7 +77,7 @@ def _updater(tmp_path, image: bytes, signature: bytes | None, pubkey, answer_sha
     updater = FirmwareUpdater(
         ask_home=lambda: answer,
         download=lambda p: p.write_bytes(image),
-        serve_once=lambda p, sig=None: served.append((p.read_bytes(), sig)) or "http://body/x",
+        serve_once=lambda p, signature=None: served.append((p.read_bytes(), signature)) or "http://body/x",
         call_tool=lambda n, a: calls.append((n, a)),
         situation=lambda: {"link_healthy": True, "in_turn": False, "in_call": False, "timer_active": False, "timers_unknown": False, "alarm_active": False, "timer_due_in": None, "muted": False, "full_quiet": False},
         battery=lambda: {"percent": 80, "charging": False},
