@@ -24,6 +24,15 @@ DEFAULT_OUT = SRC / "out"
 DISCLAIMER = ("MaiPai for StackChan is an independent project. It is not affiliated with, endorsed by or sponsored by M5Stack. "
               "StackChan and M5Stack are trademarks of their owners.")
 SITE = "MaiPai for StackChan"
+# The one outside address the site links to (a plain link, nothing loads from it). It is the account in .github/FUNDING.yml, which
+# scripts/funding-check.py keeps in step. check-site.py and test_docs_site.py allow exactly this address and no other.
+SPONSOR_URL = "https://github.com/sponsors/JesseWebDotCom"
+SPONSOR_LINE = 'Support this project: <a class="sponsor" href="%s">GitHub Sponsors</a>.' % SPONSOR_URL
+# Brand art copied byte for byte from docs-site/assets/brand (see PROVENANCE.md there). The site uses the bot icon in the header and as the
+# favicon, and the bot logo as the social image. Only these three go into the built site (about 1.4 MB, the art is not resized).
+BRAND_FILES = ("maipai-bot-icon-light.png", "maipai-bot-icon-dark.png", "maipai-bot-logo-light.png")
+SOCIAL_IMAGE = "assets/brand/maipai-bot-logo-light.png"
+BASE_URL = ""   # set by build(); the public address of the site, when known
 
 NAV = [("index.html", "Home"), ("docs/index.html", "Users"), ("playground/index.html", "Playground"), ("dev/index.html", "Developers"),
        ("viewer.html", "3D viewer"), ("ledger.html", "Feature ledger"), ("screens.html", "Screens"), ("decisions.html", "Decisions"),
@@ -333,6 +342,20 @@ def page(out_url, title, body, description="", extra_head="", body_class="", sid
         return u == out_url or (u == section_url)
     nav = "".join('<a href="%s%s"%s>%s</a>' % (up, u, ' aria-current="page"' if cur(u) else "", html.escape(t)) for u, t in NAV)
     desc = '<meta name="description" content="%s">' % html.escape(description, quote=True) if description else ""
+    # social cards need an absolute address: it is written only when the build is given the public address of the site (--base-url)
+    social = (BASE_URL.rstrip("/") + "/" if BASE_URL else up) + SOCIAL_IMAGE
+    head_meta = "\n".join([
+        '<link rel="icon" type="image/png" href="%sassets/brand/maipai-bot-icon-light.png" media="(prefers-color-scheme: light)">' % up,
+        '<link rel="icon" type="image/png" href="%sassets/brand/maipai-bot-icon-dark.png" media="(prefers-color-scheme: dark)">' % up,
+        '<meta property="og:type" content="website">',
+        '<meta property="og:site_name" content="%s">' % html.escape(SITE, quote=True),
+        '<meta property="og:title" content="%s">' % html.escape(title + " | " + SITE, quote=True),
+        '<meta property="og:image" content="%s">' % html.escape(social, quote=True),
+        '<meta property="og:image:alt" content="The MaiPai bot logo.">',
+        '<meta name="twitter:card" content="summary_large_image">',
+        '<meta name="twitter:image" content="%s">' % html.escape(social, quote=True)])
+    if description:
+        head_meta += '\n<meta property="og:description" content="%s">' % html.escape(description, quote=True)
     return """<!doctype html>
 <html lang="en">
 <head>
@@ -340,25 +363,33 @@ def page(out_url, title, body, description="", extra_head="", body_class="", sid
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>%(title)s</title>
 %(desc)s
+%(meta)s
 <link rel="stylesheet" href="%(up)sassets/site.css">
 <script src="%(up)sassets/theme.js"></script>
 %(extra)s</head>
 <body class="%(cls)s">
 <a class="skip" href="#main">Skip to the page</a>
 <header class="top"><div class="bar">
-<a class="brand" href="%(up)sindex.html">%(site)s</a>
+<a class="brand" href="%(up)sindex.html"><span class="mark" aria-hidden="true"></span><span>%(site)s</span></a>
 <nav aria-label="Site">%(nav)s</nav>
 <button type="button" id="theme" class="themebtn" aria-label="Switch between light and dark">Light/dark</button>
-</div></header>
+</div>
+<div class="searchbar"><form id="sitesearch" class="sitesearch" role="search" action="%(up)ssearch.html" method="get" data-base="%(up)s" data-index="%(up)sassets/search-index.js">
+<label class="vh" for="sitesearch-q">Search the guide</label>
+<input id="sitesearch-q" name="q" type="search" placeholder="Search the guide" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sitesearch-results">
+<ul id="sitesearch-results" class="results" role="listbox" aria-label="Search results" hidden></ul>
+</form></div></header>
 <main id="main">
 %(body)s
 </main>
 <footer class="foot"><div class="wrap"><p>%(disc)s</p>
-<p class="small">This site sets no cookies and loads nothing from other sites. Draft until the first release.</p></div></footer>
+<p class="small">This site sets no cookies and loads nothing from other sites. Draft until the first release.</p>
+<p class="small sponsor">%(sponsor)s</p></div></footer>
 <script src="%(up)sassets/theme-button.js"></script>
+<script src="%(up)sassets/search.js"></script>
 </body>
 </html>
-""" % dict(title=html.escape(title) + " | " + SITE, desc=desc, up=up, extra=extra_head, cls=body_class, site=SITE, nav=nav, body=body, disc=DISCLAIMER)
+""" % dict(title=html.escape(title) + " | " + SITE, desc=desc, up=up, extra=extra_head, cls=body_class, site=SITE, nav=nav, body=body, disc=DISCLAIMER, meta=head_meta, sponsor=SPONSOR_LINE)
 
 
 def toc(headings):
@@ -476,7 +507,9 @@ def gather_gallery():
     return sheets, screens, faces, before
 
 
-def build(out):
+def build(out, base_url=""):
+    global BASE_URL
+    BASE_URL = base_url
     out = Path(out)
     if out.exists():
         shutil.rmtree(out)
@@ -535,12 +568,15 @@ def build(out):
     # ---- assets
     for name in ("site.css", "theme.js", "theme-button.js", "search.js"):
         copy(out, "assets/" + name, SRC / "assets" / name)
+    for name in BRAND_FILES:
+        copy(out, "assets/brand/" + name, SRC / "assets" / "brand" / name)
     for u in sorted(used_images):
         copy(out, u, img_dir / Path(u).name)
 
     # ---- home
     readme_body, rr = rendered[rel(readme)]
     readme_body = re.sub(r"<h1[^>]*>.*?</h1>", "", readme_body, count=1, flags=re.S)
+    readme_body = re.sub(r"<p>\s*Support this project:.*?</p>", "", readme_body, count=1, flags=re.S)   # the footer carries it on every page
     home_intro = (SRC / "home-intro.html").read_text(encoding="utf-8")
     write(out, "index.html", page("index.html", SITE, home_intro + '<div class="wrap prose">' + readme_body + "</div>",
                                   "Firmware and a host program for the StackChan desk robot: private, local and yours."))
@@ -595,11 +631,9 @@ def build(out):
     lst = "".join('<li data-t="%s"><a href="%s">%s</a><span class="s">%s</span></li>' % (
         html.escape((r["title"] + " " + r["summary"]).lower(), quote=True), html.escape(r["url"]), html.escape(r["title"]), html.escape(r["summary"]))
         for r in sorted(index_rows, key=lambda r: r["title"].lower()))
-    body = ('<div class="wrap"><h1>Search</h1><p>Type to filter by title, or search the full text of every user page.</p>'
-            '<p><label for="q" class="vh">Search the pages</label><input id="q" type="search" placeholder="Search the pages" autocomplete="off"></p>'
+    body = ('<div class="wrap"><h1>Search</h1><p>Type in the box at the top to filter this list by title, or by the full text of every page.</p>'
             '<p id="count" class="small" aria-live="polite"></p><ul id="pages" class="pagelist">%s</ul>'
-            '<noscript><p>Search needs JavaScript. The list above shows every page.</p></noscript></div>'
-            '<script src="assets/search-index.js"></script><script src="assets/search.js"></script>') % lst
+            '<noscript><p>Search needs JavaScript. The list above shows every page.</p></noscript></div>') % lst
     write(out, "search.html", page("search.html", "Search", body, "Every page of the documentation, with search."))
 
     # ---- decisions
@@ -683,9 +717,10 @@ def report(out, problems):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=str(DEFAULT_OUT))
+    ap.add_argument("--base-url", default="", help="the public address of the site; when given, the social image address is absolute")
     a = ap.parse_args()
     try:
-        problems = build(a.out)
+        problems = build(a.out, a.base_url)
     except (BuildError, OSError) as e:
         print("docs-site build failed: %s. Run it from a full checkout of the repository." % e, file=sys.stderr)
         return 1

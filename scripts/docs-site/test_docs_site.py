@@ -33,7 +33,8 @@ import build  # noqa: E402
 
 # Files that are not pages of their own: the ledger is a generated, self-contained file shown inside ledger.html.
 EMBEDDED = {"ledger-app.html"}
-SIZE_CEILING_MB = 12
+# 12 until the brand art (three unedited PNGs, about 1.4 MB, assets/brand) joined the site; the art is never resized, so the ceiling moved with it.
+SIZE_CEILING_MB = 14
 
 
 class Scan(HTMLParser):
@@ -117,6 +118,15 @@ class DocsSite(unittest.TestCase):
     def test_playground_dev_pages_are_in_developers(self):
         self.assertFalse(list((self.out / "playground").glob("dev-*.html")), "playground developer pages belong under dev/")
 
+    def test_sponsor_line_is_on_every_page_and_only_that_link_leaves(self):
+        line = "Support this project: GitHub Sponsors"
+        for page in self.pages:
+            text = html.unescape(" ".join(" ".join(self.scans[page].text).split()))
+            self.assertIn(line, text, "%s lost the sponsor line in its footer" % page.relative_to(self.out))
+        for page, s in self.scans.items():
+            outside = {v for t, a, v in s.refs if t == "a" and re.match(r"^(https?:)?//", v.strip())}
+            self.assertLessEqual(outside, {build.SPONSOR_URL}, "%s links to an outside address other than the sponsor page" % page.relative_to(self.out))
+
     def test_internal_links_resolve(self):
         bad = []
         for page, s in self.scans.items():
@@ -146,6 +156,8 @@ class DocsSite(unittest.TestCase):
         pat_attr = re.compile(r"^(https?:)?//", re.I)
         for page, s in self.scans.items():
             for tag, attr, val in s.refs:
+                if tag == "a" and val.strip() == build.SPONSOR_URL:
+                    continue  # the sponsor line in the footer: a plain link, nothing loads from it
                 if pat_attr.match(val.strip()) or re.match(r"^[a-z][a-z0-9+.\-]*:", val.strip(), re.I) and not re.match(r"^(mailto|data|blob|javascript):", val.strip(), re.I):
                     bad.append("%s: <%s %s=%s>" % (page.relative_to(self.out), tag, attr, val))
         code_pat = re.compile(r"(url\(\s*['\"]?(https?:)?//|@import\s+['\"]?(https?:)?//|\bfetch\(\s*['\"]https?://|\bimport\(\s*['\"]https?://|new\s+WebSocket\(\s*['\"]wss?://|XMLHttpRequest|sendBeacon|importScripts\(\s*['\"]https?://|\.src\s*=\s*['\"]https?://)", re.I)

@@ -43,3 +43,5 @@ MaiPai for StackChan is an independent project providing custom firmware and too
 ## Help, contributing, license
 
 Run `stackchan check` and read [Troubleshooting](docs/user/troubleshooting.md); report bugs on the Issues tab. To change code, read [contributing](docs/dev/contributing.md). AGPL-3.0: see `LICENSE`, `NOTICE` and `THIRD-PARTY.md`.
+
+Support this project: [GitHub Sponsors](https://github.com/sponsors/JesseWebDotCom).

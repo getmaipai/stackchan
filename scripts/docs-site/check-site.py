@@ -24,6 +24,8 @@ from urllib.parse import unquote, urldefrag, urlparse
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT = ROOT / "docs-site" / "out"
 EMBEDDED = {"ledger-app.html"}
+# The one outside link the site carries: the sponsor line in every footer (the account in .github/FUNDING.yml). Nothing loads from it.
+ALLOWED_OUTSIDE = {"https://github.com/sponsors/JesseWebDotCom"}
 SKIP_SCHEMES = ("mailto:", "javascript:", "data:", "blob:")
 MAX_SHOWN = 40
 
@@ -182,6 +184,8 @@ def main():
             if not val or val.startswith(SKIP_SCHEMES):
                 continue
             links += 1
+            if val in ALLOWED_OUTSIDE and tag == "a":
+                continue
             if urlparse(val).scheme or val.startswith("//"):
                 problems.append("%s: <%s %s=%s> leaves the site" % (f, tag, attr, val))
                 continue
