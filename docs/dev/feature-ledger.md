@@ -11,7 +11,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 2 | 13 | 31 | 287 | 7 | 43 | 383 | 65 |
-| Maker and tech | 0 | 0 | 81 | 409 | 60 | 0 | 550 | 69 |
+| Maker and tech | 0 | 0 | 80 | 410 | 60 | 0 | 550 | 69 |
 
 ## Everyday user
 
@@ -924,7 +924,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: asset-dedupe-report.py** | Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed store would save. | built | 40 | not declared | `scripts/asset-dedupe-report.py` | file exists | doc missing |
 | **Script: bench-train.py** | One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixel-diff against the goldens, one result file. | proven virtual | 70 | not declared | `scripts/bench-train.py` | file exists, a test names it | doc missing |
 | **Script: boundary-check.sh** | keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). | built | 40 | not declared | `scripts/boundary-check.sh` | file exists | doc missing |
-| **Script: build-clean-host-env.sh** | make the clean host environment (.runs/e2e-venv, a fresh install of host/ as the README's pipx step does) that the security scan and the exposure suite run the real host in. | built | 40 | not declared | `scripts/build-clean-host-env.sh` | file exists | doc missing |
+| **Script: build-clean-host-env.sh** | make the clean host environment (.runs/e2e-venv, a fresh install of host/ as the README's pipx step does) that the security scan and the exposure suite run the real host in. | proven virtual | 70 | not declared | `scripts/build-clean-host-env.sh` | file exists, a test names it | doc missing |
 | **Script: build-site.sh** | build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md. | built | 40 | not declared | `scripts/build-site.sh` | file exists | doc missing |
 | **Script: build-stackchan-firmware-asset.sh** | A repository script. | proven virtual | 70 | not declared | `scripts/build-stackchan-firmware-asset.sh` | file exists, a test names it | doc missing |
 | **Script: camera-sweep-table.py** | turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the one table of docs/dev/camera-quality.md: | proven virtual | 70 | not declared | `scripts/camera-sweep-table.py` | file exists, a test names it | doc missing |
