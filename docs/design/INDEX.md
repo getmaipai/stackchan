@@ -175,7 +175,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1156): Feature ledger
+- `docs/dev/feature-ledger.md` (1157): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -249,8 +249,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
-- `docs/dev/index.md` (110): MaiPai for StackChan: developer guide
+- `docs/dev/index.md` (111): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
+- `docs/dev/measure-a-game.md` (57): How to measure a game
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1487): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/mumble/de.wav` (281): no header
@@ -417,7 +418,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/custom-wake-word.md` (42): A wake word the family chooses (feature 8e): what the unit needs
 - `docs/plan/dance-vectors.md` (40): Dance vectors for the host director (from the virtual unit's session, patch SF51)
 - `docs/plan/dashboard-structure.md` (10): Dashboard pages follow the robot's screen structure (for the app track)
-- `docs/plan/doc-screenshots.md` (21): Doc screenshots from the virtual unit
+- `docs/plan/doc-screenshots.md` (25): Doc screenshots from the virtual unit
 - `docs/plan/docs-site.md` (47): Documentation site
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
@@ -502,18 +503,18 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/playground/dances-and-lights.md` (15): Dances and the light show
 - `docs/playground/dev-architecture.md` (17): Architecture of the virtual unit
 - `docs/playground/dev-assets-and-memory.md` (8): Assets, memory and sounds
-- `docs/playground/dev-reuse-of-firmware.md` (11): How the real firmware code is reused
+- `docs/playground/dev-reuse-of-firmware.md` (14): How the real firmware code is reused
 - `docs/playground/dev-standards-and-audit.md` (7): Standards and the audit
-- `docs/playground/dev-tests-and-rigs.md` (11): Test suites and rigs
-- `docs/playground/dev-tools-and-goldens.md` (11): Tools, scenarios and goldens
+- `docs/playground/dev-tests-and-rigs.md` (12): Test suites and rigs
+- `docs/playground/dev-tools-and-goldens.md` (21): Tools, scenarios and goldens
 - `docs/playground/faults.md` (11): Faults: when the host is away
-- `docs/playground/games-and-sounds.md` (11): Games and sounds
-- `docs/playground/index.md` (32): MaiPai for StackChan: the playground
+- `docs/playground/games-and-sounds.md` (36): Games and sounds
+- `docs/playground/index.md` (33): MaiPai for StackChan: the playground
 - `docs/playground/keyboard-and-mouse.md` (38): Keyboard and mouse cheat sheet
 - `docs/playground/languages.md` (5): Languages
 - `docs/playground/live-mode-and-safety.md` (28): Live mode and safety
-- `docs/playground/scenarios-and-recording.md` (30): Scenarios and recording
-- `docs/playground/screen-tour.md` (17): The screen tour
+- `docs/playground/scenarios-and-recording.md` (46): Scenarios and recording
+- `docs/playground/screen-tour.md` (20): The screen tour
 - `docs/playground/start-here.md` (31): Start here
 - `docs/playground/talk-to-the-virtual-robot.md` (20): Talk to the virtual robot
 - `docs/playground/the-3d-robot.md` (13): The 3D robot
@@ -2831,6 +2832,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/tools.json` (739): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/bench-train.py` (473): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
+- `scripts/bench-trains/batch1-b75.json` (253): no header
+- `scripts/bench-trains/batch2-b76.json` (227): no header
+- `scripts/bench-trains/batch3-b77.json` (248): no header
 - `scripts/bench-trains/bench-proof.json` (249): no header
 - `scripts/bench-trains/leave-hosted.json` (60): no header
 - `scripts/bench-trains/plain-proof.json` (17): no header
@@ -2899,6 +2903,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-pictures.py` (204): Bench: send made-up pictures to the unit over the USB cable and look at what its face draws (bench builds only
 - `scripts/fw-power-run.py` (127): Chain self.bench.power_log calls into one battery run and write a CSV (bench images only; owner steps in docs/
 - `scripts/fw-rebuild.sh` (74): rebuild the firmware tree from this repo alone: the pinned upstream bases (firmware/BASE), then every patch of
+- `scripts/fw-ref-tree.sh` (27): ONE canonical firmware reference tree for main: ~/esp/stackchan-rebuild/main-ref is a clean replay of origin/m
 - `scripts/fw-serial.py` (289): Bench helper for the unit on the USB cable (bench builds only; see patch V01 and H01).
 - `scripts/fw-stress.py` (191): Memory gate stress run for the unit on the USB cable, with the memory line on.
 - `scripts/fw-tailnet.sh` (45): download the pinned private-network client (firmware/tailnet/PIN) into a folder outside the firmware tree,
@@ -2931,7 +2936,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/make-object-seed.py` (32): write the six <language>-object.json seed files from host/maipai_packages/pantry/objects/ (core.json: group, b
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
 - `scripts/make-update-vectors.py` (92): write the signed-update test vectors (host/tests/fixtures/update-signature-vectors.json) from a fixed TEST see
-- `scripts/make-vu-screenshots.py` (52): the screenshots for the user docs come from the virtual unit's golden frames (real LVGL drawing of the unit's 
+- `scripts/make-vu-screenshots.py` (56): the screenshots for the user docs come from the virtual unit's golden frames (real LVGL drawing of the unit's 
 - `scripts/measure-mouth-cues.py` (30): print the mouth cue rate and levels for a speech WAV (16-bit mono or stereo), to check the 4 to 11 a second ba
 - `scripts/measure-turn.py` (134): Measure first model token and first speech audio from a local compatible service."""
 - `scripts/off-cost.sh` (35): prove an optional firmware feature that is switched off costs nothing in the plain image. Reads a built plain 

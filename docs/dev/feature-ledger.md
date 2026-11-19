@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 915 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 916 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 58 items, 6 measured, 25 estimated, 27 placeholders or not built. 84 of 915 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 58 items, 6 measured, 25 estimated, 27 placeholders or not built. 84 of 916 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 33 | 269 | 8 | 51 | 382 | 63 |
-| Maker and tech | 0 | 0 | 77 | 396 | 60 | 0 | 533 | 69 |
+| Maker and tech | 0 | 0 | 78 | 396 | 60 | 0 | 534 | 69 |
 
 ## Everyday user
 
@@ -906,7 +906,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: pantry** | Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the owner's model, filters, dedupes and keeps, and the unit keeps a small shelf of. | proven virtual | 70 | not declared | `host/maipai_packages/pantry` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (89)
+### Scripts and tools (90)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -941,6 +941,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: fw-pictures.py** | Bench: send made-up pictures to the unit over the USB cable and look at what its face draws (bench builds only). | built | 40 | not declared | `scripts/fw-pictures.py` | file exists | doc missing |
 | **Script: fw-power-run.py** | Chain self.bench.power_log calls into one battery run and write a CSV (bench images only; | proven virtual | 70 | not declared | `scripts/fw-power-run.py` | file exists, a test names it | doc missing |
 | **Script: fw-rebuild.sh** | rebuild the firmware tree from this repo alone: the pinned upstream bases (firmware/BASE), then every patch of | proven virtual | 70 | not declared | `scripts/fw-rebuild.sh` | file exists, a test names it | doc missing |
+| **Script: fw-ref-tree.sh** | ONE canonical firmware reference tree for main: ~/esp/stackchan-rebuild/main-ref is a clean replay of origin/main's firmware/patches/ORDER, with build-bench/config present | built | 40 | not declared | `scripts/fw-ref-tree.sh` | file exists | doc missing |
 | **Script: fw-serial.py** | Bench helper for the unit on the USB cable (bench builds only; | proven virtual | 70 | not declared | `scripts/fw-serial.py` | file exists, a test names it | doc missing |
 | **Script: fw-stress.py** | Memory gate stress run for the unit on the USB cable, with the memory line on. | proven on unit | 100 | not declared | `scripts/fw-stress.py` | `bench-b15.md`, `bench-b9.md` | doc missing |
 | **Script: fw-tailnet.sh** | download the pinned private-network client (firmware/tailnet/PIN) into a folder outside the firmware tree, | proven virtual | 70 | not declared | `scripts/fw-tailnet.sh` | file exists, a test names it | doc missing |
