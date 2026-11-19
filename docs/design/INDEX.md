@@ -240,6 +240,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/game-sounds/win_fanfare.wav` (76): no header
 - `docs/dev/games-audit.json` (85): no header
 - `docs/dev/games-audit.md` (13): Screen audit of the data-pack games
+- `docs/dev/games-footprint.md` (45): What the games cost in the image (measured from a built tree, 2026-11-18)
 - `docs/dev/gate-numbers.md` (29): Gate numbers (2026-11-18)
 - `docs/dev/hardware-reference.md` (238): Hardware reference (what we know about the StackChan unit, and how we know it)
 - `docs/dev/head-fit-before-servo-fix.svg` (91): no header
