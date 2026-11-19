@@ -130,3 +130,132 @@ def test_status_reports_an_update_that_did_not_take(tmp_path, monkeypatch):
     said: list[str] = []
     Service(system="linux", home=tmp_path, say=said.append)._say_last_update()
     assert said == ["Last update: The update did not take: test"]
+
+
+def test_an_activate_that_raises_is_rolled_back_and_recorded(tmp_path):
+    import json
+
+    rig = Rig(tmp_path)
+    _first_version(rig)
+    real = rig.activate
+
+    def activate(folder):
+        if folder is not None and folder.name == "v2":
+            raise OSError("read-only folder")
+        return real(folder)
+
+    rig.activate = activate
+    result = rig.updater().update("src")
+    assert not result.ok and result.rolled_back
+    assert (rig.root / "current").resolve().name == "v1" and not (rig.root / "v2").exists()
+    kept = json.loads((rig.root / "last-update.json").read_text())
+    assert kept["rolled_back"] is True and kept["ok"] is False
+
+
+def test_a_health_check_that_raises_is_rolled_back(tmp_path):
+    rig = Rig(tmp_path)
+    _first_version(rig)
+
+    def healthy():
+        if rig.running is not None and rig.running.name == "v2":
+            raise OSError("status page unreadable")
+        return True
+
+    rig.healthy = healthy
+    result = rig.updater().update("src")
+    assert not result.ok and result.rolled_back and (rig.root / "current").resolve().name == "v1"
+
+
+def test_a_second_update_while_one_runs_is_refused_and_touches_nothing(tmp_path):
+    rig = Rig(tmp_path)
+    _first_version(rig)
+    inner: list = []
+    real = rig.make_env
+
+    def make_env(folder, source):
+        real(folder, source)
+        inner.append(rig.updater().update("src"))
+
+    rig.make_env = make_env
+    outer = rig.updater().update("src")
+    assert outer.ok and outer.version == "v2"
+    assert len(inner) == 1 and not inner[0].ok and "already running" in inner[0].message
+    assert (rig.root / "current").resolve().name == "v2" and (rig.root / "v2").exists()
+    assert rig.calls.count("stop") == 1
+
+
+def test_the_lock_is_released_after_an_update(tmp_path):
+    rig = Rig(tmp_path)
+    _first_version(rig)
+    assert rig.updater().update("src").ok
+    assert rig.updater().update("src").ok
+
+
+def test_a_pip_timeout_is_recorded_without_the_credentials_in_the_source(tmp_path):
+    import json
+    import subprocess
+
+    rig = Rig(tmp_path)
+    _first_version(rig)
+
+    def make_env(folder, source):
+        raise subprocess.TimeoutExpired(["pip", "install", source], 1800)
+
+    rig.make_env = make_env
+    result = rig.updater().update("git+https://user:SECRETTOKEN@example.com/x.git")
+    kept = (rig.root / "last-update.json").read_text()
+    assert "SECRETTOKEN" not in result.message and "SECRETTOKEN" not in kept
+    assert "pip did not finish in 30 minutes" in json.loads(kept)["message"]
+
+
+def test_a_failed_pip_run_is_recorded_without_the_command(tmp_path):
+    import subprocess
+
+    rig = Rig(tmp_path)
+
+    def make_env(folder, source):
+        raise subprocess.CalledProcessError(1, ["pip", "install", source])
+
+    rig.make_env = make_env
+    result = rig.updater().update("git+https://user:SECRETTOKEN@example.com/x.git")
+    assert "SECRETTOKEN" not in result.message and "pip" in result.message
+
+
+def test_redact_removes_user_and_password_from_a_url():
+    from maipai_body.host_update import redact
+
+    assert redact("git+https://user:tok@example.com/a") == "git+https://example.com/a"
+    assert redact("git+https://tok@example.com/a") == "git+https://example.com/a"
+    assert redact("git+https://example.com/a") == "git+https://example.com/a"
+
+
+def test_a_source_that_starts_with_a_dash_is_refused_before_anything_is_installed(tmp_path, monkeypatch):
+    from maipai_body import host_update
+
+    monkeypatch.setenv("MAIPAI_BOT_DATA_DIR", str(tmp_path))
+    said: list[str] = []
+    assert host_update.run_update("--index-url=http://evil.example", say=said.append) == 1
+    assert any("starts with" in line and "-" in line for line in said)
+    assert not (tmp_path / "host-versions").exists()
+
+
+def test_pip_gets_the_source_after_a_double_dash_and_the_source_is_printed(tmp_path, monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+
+    from maipai_body import host_update
+
+    seen: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        seen.append([str(c) for c in cmd])
+        (tmp_path / "bin").mkdir(exist_ok=True)
+        (tmp_path / "bin" / "stackchan").write_text("")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    said: list[str] = []
+    host_update.make_env(tmp_path, "git+https://user:SECRETTOKEN@example.com/x.git", say=said.append)
+    pip = next(c for c in seen if "install" in c)
+    assert pip[-2] == "--" and pip[-1].startswith("git+https://user:SECRETTOKEN@")
+    assert said and "SECRETTOKEN" not in " ".join(said) and "example.com/x.git" in " ".join(said)
