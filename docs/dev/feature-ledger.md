@@ -571,7 +571,6 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
-| **Host: service_handover** | Called by the host when the person confirmed: start the helper, answer the page, then end this host a moment later. | proven virtual | 70 | not declared | `host/maipai_body/service_handover.py` | file exists, a test names it | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | not declared | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
 | **Host: assets** | Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack when it needs it and keeps only the active one. | proven on unit | 100 | not declared | `host/maipai_body/assets.py` | `bench-b9.md` | doc missing |
 | **Host: banner_shapes** | The banner functions with the table of the core filled in. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/banner_shapes.py` | file exists, a test names it | doc missing |
@@ -806,6 +805,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: stackchan** | BOT-SELF-TEST-01: the StackChan's seven part checks, one per part. | proven on unit | 100 | not declared | `host/maipai_body/selftest/stackchan.py` | `bench-window11.md` | doc missing |
 | **Host: stackchan_wiring** | BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts. | proven virtual | 70 | not declared | `host/maipai_body/selftest/stackchan_wiring.py` | file exists, a test names it | doc missing |
 | **Host: service_cmd** | `stackchan service install/status/start/stop/logs/uninstall`: the host as a managed service. | proven virtual | 70 | not declared | `host/maipai_body/service_cmd.py` | file exists, a test names it | doc missing |
+| **Host: service_handover** | Called by the host when the person confirmed: start the helper, answer the page, then end this host a moment later. | proven virtual | 70 | not declared | `host/maipai_body/service_handover.py` | file exists, a test names it | doc missing |
 | **Host: service_threads** | Background threads of the host service, each started with the stop event it waits on. | proven virtual | 70 | not declared | `host/maipai_body/service_threads.py` | file exists, a test names it | doc missing |
 | **Host: settings_keys** | Settings keys shared by body settings consumers. | proven virtual | 70 | not declared | `host/maipai_body/settings_keys.py` | file exists, a test names it | doc missing |
 | **Host: settings_page** | The whole page for one language: one HTML document with its own style and script, no outside file. | proven virtual | 70 | not declared | `host/maipai_body/settings_page.py` | file exists, a test names it | doc missing |
