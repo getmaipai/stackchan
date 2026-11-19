@@ -19,7 +19,7 @@ Counts are controls a person can touch (sliders, switches, choices, buttons, til
 | Settings, Network | 1 (Wi-Fi settings) | 4: Wi-Fi network, Signal, Private network (when built in), Home hub | |
 | Settings, Faces | 3 style tiles (4 with a picture pack) | 0 | the preview sits in the header |
 | Settings, Info | 0 | 8: version, update status, update copy, memory, host name, Wi-Fi network, Signal, uptime | Wi-Fi network and Signal are also on Network |
-| More settings (opened from General) | Time zone, Version, Games, Network test | | Version repeats Info, Games repeats the sheet tile |
+| More settings (opened from General) | Time zone (only on a unit with no host), Version, Games, Lock (only with a code set), Quick settings: 3 to 5 buttons | | Version repeats Info, Games repeats the sheet tile |
 | Quick sheet, page 1 | 3: Volume, Brightness, Next | 3 (signal, clock, battery) | |
 | Quick sheet, page 2 | 7: Mute, Sleep, Lock, Apps, Games, Setup, Back | 0 | Lock does nothing until a code is set |
 | First run | 28 targets over 7 screens (language 6 and Skip, name 7 and Back and Skip, the Wi-Fi cover, brain 2 routes then 3 ways with Back and Skip, privacy, done, what now) | | up to 9 taps before the robot is usable; 3 of them are questions |
@@ -49,18 +49,18 @@ Each list is now at most 6 rows. Every row keeps its size: 56 px high, 8 px apar
 
 ### More settings (proposed; `maipai_more.cc`)
 
-- Remove **Version** (the Info tab shows the same line) and **Games** (the quick sheet and the Apps wall open it). What stays is **Time zone** and the network test: two buttons instead of four.
+- Remove **Version** (the Info tab shows the same line) and **Games** (the quick sheet and the Apps wall open it). What stays is Time zone (only when the unit has no host), Lock (only with a code set) and Quick settings: at most three buttons instead of five. Not written yet: the renderer's `more-version`, `more-games` and `more-version-end` scenarios open those pages by tapping the two buttons, so they need another way in (a renderer command that opens a page) in the same landing.
 
 ### First run (proposed; the step rules are `maipai_firstrun_core.h`, the screens `maipai_firstrun.cc`)
 
 The questions are already three (language, a name, where the brain lives); the screens around them are what adds taps.
 
-- **Skip the brain question when a hub is known.** The step already pre-selects MaiPai Home in that case; asking anyway is a tap with a foregone answer. Steps: language, name, Wi-Fi, done. The core change is in the step order (`mfr_next`) and its test `host/tests/firmware/firstrun_core_test.c`.
+- **Skip the brain question when a hub is known (written: UX31).** The step already pre-selected MaiPai Home in that case; asking anyway was a tap with a foregone answer. Steps with a hub known: language, name, (Wi-Fi), then straight to the privacy screen; Back from there still shows the question. Header only (`mfr_enter_brain` in `maipai_firstrun_core.h`), with the C test `host/tests/firmware/firstrun_core_test.c` checking both orders (guarded by `MFR_SKIP_BRAIN_WITH_HUB`, so main's order still passes).
 - **Fold the privacy screen into the brain step as its hint** ("Your voice stays in your home either way." is already there; add "Nothing goes to the internet unless you turn it on."). The screen "Private by design" with a Got it button becomes one sentence. **This one needs the owner's word:** the privacy promise in plain words is one of the basics the first run was built to say (`docs/design/first-run-flow.md`, placement), so it is proposed, not written.
 - **Name step stays but is skippable by Skip as now**; the six names are tiles because there is no keyboard.
 - The two-level brain question (hosted or custom, then three ways) stays as decided (owner decision 34, two equal routes); nothing is proposed against it.
 
-With these, a person who has a hub answers two questions (language, name) and joins the Wi-Fi; a person without answers three and reads one hint.
+With these, a person who has a hub answers two questions (language, name) and joins the Wi-Fi; a person without answers three (and reads one hint, once the privacy hint is in).
 
 ## The patch set, for the firmware track
 
@@ -69,7 +69,7 @@ With these, a person who has a hub answers two questions (language, name) and jo
 | `UX30-settings-fewer-rows.patch` | the rows above: General 9 to 5, Faces becomes Look with the two switches, Lock now and Signal and the repeated Info rows leave | `maipai_apps_core.h` only | written, last in ORDER on `ux/unproven-games`, renderer goldens (`screen-settings-*`, `es-settings-*`, two new) |
 | Quick sheet without Lock until a code is set | Lock tile follows the lock state | `maipai_pages.cc` (or the host's sheet item list) | proposed |
 | More settings without Version and Games | two buttons fewer | `maipai_more.cc` | proposed |
-| First run: skip the brain question when a hub is known | step order | `maipai_firstrun_core.h`, its C test | proposed |
+| `UX31-first-run-skips-brain-with-hub.patch` | the brain question is answered with Home when a hub is known | `maipai_firstrun_core.h` only | written, last in ORDER on `ux/unproven-games`, C test for both orders |
 | First run: privacy as a hint, not a screen | one sentence moves | `maipai_firstrun.cc`, `maipai_firstrun_core.h` | needs the owner's decision |
 
 ## Proof

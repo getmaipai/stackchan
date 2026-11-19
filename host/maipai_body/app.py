@@ -3306,7 +3306,7 @@ def _wire_firmware_update(voice, behavior, link, stop_event, situation_runner: C
     """The signed-update path from Home to the unit: ask, download, verify (key and build number), serve once, report.
 
     `situation_runner` returns the dance runner (set later by the hub wiring); the update waits while it says the robot is busy."""
-    from maipai_body.bodies.stackchan.firmware_update import FirmwareUpdater
+    from maipai_body.bodies.stackchan.firmware_update import FirmwareUpdater, stream_to_file
 
     hub_credentials = _hub_credentials_reader(link, "")
     firmware_answer: list[dict | None] = [None]
@@ -3342,10 +3342,8 @@ def _wire_firmware_update(voice, behavior, link, stop_event, situation_runner: C
         )
         if not 200 <= response.status_code < 300:
             raise ValueError("Home firmware download failed")
-        with path.open("wb") as output:
-            for chunk in response.iter_content(64 * 1024):
-                if chunk:
-                    output.write(chunk)
+        size = (firmware_answer[0] or {}).get("size")
+        stream_to_file(response, path, size)  # stops at the announced size, or 16 MiB
 
     def download_firmware_signature() -> bytes | None:
         """What Home serves beside the image: the signed update header (`app.bin.hdr` and `app.bin.hdr.sig`), else the older
@@ -4966,7 +4964,7 @@ def _start_pantry(backend, voice=None) -> None:
     if game_bridge is not None:
         game_bridge.talk_fallback = PantryTalk(backend.pantry.library, adult_humor=lambda: bool(cfg.adult_humor))
     # Every five minutes, for each connected unit: take its heard list, send denials, and refill what the rule says (docs/design/content-pantry.md section 5).
-    from maipai_packages.pantry.sync import UnitState, run_unit
+    from maipai_packages.pantry.sync import read_unit_state, run_unit
     from maipai_packages.pantry.unit_link import ToolUnitLink
 
     from maipai_body.asset_transport import AssetTransport
@@ -4989,7 +4987,7 @@ def _start_pantry(backend, voice=None) -> None:
             for unit in list(voice._sessions):
                 try:
                     idle = voice._turns_running == 0 and unit not in voice._speaking
-                    run_unit(backend.pantry.library, link, unit, UnitState(idle=idle), window=_pantry_window(voice), nightly_done=done_tonight)
+                    run_unit(backend.pantry.library, link, unit, read_unit_state(call_unit, unit, idle=idle), window=_pantry_window(voice), nightly_done=done_tonight)
                 except Exception:
                     logger.debug("pantry sync of one unit failed", exc_info=True)
 

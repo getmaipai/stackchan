@@ -32,3 +32,24 @@ The whole gate takes about 14 minutes when everything passes.
 - Build the renderer from the reference tree and write `inputs.sha`, then run `bash scripts/test-all.sh` alone (one run at a time: two runs at once share ports).
 - Run the gate with the owner's key file: `--signing-key PATH` (never a command-line value) and a build number above `dist/last-build-number.txt`.
 - Read `evidence/` and the checklist in [pre-publish-checklist.md](pre-publish-checklist.md). Publishing needs the owner's word.
+
+## Dry run 2 (2026-11-19, clean checkout, passed)
+
+The gate passed end to end in 14 minutes 8 seconds on a clean checkout of `main` (a worktree with no earlier run in it), and packaging produced the signed manifest, the update header and its signature, `SHA256SUMS` with its minisign signature, and the evidence bundle. Nine runs on the way found these, all fixed:
+
+- The golden frames now match (the playground track regenerated them for the current patch order).
+- The lock page test looked past the old lock section into the new shell; the old section test now stops at the new shell and the new lock page has its own check.
+- The release scans need a clean host environment (`.runs/e2e-venv`). A fresh checkout had none, so the gate now builds it first (`scripts/build-clean-host-env.sh`).
+- The new pinned-key step (a real release is refused while `flasher/trusted-keys.json` is empty) applied to test releases too. It now applies to a real release only.
+- Three end to end checks about "play a game" depend on a known gap in the virtual unit (it refuses the `token` argument the host stamps on a game start) and passed or failed between runs. They are now shown as `SOFT` and never fail the run, until the playground track accepts the token.
+- The gate tests that copy `release.sh` into a stub tree now stub the new host environment step.
+
+A real release still needs the owner's signing key and a pinned key in `flasher/trusted-keys.json` (see above).
+
+## Pinning the release key and a date floor
+
+`flasher/trusted-keys.json` holds the release public keys the web flasher trusts and an optional `not_before` date (for example `"2026-11-19"`). A signed release list made before that date is refused, so an old release with a known hole stops being offered once the date is raised. An empty `not_before` means no floor. A real release is refused while `keys` is empty or lacks the key it is signed with.
+
+## Dry run 3 (2026-11-19, clean checkout of main at 1614c061, passed)
+
+The gate passed in 14 minutes 2 seconds with the three "play a game" end to end checks hard again (the virtual unit now accepts the host's token). Packaging produced the signed manifest, update header and signature, `SHA256SUMS` with its minisign signature and the evidence bundle, with a throwaway key. A real release still needs the owner's keys (see `docs/dev/open-questions.md`).

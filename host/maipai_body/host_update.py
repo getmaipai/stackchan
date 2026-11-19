@@ -95,6 +95,7 @@ class HostUpdater:
         self.root = root
         self._make_env, self._stop, self._activate, self._healthy = make_env, stop, activate, healthy
         self._clock, self._sleep, self._timeout, self._poll = clock, sleep, timeout_s, poll_s
+        self.starting: Path | None = None  # the folder just started: the health check must hear an answer from this one
 
     @property
     def link(self) -> Path:
@@ -160,6 +161,7 @@ class HostUpdater:
             shutil.rmtree(new, ignore_errors=True)
             return self._record(UpdateResult(False, "The host could not be stopped, so the update did not start. Nothing changed. Run `stackchan service stop`, read why it failed, then run the update again."))
         reason = f"the new version was not healthy within {int(self._timeout)} seconds"
+        self.starting = new
         try:
             self._switch(new)
             if self._activate(new) and self._wait_healthy():
@@ -167,10 +169,16 @@ class HostUpdater:
                 return self._record(UpdateResult(True, f"Updated. The host now runs {new.name} and reports healthy.", new.name))
         except Exception as error:
             reason = f"the new version could not be started ({redact(str(error))[:120]})"
-        # The new version did not come up healthy: go back to the old one and say so.
+        # The new version did not come up healthy: stop it (a second try if needed), go back to the old one and say so.
+        stopped = self._stop_with_retry()
+        if not stopped:
+            try:
+                self._switch(previous)  # a later `stackchan service start` runs the old version; the new folder stays, the service file still names it
+            except Exception:
+                pass
+            return self._record(UpdateResult(False, f"The update did not take: {reason}, and the new version could not be stopped, so the old version was not started beside it. Run `stackchan service stop`, then `stackchan service install`, and read `stackchan service logs`.", None, True))
         back = False
         try:
-            self._stop()
             self._switch(previous)
             back = self._activate(previous)
         except Exception:
@@ -178,6 +186,53 @@ class HostUpdater:
         shutil.rmtree(new, ignore_errors=True)
         tail = "and the old version is running again." if back else "but the old version did not start either: run `stackchan service start` and `stackchan service logs`."
         return self._record(UpdateResult(False, f"The update did not take: {reason}, {tail} Nothing else changed.", None, True))
+
+    def _stop_with_retry(self, tries: int = 3) -> bool:
+        for attempt in range(tries):
+            try:
+                if self._stop():
+                    return True
+            except Exception:
+                pass
+            if attempt + 1 < tries:
+                self._sleep(self._poll)
+        return False
+
+
+def health_is_from(doc: dict | None, folder: Path, *, old_pid: int | None, version: str | None) -> bool:
+    """True only when the health document comes from the program that was just started: state ok, the same folder, the same package version
+    and not the pid that answered before the update. An idle old process, or any other program on the port, does not pass."""
+    if not isinstance(doc, dict) or doc.get("state") != "ok":
+        return False
+    pid, program = doc.get("pid"), doc.get("program")
+    if not isinstance(pid, int) or isinstance(pid, bool) or not isinstance(program, str):
+        return False
+    if old_pid is not None and pid == old_pid:
+        return False
+    if version is not None and doc.get("version") != version:
+        return False
+    from maipai_body.health import program_id
+
+    return program == program_id(folder)
+
+
+def make_health_check(updater: HostUpdater, *, fetch: Callable[[], dict | None], old_pid: int | None, version: str | Callable[[], str | None] | None) -> Callable[[], bool]:
+    """The health check the updater waits on: it asks for the folder the updater has just started."""
+    def check() -> bool:
+        folder = updater.starting
+        want = version() if callable(version) else version
+        return folder is not None and health_is_from(fetch(), folder, old_pid=old_pid, version=want)
+
+    return check
+
+
+def installed_version(folder: Path) -> str | None:
+    """The package version installed in a version folder, or None when it cannot be read (the version is then not compared)."""
+    try:
+        done = subprocess.run([str(folder / "bin" / "python"), "-c", "import importlib.metadata as m; print(m.version('maipai-bot'))"], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return done.stdout.strip() or None if done.returncode == 0 else None
 
 
 def check_source(source: str) -> str | None:
@@ -220,13 +275,22 @@ def run_update(source: str | None = None, *, say: Callable[[str], None] = print)
         service.command = [str(exe), "run"] if exe else service.original_command()
         return service.install() == 0
 
+    old_pid = (fetch_health() or {}).get("pid")
+    versions: dict[str, str | None] = {}
+    holder: dict[str, Callable[[], bool]] = {}
+
+    def make_and_read(folder: Path, src: str) -> None:
+        make_env(folder, src, say)
+        versions["new"] = installed_version(folder)
+
     updater = HostUpdater(
         versions_root(data),
-        make_env=lambda folder, src: make_env(folder, src, say),
+        make_env=make_and_read,
         stop=lambda: service.stop() == 0,
         activate=activate,
-        healthy=lambda: bool((fetch_health() or {}).get("state") == "ok"),
+        healthy=lambda: holder["check"](),
     )
+    holder["check"] = make_health_check(updater, fetch=fetch_health, old_pid=old_pid if isinstance(old_pid, int) else None, version=lambda: versions.get("new"))
     say("Installing the new version beside the old one. This can take a few minutes.")
     result = updater.update(chosen)
     say(result.message)

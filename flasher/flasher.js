@@ -1,5 +1,5 @@
 import { ESPLoader, Transport } from "./vendor/esptool-js-0.7.0.js";
-import { FlasherError, assertChip, fetchAndVerify, parseManifest, rawKeyFromPem, resolveManifestUrl, testReleaseAllowed, toFileArray, verifyManifestSignature } from "./flasher-core.js";
+import { FlasherError, assertChip, assertNotOlder, fetchAndVerify, parseManifest, rawKeyFromPem, resolveManifestUrl, testReleaseAllowed, toFileArray, verifyManifestSignature } from "./flasher-core.js";
 
 const $ = (id) => document.getElementById(id);
 const say = (text, kind = "") => { const el = $("status"); el.textContent = text; el.className = kind; };
@@ -22,10 +22,12 @@ function setProgress(done, total) {
 // The keys this page trusts: the release keys pinned in trusted-keys.json beside the page. A test release is signed with a throwaway key
 // that is in no list; the box for it shows only on localhost or with ?test=1, and then the key beside the release list is used for that one run.
 const testBoxAllowed = testReleaseAllowed(new URL(location.href));
+let notBefore = "";
 async function trustedKeys() {
   const response = await fetch("trusted-keys.json", { cache: "no-store" });
-  const pinned = response.ok ? (await response.json()).keys || [] : [];
-  const keys = pinned.map(rawKeyFromPem);
+  const doc = response.ok ? await response.json() : {};
+  notBefore = typeof doc.not_before === "string" ? doc.not_before : "";
+  const keys = (doc.keys || []).map(rawKeyFromPem);
   if (testBoxAllowed && $("testrelease").checked) {
     const own = await fetch(new URL("release-key.pub.pem", MANIFEST), { cache: "no-store" });
     if (own.ok) keys.push(rawKeyFromPem(await own.text()));
@@ -38,6 +40,7 @@ async function loadManifest() {
   if (!response.ok) throw new FlasherError("The release list could not be loaded. Check that you opened this page from a release.");
   const manifest = await response.json();
   const id = await verifyManifestSignature(manifest, await trustedKeys());  // before anything is shown or offered
+  assertNotOlder(manifest, notBefore);
   return { ...parseManifest(manifest), keyId: id };
 }
 
@@ -113,6 +116,7 @@ async function start() {
     return;
   }
   if (MANIFEST === null) return;
+  $("testrelease").checked = false;  // the browser may restore a ticked box after a reload; every visit starts unticked
   if (testBoxAllowed) {
     $("testrelease-row").hidden = false;
     $("testrelease").addEventListener("change", showRelease);

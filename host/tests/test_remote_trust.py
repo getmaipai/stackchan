@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -213,3 +214,51 @@ def test_every_unit_call_passes_the_one_chokepoint_that_stamps_it() -> None:
     assert "token" not in sent[1][1]  # a controller's action: never stamped
     assert sent[2][1]["host"] == service.remote_host_id
     assert sent[3][1] == {}
+
+
+def test_review_fix_the_find_loop_thread_runs_inside_the_controller_scope_that_started_it() -> None:
+    from maipai_body.unit_remote import UnitRemote
+
+    seen: list[tuple[str, bool]] = []
+    ready = threading.Event()
+
+    def call(name, arguments, *, device_id=None, timeout=4.0):
+        if threading.current_thread().name == "find-my-robot":
+            seen.append((name, rt.in_controller_scope()))
+            ready.set()
+        return {"ok": True}
+
+    remote = UnitRemote(call, sleep=lambda _s: None)
+    with rt.controller_scope():
+        remote.find("kitchen", True)
+    assert ready.wait(5)
+    remote.find("kitchen", False)
+    deadline = time.monotonic() + 5
+    while any(t.name == "find-my-robot" and t.is_alive() for t in threading.enumerate()) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert seen and all(scoped for _name, scoped in seen), seen
+
+
+def test_review_fix_work_handed_to_a_thread_helper_or_the_loop_keeps_the_scope() -> None:
+    seen: dict[str, bool] = {}
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+
+    async def photo_like() -> None:
+        await asyncio.to_thread(lambda: seen.__setitem__("photo", rt.in_controller_scope()))
+
+    try:
+        with rt.controller_scope():
+            asyncio.run_coroutine_threadsafe(photo_like(), loop).result(5)
+            worker = threading.Thread(target=rt.carry_scope(lambda: seen.__setitem__("carried", rt.in_controller_scope())))
+            worker.start()
+            worker.join()
+        plain = threading.Thread(target=rt.carry_scope(lambda: seen.__setitem__("outside", rt.in_controller_scope())))
+        plain.start()
+        plain.join()
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(5)
+        loop.close()
+    assert seen == {"photo": True, "carried": True, "outside": False}

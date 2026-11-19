@@ -179,10 +179,24 @@ class Service:
         self._say("Started." if ok else "It did not start. Run `stackchan service install` first, then `stackchan service status`.")
         return 0 if ok else 1
 
+    def _loaded(self) -> bool:
+        """Whether the service manager has the service loaded and running. A service it does not know is already stopped."""
+        if self.system == "mac":
+            return self._do(["launchctl", "print", f"gui/{self.uid}/{LABEL}"])[0]
+        if self.system == "linux":
+            return self._do(["systemctl", "--user", "is-active", UNIT])[1].strip().startswith(("active", "activating", "reloading", "deactivating"))
+        if self.system == "windows":
+            ok, text = self._do(["schtasks", "/query", "/tn", TASK, "/fo", "list"])
+            return ok and "running" in text.lower()
+        return True
+
     def stop(self) -> int:
+        if not self._loaded():
+            self._say("It was already stopped. It will start again at your next login.")
+            return 0
         command = {"mac": ["launchctl", "bootout", f"gui/{self.uid}/{LABEL}"], "linux": ["systemctl", "--user", "stop", UNIT], "windows": ["schtasks", "/end", "/tn", TASK]}.get(self.system)
         ok = bool(command) and self._do(command)[0]
-        self._say("Stopped. It will start again at your next login." if ok else "It was not running, or it could not be stopped. Run `stackchan service status`.")
+        self._say("Stopped. It will start again at your next login." if ok else "It could not be stopped. Run `stackchan service status`.")
         return 0 if ok else 1
 
     def status(self) -> int:

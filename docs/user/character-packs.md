@@ -2,13 +2,13 @@
 
 A character pack is one ZIP file with pictures of a character. When you install it, the robot's face shows those pictures.
 
-![The Character pack card on the Look page, with a file chooser and an Install button.](../images/shot-character-pack.png)
+![The Character pack card, with a file chooser and an Install button.](../images/shot-character-pack.png)
 
-*The Character pack card on the Look page, with a file chooser and an Install button.*
+*The Character pack card, with a file chooser and an Install button.*
 
 ## Install one
-1. Open the settings page and go to **Look**.
-2. Find the **Character pack** card.
+1. Open the settings page, go to **More**, then **Packs**.
+2. Open **Character pack**.
 3. Choose the ZIP file and press **Install the pack**.
 4. The pack is checked first. A bad pack is refused and the message says what is wrong.
 5. Press **Send to the unit** to show it on the robot.

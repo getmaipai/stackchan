@@ -6,6 +6,17 @@ export class FlasherError extends Error {}
 
 const FLASH_BYTES = 16 * 1024 * 1024;
 
+// A signed list stays valid for as long as it is served, so a release with a known hole would still be accepted. trusted-keys.json can carry
+// "not_before" (a date): a list made before it is refused. No date means no floor.
+export function assertNotOlder(manifest, notBefore) {
+  if (!notBefore) return;
+  const made = Date.parse(manifest && manifest.created_at);
+  const floor = Date.parse(notBefore);
+  if (!Number.isFinite(floor)) throw new FlasherError("The date pinned in trusted-keys.json is not a date. Fix it, for example 2026-11-19.");
+  if (!Number.isFinite(made)) throw new FlasherError("The release list has no date, so it cannot be checked for age. Download the release again.");
+  if (made < floor) throw new FlasherError("This release is older than the oldest release this page accepts. Download the newest release.");
+}
+
 export function parseManifest(manifest) {
   const build = manifest && Array.isArray(manifest.builds) ? manifest.builds[0] : null;
   if (!build || build.chipFamily !== "ESP32-S3") {

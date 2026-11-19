@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 933 (and 10 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 934 (and 10 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 59 items, 6 measured, 26 estimated, 27 placeholders or not built. 86 of 933 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,640 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 59 items, 6 measured, 26 estimated, 27 placeholders or not built. 86 of 934 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,640 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 2 | 13 | 30 | 288 | 7 | 43 | 383 | 64 |
-| Maker and tech | 0 | 0 | 81 | 409 | 60 | 0 | 550 | 69 |
+| Maker and tech | 0 | 0 | 81 | 410 | 60 | 0 | 551 | 69 |
 
 ## Everyday user
 
@@ -917,13 +917,14 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: pantry** | Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the owner's model, filters, dedupes and keeps, and the unit keeps a small shelf of. | proven virtual | 70 | not declared | `host/maipai_packages/pantry` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (95)
+### Scripts and tools (96)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
 | **Script: asset-dedupe-report.py** | Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed store would save. | built | 40 | not declared | `scripts/asset-dedupe-report.py` | file exists | doc missing |
 | **Script: bench-train.py** | One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixel-diff against the goldens, one result file. | proven virtual | 70 | not declared | `scripts/bench-train.py` | file exists, a test names it | doc missing |
 | **Script: boundary-check.sh** | keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). | built | 40 | not declared | `scripts/boundary-check.sh` | file exists | doc missing |
+| **Script: build-clean-host-env.sh** | make the clean host environment (.runs/e2e-venv, a fresh install of host/ as the README's pipx step does) that the security scan and the exposure suite run the real host in. | proven virtual | 70 | not declared | `scripts/build-clean-host-env.sh` | file exists, a test names it | doc missing |
 | **Script: build-site.sh** | build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md. | built | 40 | not declared | `scripts/build-site.sh` | file exists | doc missing |
 | **Script: build-stackchan-firmware-asset.sh** | A repository script. | proven virtual | 70 | not declared | `scripts/build-stackchan-firmware-asset.sh` | file exists, a test names it | doc missing |
 | **Script: camera-sweep-table.py** | turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the one table of docs/dev/camera-quality.md: | proven virtual | 70 | not declared | `scripts/camera-sweep-table.py` | file exists, a test names it | doc missing |

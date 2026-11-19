@@ -93,8 +93,15 @@ int main(void)
     CHECK(m.step == MFR_WIFI);
     CHECK(mfr_choose_mode(&m, MFR_MODE_HOME) == 0 && m.step == MFR_WIFI);
     CHECK(mfr_wifi_done(&m));
+#ifdef MFR_SKIP_BRAIN_WITH_HUB   /* patch UX31: a known hub answers the brain question: Home, and the flow goes on to the privacy step; Back still reaches the question */
+    CHECK(m.step == MFR_PRIVACY && m.mode == MFR_MODE_HOME && (m.answered_mask & MFR_ANSWER_BRAIN));
+    CHECK(mfr_choose_mode(&m, 7) == 0 && m.step == MFR_PRIVACY);
+    mfr_back(&m);
+    CHECK(m.step == MFR_BRAIN && mfr_choose_mode(&m, MFR_MODE_HOME));
+#else
     CHECK(mfr_choose_mode(&m, 7) == 0 && m.step == MFR_BRAIN);
     CHECK(mfr_choose_mode(&m, MFR_MODE_HOME));
+#endif
     CHECK(mfr_ack_privacy(&m));
     mfr_back(&m);
     CHECK(m.step == MFR_DONE);
@@ -128,7 +135,12 @@ int main(void)
         mfr_t h;
         mfr_init(&h, 1, 1);
         CHECK(mfr_mode_shown(&h) == MFR_MODE_HOME);                                     /* a known hub is the default shown */
-        CHECK(mfr_choose_language(&h, MFR_LANG_DE) && mfr_choose_name(&h, 1) && h.step == MFR_BRAIN);
+        CHECK(mfr_choose_language(&h, MFR_LANG_DE) && mfr_choose_name(&h, 1));
+#ifdef MFR_SKIP_BRAIN_WITH_HUB
+        CHECK(h.step == MFR_PRIVACY && h.mode == MFR_MODE_HOME);                        /* patch UX31: no brain question with a hub known */
+#else
+        CHECK(h.step == MFR_BRAIN);
+#endif
         CHECK(mfr_skip(&h) && h.mode == MFR_MODE_HOME);
         /* skip keeps an answer already given: a language picked, then skip on the same step later, keeps it */
         mfr_t a;

@@ -157,6 +157,7 @@ def test_a_real_release_must_have_a_higher_build_number_than_the_last(tmp_path):
     (tree / "scripts" / "test-all.sh").write_text("exit 0\n")
     (tree / "scripts" / "security-scan.py").write_text("print('[PASS] x: ok')\n")
     (tree / "scripts" / "exposure-test.py").write_text("print('[PASS] y: ok')\n")
+    (tree / "scripts" / "build-clean-host-env.sh").write_text("exit 0\n")
     (tree / "host").symlink_to(ROOT / "host", target_is_directory=True)
     msk = tmp_path / "minisign.key"
     subprocess.run(["minisign", "-G", "-W", "-f", "-p", str(tmp_path / "minisign.pub"), "-s", str(msk)], check=True, capture_output=True)

@@ -529,3 +529,105 @@ def test_refill_in_the_background_answers_at_once_and_the_poll_gives_the_result(
         time.sleep(0.05)
     assert state["state"] == "done" and "added" in state["result"]
     assert pantry.refill_state("riddle", "en")["state"] == "idle"
+
+
+def _unit_reply(**changes):
+    """What a healthy, idle unit answers to the four state questions; a test overrides or removes one."""
+    base = {
+        "self.battery.get_status": {"percent": 90, "charging": False},
+        "self.privacy.get": {"muted": False, "vision_off": False, "quiet": False},
+        "self.game.list": {"ok": True, "playing": False, "games": []},
+        "self.assets.list": {"ok": True, "free_bytes": 81920, "kinds": []},
+    }
+    base.update(changes)
+
+    def call(unit, tool, args):
+        reply = base[tool]
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    return call
+
+
+NOON = time.mktime((2026, 11, 19, 12, 0, 0, 0, 0, -1))
+LOW_SHELF = [{"kind": "joke", "language": "en", "count": 200, "unheard": 30}]
+
+
+def test_review_fix_the_sync_reads_the_units_game_mute_battery_and_room_before_a_swap():
+    from maipai_packages.pantry.sync import read_unit_state
+
+    ok = read_unit_state(_unit_reply(), "kitchen", idle=True)
+    assert plan(LOW_SHELF, ok, NOON) == [("joke", "en", "low stock")] and ok.free_bytes == 81920
+    playing = read_unit_state(_unit_reply(**{"self.game.list": {"ok": True, "playing": True, "games": []}}), "kitchen", idle=True)
+    assert plan(LOW_SHELF, playing, NOON) == []
+    for privacy in ({"muted": True}, {"muted": False, "quiet": True}):
+        assert plan(LOW_SHELF, read_unit_state(_unit_reply(**{"self.privacy.get": privacy}), "kitchen", idle=True), NOON) == []
+    low_battery = read_unit_state(_unit_reply(**{"self.battery.get_status": {"percent": 10, "charging": False}}), "kitchen", idle=True)
+    assert plan(LOW_SHELF, low_battery, NOON) == []
+    charging = read_unit_state(_unit_reply(**{"self.battery.get_status": {"percent": 10, "charging": True}}), "kitchen", idle=True)
+    assert plan(LOW_SHELF, charging, NOON) == [("joke", "en", "low stock")]
+    assert plan(LOW_SHELF, read_unit_state(_unit_reply(), "kitchen", idle=False), NOON) == []
+    tight = read_unit_state(_unit_reply(**{"self.assets.list": {"ok": True, "free_bytes": 4096, "kinds": []}}), "kitchen", idle=True)
+    assert tight.free_bytes == 4096
+
+
+def test_review_fix_the_sync_refuses_when_a_state_value_is_unknown():
+    from maipai_body.hal.errors import BodyLost
+    from maipai_packages.pantry.sync import read_unit_state
+
+    for tool, bad in (
+        ("self.battery.get_status", {"ok": False}),
+        ("self.privacy.get", {}),
+        ("self.game.list", {"ok": False, "error": "old firmware"}),
+        ("self.assets.list", {"ok": False}),
+        ("self.assets.list", {"ok": True, "kinds": []}),
+        ("self.battery.get_status", BodyLost("the unit went away")),
+    ):
+        state = read_unit_state(_unit_reply(**{tool: bad}), "kitchen", idle=True)
+        assert plan(LOW_SHELF, state, NOON) == [], (tool, bad)
+
+
+def test_review_fix_an_unknown_state_still_reads_the_heard_list_but_installs_nothing(tmp_path):
+    from maipai_packages.pantry.sync import read_unit_state
+
+    library = Library(tmp_path)
+    jokes = [Record("joke", "en", "kid", f"Joke number {i} about topic {i * 7} | punchline {i * 3}") for i in range(30)]
+    library.add(jokes)
+    unit = FakeUnit([{"kind": "joke", "language": "en", "count": 30, "unheard": 3}], heard=[{"id": jokes[1].id_hex[:8], "counter": 2}])
+    state = read_unit_state(_unit_reply(**{"self.game.list": {"ok": False}}), "kitchen", idle=True)
+    done = run_unit(library, unit, "kitchen", state, now=NOON)
+    assert done["heard"] == 1 and done["swapped"] == [] and unit.installed == []
+
+
+def test_review_fix_a_line_that_breaks_a_rule_is_skipped_when_the_library_is_read(tmp_path):
+    from maipai_packages.pantry.talk_fallback import PantryTalk
+    from maipai_packages.pantry.twenty_fallback import TwentyQuestions
+
+    library = Library(tmp_path)
+    bad_trivia = Record("trivia", "en", "kid", "Which planet is red?", "Mars", "Venus")  # one wrong answer
+    short_object = Record("object", "en", "kid", "a thing", "thing", "101")  # extra shorter than 12
+    library.add([bad_trivia, short_object, TRIVIA, JOKE])
+    kept = {(r.kind, r.text) for r in library.records()}
+    assert kept == {("trivia", TRIVIA.text), ("joke", JOKE.text)}
+    talk = PantryTalk(library)
+    line, _ = talk.line("a", "trivia", "en", "go")  # was an IndexError on the broken record
+    assert "Jupiter" in line
+    assert TwentyQuestions().new(library.records("object", "en"), 1.0) is None
+
+
+def test_review_fix_build_shelf_drops_the_record_that_raises_and_keeps_the_rest(tmp_path):
+    library = Library(tmp_path)
+    jokes = [Record("joke", "en", "kid", f"Joke number {i} about topic {i * 7} | punchline {i * 3}") for i in range(30)]
+    library.add(jokes)
+    broken = Record("joke", "en", "kid", "no punchline in this one")
+    real = library.records
+
+    def with_broken_first(kind=None, language=None):
+        return [broken, *real(kind, language)]
+
+    library.records = with_broken_first  # a future caller that hands the shelf an unchecked record
+    body = build_shelf(library, "kitchen", "joke", "en", shelf.ITEM_CAP_BYTES)
+    assert body is not None
+    texts = [r.text for r in shelf.unpack(body)]
+    assert len(texts) == 30 and broken.text not in texts, "one bad record does not cost the shelf its other records"

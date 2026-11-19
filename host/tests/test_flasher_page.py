@@ -59,3 +59,12 @@ def json_str(path) -> str:
     import json
 
     return json.dumps(str(path))
+
+
+def test_review_fix_the_test_release_box_starts_unticked_and_the_pinned_date_floor_is_wired():
+    root = Path(__file__).resolve().parents[2] / "flasher"
+    html = (root / "index.html").read_text()
+    js = (root / "flasher.js").read_text()
+    assert 'id="testrelease" autocomplete="off"' in html
+    assert '$("testrelease").checked = false;' in js
+    assert "assertNotOlder(manifest, notBefore)" in js and "not_before" in js

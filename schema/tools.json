@@ -232,7 +232,9 @@
   "self.audio.play_sound": {
    "name": "string",
    "urgent": "boolean",
-   "test": "boolean"
+   "test": "boolean",
+   "source": "string",
+   "token": "integer"
   },
   "self.audio.quiet_now": {
    "on": "boolean"
@@ -482,7 +484,9 @@
    "name": "string"
   },
   "self.game.start": {
-   "name": "string"
+   "name": "string",
+   "source": "string",
+   "token": "integer"
   },
   "self.game.status": {},
   "self.game.stop": {},
@@ -492,7 +496,10 @@
   "self.link.pair": {
    "url": "string"
   },
-  "self.listen.test": {},
+  "self.listen.test": {
+   "source": "string",
+   "token": "integer"
+  },
   "self.lock.bench_key": {
    "key": "string"
   },
@@ -696,7 +703,9 @@
    "repeat": "boolean"
   },
   "self.robot.dance": {
-   "name": "string"
+   "name": "string",
+   "source": "string",
+   "token": "integer"
   },
   "self.robot.dance_list": {},
   "self.robot.get_events": {},

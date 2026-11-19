@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from maipai_packages.pantry.record import Record
+from maipai_packages.pantry.record import Record, check
 
 
 ID_RE = re.compile(r"[0-9a-f]{16}")  # a record id: 8 bytes as lowercase hex
@@ -51,9 +51,9 @@ class Library:
                 for line in path.read_text(encoding="utf-8").splitlines():
                     if line.strip():
                         try:
-                            out.append(Record.from_json(json.loads(line)))
-                        except (ValueError, KeyError):
-                            continue  # a damaged line is skipped, never fatal
+                            out.append(check(Record.from_json(json.loads(line))))
+                        except (ValueError, KeyError, TypeError, AttributeError):  # RecordError is a ValueError
+                            continue  # a damaged line, or one that breaks a record rule, is skipped, never fatal
         return out
 
     def add(self, records: list[Record]) -> int:

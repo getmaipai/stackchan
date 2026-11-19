@@ -53,3 +53,7 @@ Read as a person who has never seen the robot, step by step. Findings 1 to 3 and
 8. **Wi-Fi leaves the numbered flow** for the setup cover and comes back by itself. Unchanged.
 9. **A family name needs the settings page** afterwards; the hint on the name step says so.
 10. **Fixed (2026-11-18).** The settings page words for the Family and safety card, the pairing code card and the phone card (including the phone code labels) now have French, German, Portuguese and Italian drafts (`host/maipai_body/i18n_family.py`), marked as machine drafts for a speaker to read.
+
+## A known hub answers the brain question (patch UX31, 2026-11-19)
+
+When the unit already knows a MaiPai Home hub, the brain step is not shown: its answer is MaiPai Home (the tile it pre-selected), the answer is saved and sent as if tapped (mode 0), and the flow goes from the name (or the Wi-Fi cover) to the privacy step. Back from the privacy step shows the question, so another way can still be chosen. A unit with no hub known asks as before. Header only, in `maipai_firstrun_core.h` (`mfr_enter_brain`); see `docs/plan/unit-settings-simplification.md`.

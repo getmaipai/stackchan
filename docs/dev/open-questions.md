@@ -21,3 +21,10 @@ Options:
 Recommended default: option 1, with the minisign public key pinned in `robot.toml` (`[update] host_key`) and the update refusing to run when the key is empty. It needs the owner's release key (already an owner-only item in the finish line).
 
 Where it matters: `host/maipai_body/host_update.py`, `docs/user/run-as-a-service.md`, `docs/dev/release.md`.
+
+## What still needs the owner (short list)
+
+1. **Host update channel** (above): pick where a signed host release lives. Recommended: the signed GitHub release of the public repo, minisign key pinned in `robot.toml`.
+2. **Release signing key:** make the Ed25519 release key and the minisign key, keep them off every shared disk, then pin the public half in `flasher/trusted-keys.json` (`keys`) and set `not_before`. A real release is refused until the key is pinned.
+3. **Sponsor account:** `.github/FUNDING.yml` lists the GitHub Sponsors account `JesseWebDotCom`, and the README, docs site and dashboard link to it. The listing is not published; decide when it goes live (it only works from the default branch of the public repo).
+4. **StackChan logo** (above): is there one, or does the bot icon stay.

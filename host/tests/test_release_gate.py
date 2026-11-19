@@ -14,7 +14,7 @@ def _tree(tmp: Path, **stubs: str) -> tuple[Path, list[str]]:
     scripts = tmp / "scripts"
     scripts.mkdir()
     shutil.copy(ROOT / "scripts" / "release.sh", scripts / "release.sh")
-    defaults = {"check.sh": "exit 0", "test-all.sh": "exit 0", "security-scan.py": "print('[PASS] x: ok')", "exposure-test.py": "print('[PASS] y: ok')"}
+    defaults = {"build-clean-host-env.sh": "exit 0", "check.sh": "exit 0", "test-all.sh": "exit 0", "security-scan.py": "print('[PASS] x: ok')", "exposure-test.py": "print('[PASS] y: ok')"}
     defaults.update(stubs)
     for name, body in defaults.items():
         text = f"#!/usr/bin/env bash\n{body}\n" if name.endswith(".sh") else f"{body}\n"
@@ -104,3 +104,13 @@ def test_review_fix_the_pinned_key_check_wants_the_signing_key_in_the_list(tmp_p
     assert wrong.returncode == 1 and "not the key" in wrong.stderr
     junk = check(["not a pem"])
     assert junk.returncode == 1 and "damaged" in junk.stderr
+
+
+def test_a_test_release_does_not_need_a_pinned_key(tmp_path):
+    """A --test-key release is flashed with the test box, so the empty pinned list does not stop its gate."""
+    out, cmd = _pinned_tree(tmp_path, [])
+    i = cmd.index("--signing-key")
+    cmd = cmd[:i] + ["--test-key", "--with-gate"] + cmd[i + 2 :]
+    run = subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(ROOT / "host")})
+    assert "pinned-key" not in run.stderr
+    assert "release gate: passed" in run.stdout + run.stderr

@@ -12,7 +12,7 @@ Say the wake word, then "dance". Name one to pick it: **sway**, **nod yes**, **s
 
 ## It sways to your music
 
-Turn on **Dance to music** on the Behavior page of the settings page on your host. It is off by default. The page shows a status line: off, waiting for the unit, listening, dancing, paused (muted or quiet) or the unit needs an update.
+Turn on **Dance to music** in the settings page on your host: **More**, **Behavior**, **More settings**. It is off by default. The page shows a status line: off, waiting for the unit, listening, dancing, paused (muted or quiet) or the unit needs an update.
 The unit measures sound levels and tempo only. No audio is kept or sent.
 When music plays near the robot, it finds the beat and dances to it in steps: eyes only first, then a head nod, then side to side, then every direction with a disco ball and confetti, and back down again in reverse. Its face changes every 8 or 16 beats among happy, serene, laughing, love, surprised, wink, silly and excited. Music notes float by and the side lights follow how strong the music is.
 

@@ -37,3 +37,17 @@ def test_row_sizes_and_the_finger_size_numbers_are_not_touched():
     changed = "\n".join(_lines("+") + _lines("-"))
     for number in ("MAC_ROW_BOX_H", "MAC_SLIDER_ROW_H", "MAC_LINE_ROW_H", "MAC_TAB_H", "MAC_TAB_PITCH"):
         assert number not in changed, number
+
+
+def test_ux31_first_run_skips_the_brain_question_with_a_hub_header_only():
+    name = "UX31-first-run-skips-brain-with-hub.patch"
+    if not (PATCHES / name).exists():
+        pytest.skip("UX31 is not in firmware/patches yet")
+    text = (PATCHES / name).read_text()
+    assert re.findall(r"^diff --git a/(\S+) b/", text, re.M) == ["firmware/main/hal/maipai_firstrun_core.h"]
+    for key in ("# Intent:", "# Placement: unit", "# Upstream:", "# Check after a flash:", "# Kconfig:"):
+        assert key in text.split("diff --git", 1)[0], key
+    assert name in (PATCHES / "ORDER").read_text().split()
+    added = "\n".join(l[1:] for l in text.splitlines() if l.startswith("+") and not l.startswith("+++"))
+    assert "MFR_SKIP_BRAIN_WITH_HUB" in added and "mfr_enter_brain" in added and "hub_known" in added
+    assert "m->mode = MFR_MODE_HOME;" in added and "MFR_ANSWER_BRAIN" in added   # the answer is Home, saved as if tapped
