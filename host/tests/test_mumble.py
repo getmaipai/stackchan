@@ -12,6 +12,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 PATCHES = ROOT / "firmware" / "patches"
 NAME = "UX16-offline-mumble-core.patch"
+if not (PATCHES / NAME).exists():   # the patch waits on the branch ux/unproven-games for its bench proof (plain boot first); its tests join ORDER with it
+    pytest.skip(NAME + " is not in firmware/patches yet", allow_module_level=True)
 sys.path.insert(0, str(ROOT / "scripts" / "virtual-unit"))
 import mumble  # noqa: E402
 

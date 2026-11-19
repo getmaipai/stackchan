@@ -47,8 +47,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/core-extras-modules.md` (35): Host modules: core or extras
 - `docs/design/dance-ladder-2026-11-17.md` (53): Music dance ladder and the movement limiter, 2026-11-17
 - `docs/design/decisions.md` (115): Owner decisions and corrections
-- `docs/design/decisions.md` (115): Owner decisions and corrections
-- `docs/design/decisions.md` (115): Owner decisions and corrections
 - `docs/design/dice-poker.md` (32): Dice Poker
 - `docs/design/egress-audit.md` (39): Firmware egress audit
 - `docs/design/egress-proof-2026-11-15.md` (30): Egress proof attempt, 2026-11-15
@@ -115,7 +113,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/release-and-updates.md` (88): Release and updates
 - `docs/design/repo-boundaries.md` (111): Repo boundaries: what lives where
 - `docs/design/safety-and-privacy.md` (72): Safety and privacy
-- `docs/design/screen-audit-baseline.json` (140): no header
+- `docs/design/screen-audit-baseline.json` (131): no header
 - `docs/design/screen-stays-dim-2026-11-16.md` (23): The screen that stayed dim, 2026-11-16
 - `docs/design/screen-style.md` (61): Screen style standard
 - `docs/design/spelling-aliases.md` (39): Spelling aliases (owner rule, 2026-11-16)
@@ -164,8 +162,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/feature-ledger.html` (84): no header
 - `docs/dev/feature-ledger.html` (84): no header
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1139): Feature ledger
-- `docs/dev/feature-ledger.md` (1139): Feature ledger
 - `docs/dev/feature-ledger.md` (1139): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
@@ -2204,7 +2200,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_cross_review_open_bugs_3.py` (63): ruff: noqa: E501
 - `host/tests/test_dance_session.py` (135): A ladder session with no music (the dance buttons and tools): the climb follows the ladder rule at the dance's
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
-- `host/tests/test_dice_poker.py` (45): Patch UX18, Dice Poker: the pure core's host test runs here against the patch text (all 7776 hands ranked, rol
+- `host/tests/test_dice_poker.py` (47): Patch UX18, Dice Poker: the pure core's host test runs here against the patch text (all 7776 hands ranked, rol
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
 - `host/tests/test_e2e_extra.py` (110): ruff: noqa: E501
@@ -2260,7 +2256,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
 - `host/tests/test_fw_power_run.py` (107): scripts/fw-power-run.py: the chain of power_log calls, the safety stops and the numbers it prints (a fake unit
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
-- `host/tests/test_game_over_screen.py` (61): Patch UX15, the shared game-over screen: its pure core is plain C and its host test runs here against the patc
+- `host/tests/test_game_over_screen.py` (64): Patch UX15, the shared game-over screen: its pure core is plain C and its host test runs here against the patc
 - `host/tests/test_game_scores.py` (48): Best scores per person: a finished game is filed under the named player or Someone; an early stop saves nothin
 - `host/tests/test_game_sounds.py` (33): The synthesized game sounds (scripts/make-game-sounds.py): deterministic, none clipping, all at the same chime
 - `host/tests/test_game_voice.py` (151): no header
@@ -2351,7 +2347,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_moves_react.py` (222): MOVES-01: the plan's ``react`` slot entry point, behind a flag (off by default).
 - `host/tests/test_moves_teach.py` (339): MOVES-02: teach it a move by hand, record it, name it, replay it.
 - `host/tests/test_moves_teach_unit.py` (48): MOVES-02 on a physical unit. Skipped unless ``MAIPAI_BODY_UNIT=1``.
-- `host/tests/test_mumble.py` (119): Patch UX16, the offline mumble: the pure C core and the Python reference give the same notes for the same text
+- `host/tests/test_mumble.py` (121): Patch UX16, the offline mumble: the pure C core and the Python reference give the same notes for the same text
 - `host/tests/test_mumble_host.py` (69): Host half of the mumble voice (decision 24): a text-only line with "mumble": true, sent only to a unit whose h
 - `host/tests/test_music_dance.py` (237): BOT-SC-DANCE-01 (host half): music detection and the dance policy.
 - `host/tests/test_mute_local.py` (112): MUTE-LOCAL-01: an on-robot unmute, so a hub mute can never strand the robot."""
@@ -2396,7 +2392,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_privacy_sentence.py` (11): The privacy sentence is one text on the settings page and the robot's first-run screen."""
 - `host/tests/test_profile.py` (131): Tests named for the promises RM-01 makes about the Reachy Mini profile."""
 - `host/tests/test_psram_stack_lint.py` (218): ruff: noqa: E501
-- `host/tests/test_qa_screens.py` (46): Patch UX17, the question and answer game screens: the pure core is plain C and its host test runs here against
+- `host/tests/test_qa_screens.py` (48): Patch UX17, the question and answer game screens: the pure core is plain C and its host test runs here against
 - `host/tests/test_release_and_update_vectors.py` (179): The release script dry run, the signed update vectors, and the Home-driven update path (host side)."""
 - `host/tests/test_release_gate.py` (52): The release gate (decision 23): a failed check, scan, exposure step or test stops the release before anything 
 - `host/tests/test_release_package.py` (33): The StackChan release package carries no Reachy body, and no recorded-moves package."""
