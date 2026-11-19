@@ -2,12 +2,12 @@
 
 Off by default. You record a word, the host trains a small model on your computer, and you check how well it works. Nothing is uploaded.
 
-![The Make your own wake word card on the Voice page.](../images/shot-wake-word-maker.png)
+![The Make your own wake word card.](../images/shot-wake-word-maker.png)
 
-*The Make your own wake word card on the Voice page.*
+*The Make your own wake word card.*
 
 ## Turn it on
-In `robot.toml`, set `enabled = true` under `[packages.wake_word_maker]`. Restart the host. Open the settings page **on the host computer** and go to Voice and sound.
+In `robot.toml`, set `enabled = true` under `[packages.wake_word_maker]`. Restart the host. Open the settings page **on the host computer** and go to **Robot**, then **Voice and listening**, then **Wake word**.
 
 ## Make a word
 1. Type your word in lowercase letters, like `pippa`.
