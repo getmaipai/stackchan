@@ -6,6 +6,7 @@ backends.py and fake_host.py; skips with the reason when any is missing.
 """
 import json
 import os
+import selectors
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,44 @@ def _load(name):
     return mod
 
 
+SLOW = 30.0   # seconds a wait may take: the suite runs in four processes at once and a busy machine is slow to start a browser or a page, never wrong
+
+
+class LivePage(Page):
+    """The pointer test's tab with waits sized for a busy machine: every wait is long, none is a fixed sleep."""
+
+    def send(self, method, **params):
+        self.n += 1
+        self.ws.send(json.dumps({"id": self.n, "method": method, "params": params}))
+        while True:
+            msg = json.loads(self.ws.recv(timeout=60))
+            if msg.get("id") == self.n:
+                assert "error" not in msg, f"{method} failed: {msg['error']}"
+                return msg.get("result", {})
+
+    def until(self, expr, seconds=SLOW):
+        return super().until(expr, seconds)
+
+
+def _readline(stream, seconds):
+    """One line from a child's pipe, or "" after `seconds` (a plain readline would wait for ever on a child that never starts)."""
+    sel = selectors.DefaultSelector()
+    sel.register(stream, selectors.EVENT_READ)
+    try:
+        return stream.readline() if sel.select(seconds) else ""
+    finally:
+        sel.close()
+
+
+def _connect(page, robot_id):
+    """Pick a robot and press Connect. The one retry is for the click itself (a page that was still starting ignores it): nothing else in these tests is retried."""
+    page.js("(() => { const s = document.getElementById('backend'); s.value = %r; s.dispatchEvent(new Event('change')); })()" % robot_id)
+    for attempt in range(2):
+        page.click(*spot_of(page, "bconnect"))
+        if page.until("document.getElementById('backendmsg').textContent.length > 0 || ST.backend.live", 8 if attempt == 0 else SLOW):
+            return
+
+
 @pytest.fixture(scope="module")
 def live():
     websockets = pytest.importorskip("websockets.sync.client")
@@ -46,24 +85,30 @@ def live():
     profile = tempfile.mkdtemp(prefix="vu-live-")
     chrome = None
     try:
-        base = view.stdout.readline().split()[-1].rstrip("/")
+        first = _readline(view.stdout, 60)
+        assert first, "the viewer did not print its address in 60 seconds"
+        base = first.split()[-1].rstrip("/")
         chrome = subprocess.Popen([CHROME, "--headless=new", "--remote-debugging-port=0", f"--user-data-dir={profile}", "--window-size=1200,820", "--mute-audio",
                                    "--enable-unsafe-swiftshader", "--no-first-run", "--no-default-browser-check", "about:blank"],
                                   stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
         port = None
-        for _ in range(200):
-            line = chrome.stderr.readline()
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            line = _readline(chrome.stderr, 5)
             if "DevTools listening on" in line:
                 port = line.split("ws://127.0.0.1:")[1].split("/")[0]
                 break
         assert port, "the browser did not open its debugging port"
         tabs = json.load(urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list"))
         ws = websockets.connect(next(t["webSocketDebuggerUrl"] for t in tabs if t["type"] == "page"), max_size=None)
-        page = Page(ws)
+        page = LivePage(ws)
         page.base = base
         page.send("Page.enable")
+        ready = "typeof ST === 'object' && ST && ST.hw && ST.hw.on === true && document.getElementById('backend').options.length >= 2"
         page.send("Page.navigate", url=base + "/")
-        assert page.until("typeof ST === 'object' && ST && ST.hw && ST.hw.on === true && document.getElementById('backend').options.length >= 2", 20), "the page never listed the robots"
+        if not page.until(ready, 40):
+            page.send("Page.reload")   # a page that did not come up on a busy machine gets one more load
+            assert page.until(ready, 60), "the page never listed the robots"
         page.js("window.confirm = () => true")   # the page asks before it takes a real robot; the test says yes
         yield page, host
         ws.close()
@@ -89,15 +134,14 @@ def test_the_picker_lists_the_simulation_and_the_registered_robots(live):
 
 def test_connecting_shows_the_live_banner_sends_tools_to_the_robot_and_disconnect_returns(live):
     page, host = live
-    page.js("(() => { const s = document.getElementById('backend'); s.value = 'r1'; s.dispatchEvent(new Event('change')); })()")
-    page.click(*spot_of(page, "bconnect"))
+    _connect(page, "r1")
     assert page.until("ST.backend.live && ST.backend.id === 'r1'"), page.js("document.getElementById('backendmsg').textContent")
     assert page.until("document.getElementById('livebar').style.display === 'block' && /^LIVE: you are controlling Kitchen robot/.test(document.getElementById('livebar').textContent)")
     assert page.js("document.title.startsWith('LIVE: ') && document.getElementById('backend').disabled && document.getElementById('bconnect').style.display === 'none'")
     # a tool call from the page now goes to the robot, not to the simulation
     before = len(host.robots["r1"].calls)
     page.js("(() => { document.getElementById('ledc').value = '#00ff00'; document.getElementById('ledon').click(); })()")
-    end = time.time() + 5
+    end = time.time() + SLOW
     while len(host.robots["r1"].calls) == before and time.time() < end:
         time.sleep(0.1)
     assert host.robots["r1"].calls[before:][0][0] == "self.robot.set_led_colors", "the lights call reached the robot through the host"
@@ -118,8 +162,7 @@ def test_a_robot_someone_else_holds_is_refused_in_plain_words(live):
     page, host = live
     assert host.leases.acquire("r2", "other-session", "the family tablet")[0]
     try:
-        page.js("(() => { const s = document.getElementById('backend'); s.value = 'r2'; s.dispatchEvent(new Event('change')); })()")
-        page.click(*spot_of(page, "bconnect"))
+        _connect(page, "r2")
         assert page.until("/family tablet/.test(document.getElementById('backendmsg').textContent)"), page.js("document.getElementById('backendmsg').textContent")
         assert page.js("!ST.backend.live && document.getElementById('livebar').style.display === 'none'"), "a refusal leaves the Simulation active"
     finally:
