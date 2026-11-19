@@ -4,7 +4,7 @@
 Usage: python3 scripts/docs-site/build.py [--out DIR]
 
 Standard library only. It reads docs/user/*.md, README.md, docs/design/decisions.md, docs/dev/feature-ledger.html,
-docs/dev/screens-contact-sheets.md, the golden frames under host/tests/golden and the 3D model under scripts/virtual-unit/,
+docs/dev/screens-contact-sheets.md, SECURITY.md and VERIFY.md (the Trust page), the golden frames under host/tests/golden and the 3D model under scripts/virtual-unit/,
 and writes plain HTML, CSS and JavaScript that all load from the site itself: no tracking, no outside fonts, scripts or CDN.
 It reads those files and never edits them. Placement: host-side development tool; no firmware change. Upstream: none.
 """
@@ -27,15 +27,17 @@ SITE = "MaiPai for StackChan"
 
 NAV = [("index.html", "Home"), ("docs/index.html", "Users"), ("playground/index.html", "Playground"), ("dev/index.html", "Developers"),
        ("viewer.html", "3D viewer"), ("ledger.html", "Feature ledger"), ("screens.html", "Screens"), ("decisions.html", "Decisions"),
-       ("search.html", "Search")]
+       ("trust.html", "Trust"), ("search.html", "Search")]
 
 # What the Developers section publishes besides the playground developer pages. Everything else under docs/dev, docs/design and docs/plan stays
 # in the repository only: dated working notes, audits and egress or protection analysis (security sensitive), owner plans and funding. See docs-site/EXCLUDED.md.
+# The one page from docs/plan is the offline audit, which the owner asked to publish (it names no address, key or person).
 DEV_PAGES = [("docs/dev", n) for n in (
-    "overview", "contributing", "build-from-source", "host-and-brains", "virtual-unit", "virtual-unit-3d", "virtual-unit-assets", "virtual-unit-dance",
-    "virtual-unit-fidelity", "e2e-virtual-unit", "fuzzing-and-hostile-peer", "screen-audit", "version-page-fit", "memory-budget", "gate-numbers",
-    "battery-and-power", "hardware-reference", "test-speed")] + [("docs/design", n) for n in (
-    "architecture", "repo-boundaries", "firmware-base", "unit-protocol", "screen-style", "languages", "first-run-flow", "config")]
+    "overview", "hardware-reference", "contributing", "build-from-source", "host-and-brains", "virtual-unit", "virtual-unit-3d", "virtual-unit-assets",
+    "virtual-unit-dance", "virtual-unit-fidelity", "e2e-virtual-unit", "fuzzing-and-hostile-peer", "screen-audit", "version-page-fit", "memory-budget",
+    "gate-numbers", "battery-and-power", "test-speed")] + [("docs/design", n) for n in (
+    "architecture", "repo-boundaries", "firmware-base", "unit-protocol", "screen-style", "languages", "first-run-flow", "config",
+    "content-pantry", "model-games")] + [("docs/plan", "offline-audit")]
 SECTION_OF = {"docs/user": "users", "docs/playground": "playground"}
 
 
@@ -107,6 +109,8 @@ class Renderer:
 
         def img(m):
             alt, target = m.group(1), m.group(2).split()[0]
+            # code spans inside the alt text were stashed as html: put back their plain words so the attribute stays whole
+            alt = re.sub(r"\x00(\d+)\x00", lambda k: html.unescape(re.sub(r"<[^>]+>", "", stash[int(k.group(1))])), alt)
             kind, val = self.resolve(target)
             if kind != "image":
                 self.problems.append("image not published: %s in %s" % (target, self.here))
@@ -216,8 +220,31 @@ class Renderer:
             while i < len(lines) and lines[i].strip() and not re.match(r"^(#{1,6}\s|```|>|\||\s*([-*+]|\d+[.)])\s+|-{3,}\s*$)", lines[i]):
                 buf.append(lines[i])
                 i += 1
+            # a picture alone in its paragraph, then a paragraph that is all italic, is a figure with its caption
+            if len(buf) == 1 and re.fullmatch(r"!\[[^\]]*\]\([^)]+\)", line.strip()):
+                j = i
+                while j < len(lines) and not lines[j].strip():
+                    j += 1
+                cap = []
+                while j < len(lines) and lines[j].strip() and not re.match(r"^(#{1,6}\s|```|>|\||-{3,}\s*$)", lines[j]):
+                    cap.append(lines[j].strip())
+                    j += 1
+                fig = self.figure(line, " ".join(cap))
+                if fig:
+                    out.append(fig)
+                    i = j
+                    continue
             out.append("<p>%s</p>" % self.inline(" ".join(x.strip() for x in buf)))
         return "\n".join(out)
+
+    def figure(self, image_line, caption):
+        """A figure when `image_line` is one picture and `caption` is one italic line, else None."""
+        if not re.fullmatch(r"!\[[^\]]*\]\([^)]+\)", image_line.strip()):
+            return None
+        m = re.fullmatch(r"\*([^*].*[^*]|[^*])\*|_([^_].*[^_]|[^_])_", caption.strip())
+        if not m or "![" in caption:
+            return None
+        return '<figure class="shot">%s<figcaption>%s</figcaption></figure>' % (self.inline(image_line.strip()), self.inline(m.group(1) or m.group(2)))
 
     def render_inner(self, text):
         sub = Renderer(self.links, self.images, self.ids, self.here)
@@ -267,7 +294,12 @@ class Renderer:
                 html_out = html_out[:-5] + sub + "</li>" if html_out.endswith("</li>") else html_out + sub
                 continue
             parts = " ".join(items[pos][2]).split("\x02")
-            body = "".join("<p>%s</p>" % self.inline(p.strip()) for p in parts[1:] if p.strip())
+            paras = [p.strip() for p in parts if p.strip()]
+            body, k = "", 1
+            while k < len(paras):
+                fig = self.figure(paras[k], paras[k + 1]) if k + 1 < len(paras) else None
+                body += fig if fig else "<p>%s</p>" % self.inline(paras[k])
+                k += 2 if fig else 1
             html_out += "<li>%s%s</li>" % (self.inline(parts[0].strip()), body)
             pos += 1
         return html_out + "</%s>" % tag, pos
@@ -275,11 +307,19 @@ class Renderer:
 
 # ---------------------------------------------------------------- page chrome
 
+def tab_label(title):
+    """A short tab name: the title up to its first colon or bracket ("Hardware reference (what we know...)" becomes "Hardware reference")."""
+    short = re.split(r"\s*[:(]", title, maxsplit=1)[0].strip()
+    return short if len(short) >= 3 else title
+
+
 def side_nav(label, items, out_url):
-    """The left tab column of a section: items are (url, title); the current page is marked."""
+    """The left tab column of a section: items are (url, title); the current page is marked.
+    The list sits in a details element: always open on a wide screen, folded on a phone (assets/theme-button.js sets that)."""
     up = "../" * len(Path(out_url).parent.parts)
-    li = "".join('<li><a href="%s%s"%s>%s</a></li>' % (up, u, ' aria-current="page"' if u == out_url else "", html.escape(t)) for u, t in items)
-    return '<nav class="tabs" aria-label="%s pages"><strong>%s</strong><ul>%s</ul></nav>' % (html.escape(label), html.escape(label), li)
+    li = "".join('<li><a href="%s%s"%s>%s</a></li>' % (up, u, ' aria-current="page"' if u == out_url else "", html.escape(tab_label(t))) for u, t in items)
+    return ('<nav class="tabs" aria-label="%s pages"><details class="tabsd" open><summary>%s</summary><ul>%s</ul></details></nav>'
+            % (html.escape(label), html.escape(label), li))
 
 
 def page(out_url, title, body, description="", extra_head="", body_class="", side=""):
@@ -327,6 +367,51 @@ def toc(headings):
         return ""
     return '<nav class="toc" aria-label="On this page"><strong>On this page</strong><ul>%s</ul></nav>' % "".join(
         '<li><a href="#%s">%s</a></li>' % (i, html.escape(t)) for _, i, t in hs)
+
+
+# ---------------------------------------------------------------- the Trust page
+
+NO_SCAN = "Nothing is recorded in this copy of the repository yet. The scan fills this part when it runs: `python3 scripts/security-scan.py --write`."
+
+
+def md_section(md, name):
+    """The text under '## name' up to the next '## ' heading, or an empty string."""
+    m = re.search(r"^## %s\s*\n(.*?)(?=^## |\Z)" % re.escape(name), md, re.M | re.S)
+    return m.group(1).strip() if m else ""
+
+
+def demote(md, by=1):
+    """Push every heading down by `by` levels, leaving code blocks alone."""
+    out, fenced = [], False
+    for line in md.split("\n"):
+        if line.startswith("```"):
+            fenced = not fenced
+        if not fenced and re.match(r"^#{1,5}\s", line):
+            line = "#" * by + line
+        out.append(line)
+    return "\n".join(out)
+
+
+def trust_markdown():
+    """One page from SECURITY.md, VERIFY.md and three README sections. Marker blocks left empty by the scan get a plain note."""
+    readme = read(ROOT / "README.md")
+    security = re.sub(r"<!-- (\w+):begin -->(.*?)<!-- \1:end -->", lambda m: m.group(2).strip() or NO_SCAN, read(ROOT / "SECURITY.md"), flags=re.S)
+    security = re.sub(r"^# .*\n", "", security, count=1)
+    security = re.sub(r"^## Check it yourself\s*\n.*?(?=^## |\Z)", "", security, flags=re.M | re.S).strip()
+    verify = re.sub(r"^# .*\n", "", read(ROOT / "VERIFY.md"), count=1).strip()
+    lead = md_section(readme, "Security")
+    lead = re.sub(r"Results and dates are in \[SECURITY\.md\]\(SECURITY\.md\); the gaps are listed there too\. Check it yourself: point your own AI at this repo "
+                  r"with the prompt in \[VERIFY\.md\]\(VERIFY\.md\)\.", "Results and dates are below, and so are the gaps. To check it yourself, use the prompt further down.", lead)
+    parts = ["# Trust", "You should not have to take our word for what this project does. This page gathers what it promises, how to check each promise "
+             "yourself, how AI was used to build it, and who it is not.",
+             "## Security", lead, demote(security),
+             "## Check it yourself", verify,
+             "## AI disclosure", md_section(readme, "AI disclosure").replace("[the readiness page](docs/plan/release-readiness.md)", "the readiness page"),
+             "## Independence", md_section(readme, "Independence")]
+    text = "\n\n".join(p for p in parts if p)
+    if "<!--" in text or "## Security" not in text or "## Independence" not in text:
+        raise BuildError("the Trust page could not be built from README.md, SECURITY.md and VERIFY.md (a section is missing or a marker is unclosed)")
+    return text
 
 
 # ---------------------------------------------------------------- the build
@@ -419,6 +504,8 @@ def build(out):
         links[rel(d)] = "dev/%s%s.html" % ("design-" if d.parent.name == "design" else "", d.stem)
     if len(set(links.values())) != len(links.values()):
         raise BuildError("two source files map to one page address")
+    # SECURITY.md and VERIFY.md are two parts of the one Trust page, so links to either land there
+    links["SECURITY.md"] = links["VERIFY.md"] = "trust.html"
     # a file that was moved or removed after the docs were written still resolves to the nearest page, never to a dead link
     images = {}
     img_dir = ROOT / "docs" / "images"
@@ -428,13 +515,14 @@ def build(out):
                 images[rel(f)] = "images/" + f.name
 
     sources = [(readme, rel(readme))] + [(d, rel(d)) for d in user_docs + pg_user + pg_dev + dev_docs] + [(decisions, rel(decisions))]
+    texts = [(key, read(path)) for path, key in sources] + [("SECURITY.md", trust_markdown())]
     ids = {}
     problems = []
     rendered = {}
     for pass_no in (1, 2):
-        for path, key in sources:
+        for key, text in texts:
             r = Renderer(links, images, ids, key)
-            body = r.render(read(path))
+            body = r.render(text)
             ids[links[key]] = {h[1] for h in r.headings}
             if pass_no == 2:
                 rendered[key] = (body, r)
@@ -491,6 +579,9 @@ def build(out):
                                       side=side_nav("Developers", side_for["Developers"], "dev/index.html")))
     index_rows += [{"title": "Developers", "url": "dev/index.html", "summary": "Architecture, tools, tests and design pages.", "text": ""}]
 
+    index_rows.append({"title": "Trust", "url": "trust.html", "text": plain_text(trust_markdown()),
+                       "summary": "Security, check it yourself, AI disclosure and independence."})
+
     # ---- searchable page list
     extra = {"Feature ledger": ("ledger.html", "Every feature with its status and how far it is proven."),
              "3D viewer": ("viewer.html", "Turn the robot, move the head, show the inside, plug the ports, light the bar."),
@@ -515,6 +606,11 @@ def build(out):
     dbody, dr = rendered[rel(decisions)]
     write(out, "decisions.html", page("decisions.html", "Decisions log", '<div class="wrap prose">%s%s</div>' % (toc(dr.headings), dbody),
                                       "The decisions log, rendered from docs/design/decisions.md."))
+
+    # ---- trust: security, check it yourself, AI disclosure, independence
+    tbody, tr = rendered["SECURITY.md"]
+    write(out, "trust.html", page("trust.html", "Trust", '<div class="wrap prose">%s%s</div>' % (toc(tr.headings), tbody),
+                                  "What the project promises, how to check it yourself, how AI was used and who it is not."))
 
     # ---- feature ledger: the generated file is copied as it is; a thin page around it carries the disclaimer
     if ledger.exists():

@@ -87,7 +87,8 @@ class DocsSite(unittest.TestCase):
 
     def test_expected_pages_exist(self):
         for name in ("index.html", "docs/index.html", "viewer.html", "ledger.html", "screens.html", "decisions.html", "docs/getting-started.html",
-                     "search.html", "playground/index.html", "playground/start-here.html", "dev/index.html", "dev/architecture.html"):
+                     "search.html", "trust.html", "playground/index.html", "playground/start-here.html", "dev/index.html", "dev/architecture.html",
+                     "dev/hardware-reference.html", "dev/offline-audit.html", "dev/design-content-pantry.html", "dev/design-model-games.html"):
             self.assertTrue((self.out / name).is_file(), "page missing: %s. Run scripts/docs-site/build.py and read its output." % name)
         self.assertEqual(len(list((ROOT / "docs" / "user").glob("*.md"))), len(list((self.out / "docs").glob("*.html"))),
                          "every docs/user page must have a page in the site")
@@ -102,6 +103,16 @@ class DocsSite(unittest.TestCase):
         out = [p.relative_to(self.out).as_posix() for p in self.out.rglob("*.html")]
         for bad in ("plan/", "funding", "egress", "software-only-protection", "four-users-review", "cross-review"):
             self.assertEqual([o for o in out if bad in o], [], "a page that must stay private was published: " + bad)
+
+    def test_trust_page_has_its_four_parts(self):
+        t = (self.out / "trust.html").read_text(encoding="utf-8")
+        for hid in ("security", "check-it-yourself", "ai-disclosure", "independence"):
+            self.assertIn('id="%s"' % hid, t, "the Trust page lost its %s section" % hid)
+        self.assertNotIn("&lt;!--", t, "a marker comment from SECURITY.md showed up as text")
+
+    def test_check_site_passes(self):
+        res = subprocess.run([sys.executable, str(HERE / "check-site.py"), "--out", str(self.out)], capture_output=True, text=True, timeout=60)
+        self.assertEqual(res.returncode, 0, "check-site.py failed:\n" + res.stdout[-1500:] + res.stderr[-500:])
 
     def test_playground_dev_pages_are_in_developers(self):
         self.assertFalse(list((self.out / "playground").glob("dev-*.html")), "playground developer pages belong under dev/")
