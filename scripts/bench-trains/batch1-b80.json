@@ -240,6 +240,157 @@
      "max": 0
     }
    }
+  },
+  {
+   "name": "heap-idle-before-games",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-during-rps",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "rps"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "heap-during-whack",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "whack"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "heap-during-tictactoe",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "tictactoe"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
   }
  ],
  "person": [
@@ -247,7 +398,8 @@
   "orientation: start a dance, lay the unit on its side: movement limits apply within a few seconds",
   "pairing confirm (build-linkpsk image only): pair with a host, type the code, the unit shows Keep this host? with Keep and Cancel",
   "locked unit: lock it, then self.wifi.list_saved and self.link.pair answer that the unit is locked",
-  "SF107: with a game running, self.game.bench_tilt roll_pm 500 answers valid true and 500; clear answers 0, 0; gently tip the unit right: the reading grows positive"
+  "SF107: with a game running, self.game.bench_tilt roll_pm 500 answers valid true and 500; clear answers 0, 0; gently tip the unit right: the reading grows positive",
+  "pack-screen heap: the heap-during-rps, -whack and -tictactoe checks read total_free and largest_free while the game runs (floors 24,000 and 16,000, the memory gate's lowest values); the train's console memory lines give the lowest internal free over the whole run: if rps pulls it under 24,000 tell the coordinator at once"
  ],
  "goldens_ref": "origin/ux/unproven-games",
  "_notes": "Batch 1 as the coordinator defined it: review fixes SF103 to SF106, quick-actions migration SF101 and the analog tilt SF107 on top of main. (SF89 to SF99 are already on main.) The linkpsk image is build-linkpsk of the same tree."
