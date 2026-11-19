@@ -2934,7 +2934,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
 - `scripts/virtual-unit/restart-preview.sh` (27): bring this checkout to origin/main and restart the virtual unit view on one port, then prove the page serves t
-- `scripts/virtual-unit/scenarios.py` (460): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (466): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la

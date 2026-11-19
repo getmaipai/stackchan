@@ -221,6 +221,12 @@ FILMSTRIPS = {
 import mumble as _mumble   # noqa: E402  (scripts/virtual-unit is on the path: this file is run from there)
 _HELLO = [b.mouth for b in _mumble.blips("Hello! I am your robot. How can I help you today?", 0, 3300)[:9]]
 FILMSTRIPS["mumble-mouth-sync"] = [("raw", "style big_eyes"), ("call", "self.face.bench_emotion", {"emotion": "happy"}), ("advance", 400)] + [("speakstrip", m) for m in _HELLO]
+# Offline lines by situation (decision 24 extension): the subtitle strip with the canned line and the mumble's mouth, six situations in six languages (offline_lines.py).
+import offline_lines as _ol   # noqa: E402
+for _sit in _ol.SITUATIONS:
+    for _lg in _ol.LANGS:
+        _txt = _ol.line(_sit, _lg)
+        SCREENS[f"offline-line-{_sit.replace('_', '-')}-{_lg}"] = BAR + [("raw", "bcaps subtitles"), ("raw", f"ssay {_txt}"), ("advance", 500), ("raw", f"speak {_ol.mid_speech_level(_txt)}"), ("advance", 200)]
 # The two-message state of a unit whose host is away (patches SF64, SF68, SF73): Offline steady (after 45 s), then at ten minutes the notice takes the banner row for 20 s at the privacy
 # priority (it is long, so it scrolls), then Offline again. Frames: 1 minute away, the notice at 10 min 2 s, 7 s in, 14 s in, 19 s in, then 11 minutes away (the notice has ended).
 FILMSTRIPS["host-away-two-messages"] = BAR + [("awaystep", 60000), ("awaystep", 541000), ("awaystep", 5000), ("awaystep", 7000), ("awaystep", 5000), ("awaystep", 30000)]
