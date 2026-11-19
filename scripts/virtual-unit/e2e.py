@@ -197,6 +197,7 @@ class VuFirmware(StackChanFirmware):
         self.tts_events = _Hooked(self._on_tts_event)  # type: ignore[assignment]
         self.llm_frames = _Hooked(self._on_llm_frame)  # type: ignore[assignment]
         self.events_seen: list[str] = []
+        self.game_answers: list[tuple[object, object]] = []   # what the unit answered to each self.game.start: the log of the virtual unit keeps only the last 200 calls
         self._clock: asyncio.Task | None = None
 
     def _on_tts_event(self, item) -> None:
@@ -219,6 +220,8 @@ class VuFirmware(StackChanFirmware):
     def _run_tool(self, name, arguments):
         with self.vu_lock:
             out = self.vu.call(name, dict(arguments))
+        if name == "self.game.start":
+            self.game_answers.append((arguments.get("name"), out.get("ok", out.get("error", out.get("text", out)))))
         if set(out) == {"result"} and isinstance(out["result"], list):
             return out["result"]  # the unit's tools that answer with a JSON array (events, saved networks) send the bare array; the virtual unit wraps it in an object
         return out
@@ -404,7 +407,7 @@ class Rig:
         """Wake, then speak: the unit opens the listening state, streams canned audio (a quiet lead, a voiced stretch of `speech_s`, a quiet tail) in real time, then ends it.
         The fake speech to text answers `words`. Returns when the host's turn ends (a reply played, a quiet turn, or a failure)."""
         assert self.fw
-        self.models.stt_texts.append(words)
+        self.models.stt_texts[:] = [words]   # only this ask: the queue pops only while it holds two lines, so an old line left behind would make every later ask hear the one before it
         mark = len(self.log)
         packets = canned_opus([(0.6, 0.0), (speech_s, 0.5), (tail_s, 0.0)])
         await self.fw.send_listen("start", "auto")
@@ -581,33 +584,38 @@ async def brain_modes(rig: Rig, check) -> None:
 
 
 async def play_a_game(rig: Rig, check) -> None:
-    """'Play a game' by voice, with no model: the host picks among the games on the robot, never the same twice in a row, and 'play memory' starts memory."""
-    seen: list[str] = []
-    plays: list[tuple[int, str]] = []  # (which ask, the game it started): only asks that were answered count, and only neighbors are compared
-    for index in range(6):
-        before = len([c for c in rig.fw.tool_calls if c[0] == "self.game.start"])
+    """'Play a game' by voice, with no model asked: the host picks among the games on the robot and, because the own-model rig has a model ready, the talk games (twenty questions, jokes), never the same twice in a row.
+    Every ask must be answered by a game, a robot game through self.game.start (which the unit now accepts with the host's token) or a talk game; and 'play memory' starts memory on the robot."""
+    def head_games() -> int:
+        return sum(1 for line in rig.log if "voice: head command game" in line)
+
+    def unit_starts() -> list[object]:
+        return [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
+
+    answered: list[bool] = []
+    robot: list[str] = []
+    for _ in range(6):
+        games_before, starts_before = head_games(), len(unit_starts())
         await rig.say("play a game", speech_s=0.8, tail_s=1.0, wait_stop=25.0)
-        for _ in range(40):  # a loaded machine answers late: wait for the start call instead of reading once
-            starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
-            if len(starts) > before:
+        for _ in range(40):  # a loaded machine answers late: wait for the game answer instead of reading once
+            if head_games() > games_before:
                 break
             await asyncio.sleep(0.5)
-        if len(starts) > before:
-            seen.append(starts[-1])
-            plays.append((index, starts[-1]))
-    check("every 'play a game' started a game on the robot", len(seen) == 6, str(seen), soft="the virtual unit's self.game.start does not accept the `token` argument the host stamps on it (patch FM03, remote_trust.py); playground track: accept token in the tool schema")
-    check("never the same game twice in a row", all(a[1] != b[1] for a, b in zip(plays, plays[1:]) if b[0] == a[0] + 1), str(plays), soft="a start the unit refuses (the `token` gap above) is not noted as played, so the picker may offer it again; the picker itself is tested in test_game_voice")
-    check("the games vary", len(set(seen)) >= min(2, len(seen)), str(seen))
-    before = len([c for c in rig.fw.tool_calls if c[0] == "self.game.start"])
+        await asyncio.sleep(0.5)
+        answered.append(head_games() > games_before)
+        if len(unit_starts()) > starts_before:
+            robot.append(str(unit_starts()[-1]))
+    check("every 'play a game' was answered with a game", all(answered), str(answered))
+    check("every robot game the host chose reached the unit and the unit started it", all(ok is True for _, ok in rig.fw.game_answers[: len(robot)]) and len(rig.fw.game_answers) >= len(robot), str(rig.fw.game_answers))
+    check("never the same robot game twice in a row", all(a != b for a, b in zip(robot, robot[1:])), str(robot))
+    starts_before = len(unit_starts())
     await rig.say("play memory", speech_s=0.8, tail_s=1.0, wait_stop=25.0)
-    for _ in range(40):  # a loaded machine answers late: wait for memory to start instead of reading once
-        starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
-        if "memory" in starts[before:]:
+    for _ in range(40):  # wait for the start call instead of reading once
+        if "memory" in unit_starts()[starts_before:]:
             break
         await asyncio.sleep(0.5)
-    await asyncio.sleep(0.5)  # a late answer to an earlier "play a game" may still land: look at everything started since this ask
-    starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
-    check("'play memory' starts memory", "memory" in starts[before:], str(starts[before:]), soft="the virtual unit's self.game.start refuses the `token` argument the host stamps on it (patch FM03); it fails and passes with that gap until the playground track accepts the token")
+    await asyncio.sleep(0.5)
+    check("'play memory' starts memory", "memory" in unit_starts()[starts_before:], str(unit_starts()[starts_before:]))
     check("no model was asked for any of it", not any("play a game" in json.dumps(r["messages"]) for r in rig.models.llm_requests))
 
 

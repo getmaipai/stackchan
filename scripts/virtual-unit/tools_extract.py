@@ -26,6 +26,12 @@ def properties(added_text: str) -> dict[str, dict[str, str]]:
     return out
 
 
+# Patch TC01 widens the Property list of six tools in place (the AddTool line is not in the hunk), so the line reader above never sees the new arguments.
+# These are the tools host/maipai_body/remote_trust.py stamps (gated_kind), with the arguments TC01 adds. The virtual unit then accepts the host's token and source.
+REMOTE_GATE_ARGS = {"source": "string", "token": "integer"}
+REMOTE_GATED = {"self.robot.set_head_angles": {"cue_kind": "string"}, "self.robot.dance": {}, "self.game.start": {}, "self.audio.play_sound": {}, "self.listen.test": {}, "self.camera.take_photo": {}}
+
+
 def extract_args() -> dict[str, dict[str, str]]:
     extract()
     return _ARGS
@@ -66,6 +72,9 @@ def extract() -> dict[str, str]:
     for name, props in base.items():
         result[name] = "base firmware (schema/base-tools.json)"
         _ARGS[name] = props
+    for name, extra in REMOTE_GATED.items():
+        if name in result:
+            _ARGS[name] = {**_ARGS.get(name, {}), **REMOTE_GATE_ARGS, **extra}
     return dict(sorted(result.items()))
 
 
