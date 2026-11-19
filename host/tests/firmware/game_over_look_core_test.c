@@ -55,7 +55,8 @@ int main(void)
             if (mgo_confetti(i, t, &x, &y, &w, &h, &c, &o)) {
                 drawn++;
                 CHECK(t < MGO2_CONFETTI_END);
-                CHECK(x >= MGO2_BAND_X && x + w <= MGO2_BAND_X + MGO2_BAND_W && y >= MGO2_BAND_Y && y + h <= MGO2_BAND_Y + MGO2_BAND_H);
+                CHECK(y >= MGO2_BAND_Y && y + h <= MGO2_BAND_Y + MGO2_BAND_H);
+                CHECK((i & 1) ? (x >= MGO2_COL_R_X && x + w <= MGO2_COL_R_X + MGO2_COL_W) : (x >= MGO2_COL_L_X && x + w <= MGO2_COL_L_X + MGO2_COL_W));   /* every piece stays in its own column */
                 CHECK(c >= 0 && c < 6 && o >= 0 && o <= 255 && w >= 4 && h >= 6);
                 if (o < 255) faded++;
             } else if (t > 600) {
@@ -63,21 +64,21 @@ int main(void)
             }
         }
     }
-    CHECK(drawn > 1000 && faded > 50);
+    CHECK(MGO2_CONFETTI == 8 && drawn > 300 && faded > 10);
     CHECK(mgo_has_confetti(MGO_WON, 0) && mgo_has_confetti(MGO_LOST, 1) && !mgo_has_confetti(MGO_LOST, 0) && !mgo_has_confetti(MGO_DRAW, 0));
 
-    /* the dirty rectangles: small, inside the glass, every one of them held by something that moves, nothing after the end, and the motion rule's numbers (mean at most 6,500 px, worst at most 16,000 px) */
+    /* the dirty rectangles: small, inside the glass, every one of them held by something that moves, nothing after the end, and the motion rule's numbers (mean at most 4,000 px, worst at most 9,000 px, and at most 3 rectangles a step) */
     for (int r = MGO_WON; r <= MGO_TIMEUP; r++) {
         for (int nb = 0; nb < 2; nb++) {
             long area = 0, worst = 0, frames = 0;
             uint32_t before = 0;
             for (uint32_t t = 0; t <= 1800; t += 30) {
                 mgo_rect_t rr[MGO2_MAX_RECTS];
-                const int n = mgo_dirty(r, nb, 2, before, t, rr);
+                const int n = mgo_dirty(r, nb, 2, 110, before, t, rr);
                 long a = 0;
                 static unsigned char mark[240][320];   /* the area of the union: overlapping rectangles count once */
                 memset(mark, 0, sizeof(mark));
-                CHECK(n <= MGO2_MAX_RECTS);
+                CHECK(n <= 3);   /* each rectangle is a separate transfer on the unit: never more than three on a step */
                 for (int i = 0; i < n; i++) {
                     CHECK(rr[i].w > 0 && rr[i].h > 0 && rr[i].x >= 0 && rr[i].y >= MGO2_BAND_Y - 2 && rr[i].x + rr[i].w <= 320 && rr[i].y + rr[i].h <= 240);
                     for (int y = rr[i].y; y < rr[i].y + rr[i].h && y < 240; y++)
@@ -88,12 +89,12 @@ int main(void)
                 area += a; if (a > worst) worst = a; frames++;
                 before = t;
             }
-            CHECK(area / frames <= 6500 && worst <= 16000);
+            CHECK(area / frames <= 4000 && worst <= 9000);
         }
     }
     {   /* nothing after the end */
         mgo_rect_t rr[MGO2_MAX_RECTS];
-        CHECK(mgo_dirty(MGO_WON, 0, 2, MGO2_ANIM_MS, MGO2_ANIM_MS + 100, rr) == 0);
+        CHECK(mgo_dirty(MGO_WON, 0, 2, 110, MGO2_ANIM_MS, MGO2_ANIM_MS + 100, rr) == 0);
     }
     CHECK(mgo_q60(0) == 0 && mgo_q60(59) == 0 && mgo_q60(60) == 60 && mgo_q60(125) == 120);
     {   int dx; CHECK(!mgo_glint(420, &dx) && mgo_glint(480, &dx) && dx == -14 && mgo_glint(840, &dx) && dx > -14 && dx <= 10 && !mgo_glint(900, &dx)); }

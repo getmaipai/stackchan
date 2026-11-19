@@ -32,7 +32,7 @@ A full redraw of the board: level 0 44 microseconds, level 1 151 (3.4 times), le
 
 ## The gate for the prototype
 
-Level 1 or 2 passes if all of these hold on the unit: the worst tick gap is at most 100 ms (the plain look measured 81 ms on 2026-11-19, so the gate is the plain look plus 19 ms; the budget's own 60 ms rule is not met even by the plain look) and the median gap is at most 46 ms; internal free in the game is within 1,000 bytes of level 0 (the look adds no objects, so it should be equal); the box times show the budget's K within its range or better; no flicker. If level 1 passes and level 2 does not, the rule is: gradients, rims and highlights yes, shadows on the board only. If neither passes, the budget's verdicts are too generous and the art direction waits.
+Level 1 or 2 passes if all of these hold on the unit: the worst tick gap is at most 120 ms (the plain look measured 81 ms on b80 and 109 ms on b85; the budget's own 60 ms rule is not met even by the plain look) and the median gap is at most 46 ms; internal free in the game is within 1,000 bytes of level 0 (the look adds no objects, so it should be equal); the box times show the budget's K within its range or better; no flicker. If level 1 passes and level 2 does not, the rule is: gradients, rims and highlights yes, shadows on the board only. If neither passes, the budget's verdicts are too generous and the art direction waits.
 
 ## Result and verdict (the bench, 2026-11-19)
 
@@ -49,3 +49,7 @@ The bench ran the train on a b-image with UX26. **The richer look failed.**
 Why: the look repaints the board and 42 holes with gradients, rims and (look 2) shadows inside every dirty rectangle, and a shadow of blur 6 under each disc costs 1.55 times a flat box on a display that flushes 2.4 MB/s. The budget's estimates (a 30 ms full screen, K of 200 to 600) were too generous: `docs/plan/games-visual-budget.md` is recalibrated with the measured numbers.
 
 **Verdict: the richer look for Four in a Row does not fit this display as it flushes now.** UX26 stays on the branch as a patch that does nothing at level 0. It activates only if a measured flush ceiling allows: the firmware track is investigating the SPI clock and DMA, and the rule for switching it on is: re-run `scripts/bench-trains/c4-richer-look.json`, and enable level 1 only when the flat 100 by 100 box is 4,500 us or less (a flush twice as fast) and level 1's worst gap is within 10 ms of level 0's. Level 2 (the shadows) additionally needs the shadow blur 6 box at 8,000 us or less. Until then the board stays plain; a richer look belongs to screens that do not tick (`docs/design/game-over-look.md`, the menus) and to nothing that flushes a board every frame.
+
+### The b85 bench (2026-11-19)
+
+The same train on the b85 image: Four in a Row frame gaps 109 ms at look 0, 177 at look 1 and 211 at look 2 (b80: 81, about 170, about 200), so the plain look's worst gap moved from 81 to 109 ms between the images while the richer looks stayed where they were. Box times (b85): flat 7.33 ms, radius 7.4, circle 9.3, gradient 9.0, shadow blur 6 14.3, blur 14 21.8, alpha 9.7, outline 10.5. The verdict stands. The gate is therefore 120 ms (it was 100); judge a look against the plain look measured in the same run (the richer looks are 68 to 102 ms worse).

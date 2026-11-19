@@ -33,7 +33,7 @@
      "max": 100000
     },
     "us_worst": {
-     "max": 15000
+     "max": 18000
     }
    },
    "wait": 6
@@ -59,7 +59,7 @@
      "max": 100000
     },
     "us_worst": {
-     "max": 15000
+     "max": 18000
     }
    },
    "wait": 6
@@ -85,7 +85,7 @@
      "max": 100000
     },
     "us_worst": {
-     "max": 15000
+     "max": 18000
     }
    },
    "wait": 6
@@ -111,7 +111,7 @@
      "max": 100000
     },
     "us_worst": {
-     "max": 15000
+     "max": 18000
     }
    },
    "wait": 6
@@ -137,7 +137,7 @@
      "max": 100000
     },
     "us_worst": {
-     "max": 15000
+     "max": 18000
     }
    },
    "wait": 6
@@ -163,7 +163,7 @@
      "max": 100000
     },
     "us_worst": {
-     "max": 15000
+     "max": 18000
     }
    },
    "wait": 6
@@ -508,6 +508,6 @@
  ],
  "person": [
   "look at the screen while look 2 plays for each outcome (the tool shows it for about two seconds and removes it): the trophy with turning rays and confetti, the rain cloud and the droopy face, the clasp, the finish flag, the clock with a sweeping hand, the crown over a ribbon with sparkles; say if anything flickers, tears or stutters, and if the buttons read as buttons",
-  "the results that matter are in result.json for each look and outcome: entry_us (the full-screen frame when the screen appears; the gate is 100 ms), us_mean and us_worst (the motion frames after it, one draw and flush per 30 ms step; at look 2 the gates are 8,000 and 25,000 us), objects (2 at looks 1 and 2, about 12 at look 0), and internal_free_before and internal_free_during per look"
+  "the results that matter are in result.json for each look and outcome: entry_us (the full-screen frame when the screen appears; the gate is 100 ms), us_mean and us_worst (the frames after it, one refresh per 30 ms step: the gates are 18,000 us worst at look 0, 15,000 at look 1, and at look 2 (the light motion) 8,000 mean and 25,000 worst), objects (2 at looks 1 and 2, about 12 at look 0), and internal_free_before and internal_free_during per look. The frame times must be the real flush, not the draw calls only (bench_over's timing was asked of the firmware track)."
  ]
 }

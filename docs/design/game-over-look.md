@@ -1,6 +1,6 @@
 # The game-over screen: a new look
 
-Playground track, 2026-11-19, redone the same day for the display's measured cost (see "The rule this look is judged by"). Owner request: the shared game-over screen (`docs/design/game-over-screen.md`) is bland and needs a real graphical overhaul. This page criticises today's screen, designs a look for four outcomes, and gives the measured verdict against `docs/plan/games-visual-budget.md`. The prototype is patch `UX15d-game-over-look.patch`, a look LEVEL that stays off until the bench says it fits.
+Playground track, 2026-11-19, redone twice the same day: for the display's measured cost, then after the b85 bench of the unit (see "What the b85 bench said"). Owner request: the shared game-over screen (`docs/design/game-over-screen.md`) is bland and needs a real graphical overhaul. This page criticises today's screen, designs a look for four outcomes, and gives the measured verdict against `docs/plan/games-visual-budget.md`. The prototype is patch `UX15d-game-over-look.patch`, a look level: **look 1, the new screen standing still, is the default candidate** (the owner wants the overhaul); look 2, a light motion on top of it, stays a bench level until it meets its gates on the unit. Look 0 is today's screen.
 
 ![Today's screen above, the new look below: won, lost, draw](../images/game-over-look-before-after.png)
 
@@ -22,7 +22,7 @@ Everything is drawn from rectangles, circles, rings, lines, arcs and text. No bi
 
 | Outcome | Backdrop (top to bottom, static gradient) | Emblem | Result word |
 |---|---|---|---|
-| Won | warm brown to near black | A gold trophy (cup, handles, stem, base, shine) over twelve still rays, with a glint that crosses the cup once. It drops in from above with a small overshoot. Confetti falls through the band for 1.7 s and fades. | Gold |
+| Won | warm brown to near black | A gold trophy (cup, handles, stem, base, shine) over twelve still rays, with a glint that crosses the cup once. At look 2, confetti falls in two narrow columns beside it for 1.7 s and fades. | Gold |
 | Lost | dusk blue to near black | A rain cloud over a droopy, kind face: eyebrows slanting up in the middle, a small frown, pink cheeks, one tear. Rain falls from the cloud to the face. | Pale blue |
 | Draw | slate to near black | Two arms, one blue and one amber, meeting in a clasp with fingers that squeezes up a few pixels once. | Light gray |
 | New best | violet to near black | A gold crown with jewels over a violet ribbon, four sparkles that grow and shrink, gold and violet confetti. A new best takes the emblem from whatever the result was; the result word still says it. | White, with the gold best chip |
@@ -40,31 +40,31 @@ The same on every outcome:
 
 *A new best, Game over, Time's up, then the words in French, German and Portuguese.*
 
+### What the b85 bench said, and the second redo
+
+The unit's bench (b85) measured the first moving version: the entry frame took 56 to 96 ms (inside the 100 ms gate); look 0, today's screen, came in just over its 15,000 us gate for a win, a loss, Game over and a new best (15,050 to 17,482 us); look 1, the new still screen, passed; look 2 failed for a win (about 42 ms mean, 65 to 70 ms worst) and a new best (about 48 mean, 80 to 82 worst) and was just over for a loss. The host had predicted a few milliseconds. The reason is in the unit's cost model: every separate rectangle LVGL redraws is its own transfer to the panel, and the first look 2 redrew 18 confetti rectangles, the emblem's box while it dropped in, the cup's glint, the score line and more in one frame. So:
+
+- **Look 1 is the default candidate.** Nothing moves, so after the entry frame the screen costs nothing. The gates: look 0 worst frame 18,000 us (it measured up to 17,482), look 1 15,000 us (it passed), the entry frame 100 ms. The frame times must be the real flush: `bench_over` must time the refresh and the panel flush, not only the draw calls (asked of the firmware track).
+- **Look 2 is rebuilt as the lightest motion that still celebrates.** The emblem stands still (no drop-in, no glint, no sparkle twinkle). A win and a new best get **eight confetti pieces** in two narrow columns beside the emblem (x 62 to 98 and 222 to 258), four in each, falling 40 to 90 px a second in 60 ms steps (2 to 5 px a step). A loss has the rain and the tear (one rectangle), a draw the clasp squeeze (while it squeezes), Time's up the clock hand, Game over nothing. The score counts up in a rectangle only as wide as its own text. **At most three rectangles a step, every step on a 60 ms boundary, nothing on the 30 ms steps in between.** Shadows and the backdrop are drawn once, in the entry frame.
+- **The targets on the unit:** mean at most 8 ms and worst at most 25 ms a frame (the gates in `scripts/bench-trains/game-over-look.json`). On the host: 3,212 px mean and 7,680 px worst for a win and a new best, 2,006 and 5,184 for a loss, 1,213 and 8,568 for a draw, 1,642 and 4,432 for Time's up, 0 pixels changing outside the rectangles in every run; the old look 2 was 5,000 mean and 13,000 to 15,000 worst in 8 to 18 rectangles.
+
 ### The rule this look is judged by
 
-The first version of this page was judged on a 30 ms full-screen flush and a K of 200 to 600. The bench measured the unit on 2026-11-19: a flat 100 by 100 box draws and flushes in 8.49 ms, so a full 320 by 240 redraw is about 65 ms, and Four in a Row's richer look (UX26) failed the gap rule on the unit. This look was redone for those numbers, under the rule stated in `docs/plan/games-visual-budget.md` section 4:
+`docs/plan/games-visual-budget.md` section 4: **one full-screen frame, when the screen appears, up to 100 ms** (the only frame that draws the gradient backdrop and the shadowed buttons; allowed only at screen entry, never during play or a motion); every later frame small (at most 16,000 px worst and 6,500 px on average, and, from the b85 result, at most three rectangles); shadows only small and static, drawn once; particles as tiny rectangles, one per piece, in as few columns as will do.
 
-- **One full-screen frame, when the screen appears, up to 100 ms.** It is the only frame that draws the gradient backdrop and the buttons with their shadows. A game over is a one-off transition, so it may take one slow frame. This is allowed only at screen entry, never during play and never during a motion.
-- **Every motion frame after it is small:** at most 16,000 px in the worst frame and 6,500 px on average, about 13.6 ms and 5.5 ms at 0.85 ms per 1,000 px.
-- **Shadows only small and static, drawn once** (the two blur 6 shadows under the buttons, in the entry frame; they are never repainted during the motion). Confetti, rain and sparkles are tiny rectangles, one per piece.
+### Motion (look 2, bench level)
 
-What changed from the first version: the rays no longer turn (a whole-emblem redraw every 60 ms) and the glint crosses the cup instead (a 48 by 48 box, four times); the draw's arms no longer slide in across the band (the clasp squeezes up once, 132 by 46 px, four times); the confetti is invalidated as 18 small rectangles, one per piece, instead of the 208 by 72 band; the count-up starts after the drop (400 ms) so the two never share a frame; the emblem box is 112 px wide (132 for the draw).
+All motion is arithmetic on the time since the screen appeared (`mgo_*` functions in `maipai_game_over_core.h`), played by the games' existing call to `set_pop` for 1.8 s. No timer, no object, no allocation. It is not the grid games' animation layer: that layer moves pieces of a board.
 
-### Motion
-
-All motion is arithmetic on the time since the screen appeared (`mgo_*` functions in `maipai_game_over_core.h`), played by the games' existing call to `set_pop` for 1.8 s. No timer, no object, no allocation. It is not the grid games' animation layer: that layer moves pieces of a board, and this screen has nothing to move but its own drawing.
-
-| Moment | What moves | What is redrawn |
+| Moment | What moves | What is redrawn (every 60 ms) |
 |---|---|---|
-| 0 to 380 ms | The emblem drops in with a small overshoot. | The emblem's box, every 30 ms step (112 by 72 px, 132 for the draw) |
-| 0 to 1700 ms | Won and new best: the confetti, 18 pieces, fading in the last 300 ms | One small rectangle per piece (about 100 px each) |
-| 400 to 1100 ms | The score counts up | The score line, every 60 ms (200 by 24 px) |
-| 480 to 900 ms | Won: the glint crosses the cup | The cup, every 60 ms (48 by 48 px) |
-| 480 to 720 ms | Draw: the clasp squeezes up | The arms and clasp, every 60 ms (132 by 46 px) |
-| to 1700 ms | Lost: the rain and the tear. Time's up: the clock's hand. New best: four sparkles (after the crown has landed) | The rain and the tear (48 by 22 and 14 by 24 px); the hand (44 by 44); each sparkle (28 by 28), every 60 ms |
+| 0 to 1700 ms | Won and new best: eight confetti pieces, fading in the last 300 ms | The two columns, 36 by 72 px each |
+| 200 to 900 ms | The score counts up | The width of the score text, 24 px high |
+| 480 to 720 ms | Draw: the clasp squeezes up | The arms and clasp, 132 by 46 px |
+| to 1700 ms | Lost: the rain and the tear. Time's up: the clock's hand | The rain and tear, 48 by 56 px; the hand, 44 by 44 px |
 | after 1700 ms | Everything is still | Nothing |
 
-The slow parts move in 60 ms steps: what is on the glass is the moment rounded down to 60 ms, so a 30 ms step between two such moments changes none of their pixels. `mgo_dirty` gives the rectangles of each step from the same arithmetic as the drawing, the screen invalidates exactly them, and the renderer checks that no changed pixel lies outside (0 in every run). The last step redraws the moving parts once in their still pose.
+The last step redraws the moving parts once in their still pose, and the renderer checks that no changed pixel lies outside the rectangles `mgo_dirty` gives (0 in every run).
 
 ### The flourish
 
@@ -83,38 +83,33 @@ The table and its host test are here. Playing it through the unit's tone player,
 
 ## Measured against the budget
 
-Host renderer, `scripts/virtual-unit/games_cost.py` (K now the unit's measured 0.849 ms per 1,000 px), 60 frames of 30 ms for each outcome after the screen has appeared, and `objcount`:
+Host renderer, `scripts/virtual-unit/games_cost.py` (K now the unit's measured 0.733 ms per 1,000 px, b85), 60 frames of 30 ms for each outcome of look 2 after the screen has appeared, and `objcount`:
 
-| Outcome | Dirty area per frame, mean / worst | Cost per frame, mean / worst | Changed pixels outside the rectangles |
+| Outcome | Dirty area per frame, mean / worst | Cost per frame, mean / worst | Rectangles a step | Changed pixels outside them |
+|---|---|---|---|---|
+| Won, new best (confetti) | 3,212 / 7,680 px | 2.4 / 5.6 ms | 3 | 0 |
+| Lost (rain) | 2,006 / 5,184 px | 1.5 / 3.8 ms | 2 | 0 |
+| Draw (clasp) | 1,213 / 8,568 px | 0.9 / 6.3 ms | 2 | 0 |
+| Game over, Time's up | 1,642 / 4,432 px | 1.2 / 3.2 ms | 1 to 2 | 0 |
+
+| Rule | Today's screen | Look 1 (new, still) | Look 2 (new, light motion) |
 |---|---|---|---|
-| Won (confetti) | 5,016 / 13,164 px | 4.3 / 11.2 ms | 0 |
-| Lost (rain) | 3,889 / 12,948 px | 3.3 / 11.0 ms | 0 |
-| Draw | 4,165 / 14,304 px | 3.5 / 12.1 ms | 0 |
-| New best | 6,154 / 15,161 px | 5.2 / 12.9 ms | 0 |
-| Game over, Time's up | 4,089 / 12,864 px | 3.5 / 10.9 ms | 0 |
+| At most 15 objects | 12 added | 2 added | 2 added |
+| One draw callback | no | yes | yes |
+| Entry frame at most 100 ms, once | one full-screen frame | b85: 56 to 96 ms | the same frame |
+| Frames after the entry | the old 160 ms face pop: 15 to 17.5 ms worst on b85 (gate 18,000 us) | none: passes (gate 15,000 us) | host: 2.4 mean, 5.6 worst; unit: bench pending (gates 8 mean, 25 worst) |
+| Shadows static, drawn once | none | two blur 6 under the buttons | the same |
+| Particles | | none | 8 pieces in two columns |
+| No per-game bitmaps, 56 px buttons | | none, 148 by 56 | the same |
 
-| Rule | Today's screen | New look | Verdict |
-|---|---|---|---|
-| At most 15 objects | 12 added (15 with the game's three) | 2 added (5 with the game's three) | fits |
-| One draw callback | no | yes | fits |
-| Motion frame, mean at most 6,500 px (5.5 ms) | | 3,889 to 6,154 px | fits |
-| Motion frame, worst at most 16,000 px (13.6 ms) | | 12,864 to 15,161 px | fits, with 800 px to spare for a new best |
-| Entry frame at most 100 ms, once | one full-screen frame | one full-screen frame: about 65 ms of flush plus the draw of the gradient, the emblem and the two shadowed buttons | fits on paper; the bench's `entry_us` decides |
-| Shadows static and drawn once | none | two blur 6 shadows under the buttons, in the entry frame only (13.2 ms for a 100 by 100 box each, but smaller here) | fits (the limit is three) |
-| Particles as tiny rectangles | | 18 confetti pieces, one rectangle each; sparkles 28 by 28 px | fits |
-| No per-game bitmaps, 56 px buttons | | none, 148 by 56 | fits |
-| Alpha at most 3 fills per dirty area | | the chip, the title shadow and two highlight lines at entry; confetti fades in its last 300 ms (18 pieces of at most 6 by 9 px, each its own rectangle) | fits |
-
-**The bench gates, checked against the unit's K.** A full screen is 76,800 px of 2 bytes at about 2.4 MB/s: 64 ms of flush. The entry frame adds the gradient backdrop (a gradient box costs 1.10 times a flat one: about 6 ms over the whole screen), the two blur 6 shadows (a shadow box is 4.7 ms over a flat one for 10,000 px: about 10 ms for both) and the emblem and text (about 3 ms): about 83 ms, so the 100 ms gate for `entry_us` is reachable with about 17 ms to spare. A motion frame is its dirty area at 0.85 ms per 1,000 px (at most 15,200 px, 12.9 ms) plus a few percent for the gradient under it: the 25 ms gate for `us_worst` and the 8 ms gate for `us_mean` (the host says 5.2 ms at most) are reachable. Look 0 and look 1 only repaint the 4,000 px of the old face pop, so their 15 ms gate holds. If `entry_us` comes in over 100 ms, the shadows (the largest extra) go first.
-
-**Verdict:** judged by the rule above, the new look fits on the host. Two things only the unit can settle, and the bench measures them: the entry frame (`entry_us`, the gate is 100 ms) and the draw time of the motion frames on top of their flush (`us_worst`, the gate is 25,000 us). It stays a look level: default 0 until the bench says yes.
+**Verdict:** look 1 fits on the unit as measured and is the default candidate. Look 2 fits on the host with a third of the first version's rectangles and area; whether it meets 8 ms mean and 25 ms worst on the unit is the next bench. If it does not, look 1 ships alone.
 
 ## What the patch changes
 
 - `maipai_game_over_core.h`: the six-language word tables, the geometry, the easings, the count-up, the confetti, `mgo_dirty`, the tone table. `MGO_POP_MS` grows to 1800 so the games, which call `set_pop` until `MGO_POP_MS + 40`, keep calling it while the motion plays; the old face pop keeps its 160 ms (`MGO_FACE_POP_MS`).
 - `maipai_game_over.h`: the old screen stays as `build_flat` (look 0). The new one is `build_new` and one draw callback. `mgo::build` and `mgo::set_pop` keep their arguments, so `maipai_games.cc`, `maipai_grid.cc` (game code) and `maipai_qa_game.cc` are unchanged. `mgo::build_lang` takes a language 0 to 5, `mgo::set_pressed` the pressed button.
 - `maipai_grid.cc`: only the bench tool `self.game.bench_over`.
-- The look level is `mgo::g_look`, default `MGO_LOOK_DEFAULT` = 0. **A normal image shows today's screen** until the owner flips that one constant after the bench.
+- The look level is `mgo::g_look`, default `MGO_LOOK_DEFAULT` = 1. **A normal image shows the new still screen** (look 1); look 0 is today's screen and look 2 the light motion, both reached with `self.game.bench_over` or by changing the constant.
 
 Not wired yet, and not part of this patch: the games passing the household's language (they still pass `es`, so French, German, Portuguese and Italian show only through `build_lang`), calling `set_pressed` on touch down, and playing the tone table. All three are small and belong to the firmware track.
 
@@ -136,4 +131,4 @@ Bench images only (`self.game.bench_over` is in the bench tool block, so `plain`
 
 By hand, on any bench image: `self.game.bench_over {"look": 2, "result": 1, "new_best": 0, "lang": 3}` shows a win in German, plays its motion and answers `{ok, look, frames, objects, entry_us, us_mean, us_worst, internal_free_before, internal_free_during}`. Result 1 won, 2 lost, 3 draw, 4 Game over, 5 Time's up. Language 0 to 5 is English, Spanish, French, German, Portuguese, Italian.
 
-**To make the new look the default** after a good bench: change `MGO_LOOK_DEFAULT` from 0 to 2 in `maipai_game_over_core.h`, drop the bench tool if the owner wants, regenerate the old `game-over-*` goldens (they will then show the new look), and wire the three small steps above.
+**To change the default:** `MGO_LOOK_DEFAULT` in `maipai_game_over_core.h` (1 now). To add the light motion once its bench passes, set it to 2 and regenerate the game-over goldens in the same landing (the golden stamp, `scripts/golden-stamp.py`, fails otherwise). The three small wiring steps above still belong to the firmware track.

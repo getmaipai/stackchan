@@ -27,7 +27,7 @@ _spec.loader.exec_module(scen)
 OUT = ROOT / "docs" / "dev" / "screens" / "annotated"
 BASELINE = ROOT / "docs" / "design" / "screen-audit-baseline.json"
 SKIP = ("cover-", "first-run-started", "screen-eyes-only", "screen-muted", "screen-listening", "screen-offline", "screen-status-normal", "screen-charging", "screen-low-battery", "screen-wifi-flag",
-        "host-away", "dance-", "es-sheet", "lock-", "more-version-end", "es-more-version-end")   # the scrolled copies hold the same targets as the unscrolled ones   # faces, covers, banners: not touch screens
+        "host-away", "dance-", "es-sheet", "lock-", "more-version-end", "es-more-version-end", "screen-settings-look-switches", "screen-settings-general-more")   # the scrolled copies hold the same targets as the unscrolled ones   # faces, covers, banners: not touch screens
 
 
 def screens() -> list[str]:

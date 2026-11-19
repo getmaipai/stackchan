@@ -75,7 +75,7 @@ def test_the_new_look_is_one_canvas_and_the_callers_do_not_change():
     assert not re.search(r"(?<!lv_)(malloc|free)\(", added) and not re.search(r"esp_|nvs_|hal_bridge|Application|Board::", re.sub(r"esp_timer_get_time|esp_heap", "", added.split("self.game.bench_over")[0]))
     files = re.findall(r"^diff --git a/(\S+) b/", (PATCHES / NAME).read_text(), re.M)
     assert files == ["firmware/main/hal/maipai_game_over_core.h", "firmware/main/hal/maipai_game_over.h", "firmware/main/hal/maipai_grid.cc"]   # games.cc, grid.cc's game code and qa_game.cc are untouched
-    assert "MGO_LOOK_DEFAULT 0" in added                            # a normal image keeps today's screen until the bench decides
+    assert "MGO_LOOK_DEFAULT 1" in added                            # the new look, still, is the default candidate; the motion (look 2) stays a bench level
     assert "self.game.bench_over" in added                          # the bench tool
 
 
@@ -114,4 +114,12 @@ def test_no_pixel_changes_outside_the_rectangles_the_screen_invalidates():
     assert len(names) == 5
     for n in names:
         assert rows[n]["outside_dirty"] == 0, f"{n}: {rows[n]['outside_dirty']} changed pixels lay outside the rectangles the screen invalidates"
-        assert rows[n]["dirty_px"] <= 6500 and rows[n]["dirty_px_max"] <= 16000, n   # the motion rule: mean and worst dirty area of a frame (docs/plan/games-visual-budget.md, section 4)
+        assert rows[n]["dirty_px"] <= 4000 and rows[n]["dirty_px_max"] <= 9000, n   # the lighter motion: mean and worst dirty area of a frame, a third of the budget's motion rule (docs/plan/games-visual-budget.md, section 4)
+
+
+@pytest.mark.skipif(not _built(), reason="the grid renderer is not built from a tree with UX15d")
+def test_an_over_command_without_a_look_draws_the_default_look_which_is_the_new_still_one():
+    out = subprocess.run([str(GRID)], input="game c4 3\nover won|Score 66|Best 70|0|en\nobjcount\n", capture_output=True, text=True, cwd=ROOT).stdout
+    game = subprocess.run([str(GRID)], input="game c4 3\nobjcount\n", capture_output=True, text=True, cwd=ROOT).stdout
+    count = lambda s: int([l.split()[1] for l in s.splitlines() if l.startswith("objects")][0])
+    assert count(out) - count(game) == 2
