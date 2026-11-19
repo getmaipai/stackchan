@@ -113,4 +113,8 @@ Built from the newest replayed tree (b68 plus the overlay patches of this branch
 3. The unit's random source: the stub of `esp_random` was libc `rand()`, whose sequence differs between macOS and the browser's libc. It is now a fixed xorshift sequence.
 4. Signing in the asset simulator needed the `cryptography` package, which the core Pyodide has not. `assets_sim.py` falls back to `ed25519_pure.py` (checked against the package by `host/tests/test_assets_sim_ed25519.py`).
 
-Also: `snapnow` gets its folder in the browser's file system like `snap`. One frame still differs: the filmstrip `host-away-two-messages`. Replaying its renderer commands natively and in the browser gives six identical frames, so the cause is on the Python side of the rig (the `awaystep` steps), not in the drawing. Open.
+Also: `snapnow` gets its folder in the browser's file system like `snap`. 
+
+## Parity on the tree b67, later the same evening: 335 of 335 equal
+
+Rebuilt on main with the tree b67 (the newest tree without patches that are not in `firmware/patches/ORDER`): every one of the 335 cases gives the same result as the native run, the filmstrip `host-away-two-messages` included. The one difference seen on b68 was the tree, not the rig: b68 holds firmware patches that are not on ORDER yet, and the native and browser runs had been built from different mixes of them. Replaying the filmstrip's 27 renderer commands natively and in the browser gave identical frames, and running the scenario in the browser recorded the same 27 commands as natively. Lesson: build native and browser from the same tree, named by `MAIPAI_FW_TREE_ROOT`.
