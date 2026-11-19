@@ -254,7 +254,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
-- `docs/dev/index.md` (113): MaiPai for StackChan: developer guide
+- `docs/dev/index.md` (114): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/measure-a-game.md` (57): How to measure a game
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
@@ -270,6 +270,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/overview.md` (50): How MaiPai for StackChan fits together
 - `docs/dev/pantry-seed.md` (11): Pantry seed library
 - `docs/dev/pre-publish-checklist.md` (34): Before the repository goes public
+- `docs/dev/release.md` (34): Release dry run (2026-11-19)
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
 - `docs/dev/saved-settings-migrations.md` (8): Saved settings that move when a default changes
@@ -570,7 +571,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/swipe-pages.md` (97): Swipe pages and the control sheet
 - `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
 - `docs/user/timers-and-alarms.md` (57): Set a timer or alarm
-- `docs/user/troubleshooting.md` (41): Troubleshooting
+- `docs/user/troubleshooting.md` (45): Troubleshooting
 - `docs/user/try-the-virtual-robot.md` (30): Try the virtual robot
 - `docs/user/updates.md` (60): Update the robot
 - `docs/user/use-it-anywhere.md` (34): Use the robot away from home
@@ -753,7 +754,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (378): no header
+- `firmware/patches/ORDER` (379): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -797,6 +798,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF104-review-fix-keypad-pause.patch` (141): Review fix (keypad): the lock keypad pauses after a run of wrong codes (owner decision 2026-11-18). After 5 wr
 - `firmware/patches/SF105-review-fix-pairing-key-checks-and-confirm.patch` (267): Fixes for the pairing exchange. (1) The unit refuses an all-zero or small-order X25519 host key (the eight kno
 - `firmware/patches/SF106-review-fix-locked-unit-keeps-network-setup.patch` (72): Review fix (lock): a locked unit keeps its network and pairing setup and does not tell it. The tools that read
+- `firmware/patches/SF107-analog-tilt-for-games.patch` (194): The analog lean of the unit for games (design docs/design/accelerometer-games.md). A pure core (maipai_games_a
 - `firmware/patches/SF11-core-dump-find-timer-filler-leaks.patch` (115): Safety fix, train 11. A release image erases the flash core dump after its summary is reported (bench images k
 - `firmware/patches/SF12-listen-ended-event.patch` (31): When the listening guard ends a turn on its own (8 s with no voice, or the 60 s cap), the unit pushes a listen
 - `firmware/patches/SF13-lock-lockout-survives-restart.patch` (87): The lock tools keep a running lockout across a restart: the strikes and the time left on the lockout are saved
@@ -1007,7 +1009,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5598): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5618): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/asset_transport.py` (148): ruff: noqa: E501
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
@@ -1504,7 +1506,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/link/timesync.py` (90): ROBOT-TIME-01: the robot's clock comes from the hub.
 - `host/maipai_body/live_units.py` (86): ruff: noqa: E501
 - `host/maipai_body/local_guard.py` (132): Who counts as the host computer's own user of the settings pages, and the settings token.
-- `host/maipai_body/logging_setup.py` (55): Logging for the hosted Bot (MAIPAI_HUB_HOST=1).
+- `host/maipai_body/logging_setup.py` (66): Logging for the hosted Bot (MAIPAI_HUB_HOST=1).
 - `host/maipai_body/look_owner.py` (210): ruff: noqa: E501
 - `host/maipai_body/measure/__init__.py` (8): Bench measurement tooling for the design's section 12 rows (M-R1 to M-R5).
 - `host/maipai_body/measure/battery.py` (332): M-R4: battery. Runtime by the clock, and what the unit can say about its own charge.
@@ -2152,6 +2154,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/spec-vendor/spec/voice/py/normalize_for_speech.py` (482): Speech normalization, the Python twin of spec/voice/ts/normalizeForSpeech.ts
 - `host/tests/conftest.py` (122): Shared fixtures: the deterministic suite runs against the fake always, and
 - `host/tests/eyes_fakes.py` (58): A pty standing in for the Reachy Eyes USB serial port.
+- `host/tests/firmware/accel_analog_core_test.c` (62): Host test of the analog tilt core (patch SF107): the properties of docs/design/accelerometer-games.md section 
 - `host/tests/firmware/apps_core_test.c` (344): Host test for the Apps wall, the Timers and Alarms apps and the tabbed Settings layout (patch UI16):
 - `host/tests/firmware/assets_core_test.c` (192): Host test of the asset store core (patch SF89): header checks, install, replace, swap, remove, wear rotation, 
 - `host/tests/firmware/avatar_core_test.c` (58): Host test for the camera frames core (patch SF44). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>
@@ -2444,7 +2447,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (77): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (78): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2534,7 +2537,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_live_view.py` (178): LIVE-VIEW-01 (bot half): the stream, its cyan cue and every way it stops."""
 - `host/tests/test_local_guard.py` (155): Host check on reads, proxy headers mean not local, request bodies are capped."""
 - `host/tests/test_log_noise.py` (31): Things anyone on the network can cause must not write errors or tracebacks to the log."""
-- `host/tests/test_logging_no_robot.py` (33): With no robot connected yet, the host log says so in one line; it does not print a traceback per failed call."
+- `host/tests/test_logging_no_robot.py` (44): With no robot connected yet, the host log says so in one line; it does not print a traceback per failed call."
 - `host/tests/test_look_owner.py` (300): Who turns toward faces (look_owner.py): the lease heartbeat, the setting, the page view and the value the unit
 - `host/tests/test_many_units.py` (114): Isolation and chaos at the unit level: 2 and 10 units, one fails, the others carry on; the settings server and
 - `host/tests/test_measure_battery.py` (311): M-R4: battery. Runtime by the clock from full to the LED's red, whether any
@@ -2875,9 +2878,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/asset-kinds.json` (84): no header
 - `schema/base-tools.json` (11): no header
 - `schema/licenses.json` (14): no header
-- `schema/memory-budget.json` (894): no header
+- `schema/memory-budget.json` (909): no header
 - `schema/power-model.json` (34): no header
-- `schema/tools.json` (739): no header
+- `schema/tools.json` (745): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/bench-train.py` (473): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
 - `scripts/bench-trains/batch1-b75.json` (253): no header

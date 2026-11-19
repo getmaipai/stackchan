@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 179,
+ "count": 180,
  "tools": {
   "self.assets.abort": "SF90-asset-store-on-the-unit.patch",
   "self.assets.commit": "SF90-asset-store-on-the-unit.patch",
@@ -84,6 +84,7 @@
   "self.game.bench_request_stop": "G02-game-player-and-tools.patch",
   "self.game.bench_swipe": "UI13-games-v2-draw-inputs-and-page.patch",
   "self.game.bench_tap": "G02-game-player-and-tools.patch",
+  "self.game.bench_tilt": "SF107-analog-tilt-for-games.patch",
   "self.game.list": "G02-game-player-and-tools.patch",
   "self.game.scores": "G02-game-player-and-tools.patch",
   "self.game.start": "G02-game-player-and-tools.patch",
@@ -453,6 +454,11 @@
   "self.game.bench_tap": {
    "x": "integer",
    "y": "integer"
+  },
+  "self.game.bench_tilt": {
+   "roll_pm": "integer",
+   "pitch_pm": "integer",
+   "clear": "boolean"
   },
   "self.game.list": {},
   "self.game.scores": {

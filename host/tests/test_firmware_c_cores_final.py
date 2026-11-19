@@ -18,6 +18,7 @@ needs_cc = pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler 
 # Legacy sounds_core_test.c and tailnet_core_test.c call functions the final headers no longer have.
 # These final-header tests cover their current interfaces.
 PLAIN = [
+    "accel_analog_core_test.c",
     "reversi_core_test.c",
     "hilo_core_test.c",
     "brain_notice_core_test.c",

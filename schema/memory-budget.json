@@ -889,6 +889,21 @@
    "freed_when": "a shelf copy right after use; the heard list is kept once allocated (PSRAM)",
    "status": "estimate",
    "source": "patch SF93: the heard list block is about 6.2 KB (510 entries of 12 bytes in memory), a shelf copy is at most 40,960 bytes; internal is a mutex, a timer and counters; measure with two self.bench.heap_info calls (idle, during self.pantry.status)"
+  },
+  {
+   "id": "feature.analog_tilt",
+   "kind": "feature",
+   "name": "The analog tilt for games (filter and packed word)",
+   "internal": 44,
+   "psram": 0,
+   "flash": 400,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": true,
+   "loaded_when": "always (static state of the imu task; it runs only while a game is active)",
+   "freed_when": "never (static)",
+   "status": "estimate",
+   "source": "patch SF107: one atomic word (4 bytes) and the filter state of mga_t (about 40 bytes) in .bss; flash is an estimate; measure with the size report (maipai_games.cc.obj bss and text growth)"
   }
  ]
 }

@@ -1,0 +1,194 @@
+# Intent: The analog lean of the unit for games (design docs/design/accelerometer-games.md). A pure core (maipai_games_analog_core.h, the page's draft with the packed word added) turns every 20 ms accelerometer sample into a roll and a pitch in permille of a full lean (single pole filter with alpha 0.25, dead zone 0.10 g, full scale 0.50 g about 30 degrees, clamp plus or minus 1000, right and forward positive). It reads nothing (valid false) when the pull is outside 7.0 to 12.6 m/s^2 (carried, shaken) or within 700 ms after a shake. maipai_games_imu_feed runs it on every sample while a game or a grid game is active, using the tilt detector's rest pose, and publishes the result in one atomic 32 bit word; maipai_games_tilt_analog(int* roll_pm, int* pitch_pm) reads it from any task. With no game running the word is 0. The bench tool self.game.bench_tilt {roll_pm, pitch_pm, clear} stands in for the sensor until cleared or the game ends. Safety unchanged: the head never moves, a carried or shaken unit gives no reading. No game uses it yet: Balance, Maze, Racing and Flying come after.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games.cc and maipai_games.h (ours); maipai_games_analog_core.h (new, ours)
+# Check after a flash: bench image: start a game; self.game.bench_tilt roll_pm 500 answers valid true and roll_pm 500, clear answers 0, 0; on a still unit on a desk a game's reading is 0, 0; tip the unit gently to the right: roll_pm grows to a positive number; carry or shake it: valid false.
+# Kconfig: none (the bench tool is in the bench build only)
+# Memory cost: internal RAM 4 bytes for the atomic word and about 40 bytes of filter state (static, in the imu task's file); flash about 0.4 KB for the core and the reader; the bench tool about 0.3 KB in the bench build only.
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -21,6 +21,7 @@
+ #include "maipai_pages_core.h"
+ #include "maipai_games_draw.h"
+ #include "maipai_games_input_core.h"
++#include "maipai_games_analog_core.h"
+ #include "maipai_gesture_core.h"
+ #include "maipai_banner.h"
+ #include "maipai_face.h"
+@@ -1178,6 +1179,11 @@ void maipai_games_post_input(int ev)
+ namespace {
+ mgi_t s_tilt;               // touched only by the imu task
+ mgi_shake_t s_shake;        // patch UI15: the gentle shake detector, the imu task only
++mga_t s_analog;             // patch SF107: the analog tilt, the imu task only
++std::atomic<uint32_t> s_analog_word{0};   // its packed result: one word, any task may read it
++#if CONFIG_MAIPAI_GAMES_BENCH
++std::atomic<uint32_t> s_analog_bench{0};  // self.game.bench_tilt: a packed reading that stands in for the sensor until it is cleared or the game ends
++#endif
+ int s_imu_pass = 0;
+ bool s_tilt_was_active = false;
+ }  // namespace
+@@ -1186,14 +1192,24 @@ void maipai_games_imu_feed(float ax, float ay, float az, uint32_t now_ms_in)
+ {
+     if (!s_active.load() && !maipai_grid_active()) {  // patch SF77: a grid game (Snake) listens for tilts too
+         s_tilt_was_active = false;
++        s_analog_word.store(0);   // no game: no reading
++#if CONFIG_MAIPAI_GAMES_BENCH
++        s_analog_bench.store(0);
++#endif
+         return;
+     }
+     if (!s_tilt_was_active) {
+         mgi_init(&s_tilt);  // the pose the unit rests in when a game starts is its level
+         mgi_shake_init(&s_shake);
++        memset(&s_analog, 0, sizeof(s_analog));
+         s_imu_pass        = 0;
+         s_tilt_was_active = true;
+     }
++    {   // patch SF107: the analog tilt sees every sample; right after a shake, or with the pull far from one g, it reads nothing
++        const float rest[3] = {s_tilt.have_rest ? s_tilt.rest[0] : ax, s_tilt.have_rest ? s_tilt.rest[1] : ay, s_tilt.have_rest ? s_tilt.rest[2] : az};
++        mga_update(&s_analog, ax, ay, az, rest, mt_pending(now_ms_in, s_tilt.quiet_until_ms) ? 1 : 0);
++        s_analog_word.store(mga_pack(&s_analog));
++    }
+     // Patch UI15: called every 20 ms. The gentle shake sees every sample; the tilt detector was written for 100 ms samples and sees every fifth.
+     const int shake = mgi_shake_update(&s_shake, ax, ay, az, now_ms_in);
+     if (shake != MGI_SHAKE_NONE) {
+@@ -1213,6 +1229,16 @@ void maipai_games_imu_feed(float ax, float ay, float az, uint32_t now_ms_in)
+     }
+ }
+ 
++bool maipai_games_tilt_analog(int* roll_pm, int* pitch_pm)
++{
++    uint32_t w = s_analog_word.load();
++#if CONFIG_MAIPAI_GAMES_BENCH
++    const uint32_t b = s_analog_bench.load();
++    if (b != 0u && (s_active.load() || maipai_grid_active())) w = b;
++#endif
++    return mga_unpack(w, roll_pm, pitch_pm) != 0;
++}
++
+ void maipai_games_shake(uint32_t now_ms_in)
+ {
+     if (!s_active.load()) {
+@@ -1466,6 +1492,24 @@ void maipai_games_register_tools()
+     maipai_qa_register_tools();  // patch SF88: self.qa.start, question, verdict, end, stop
+ #if CONFIG_MAIPAI_GAMES_BENCH
+     maipai_grid_register_bench_tools();  // patch SF75: self.game.bench_record and bench_frames for the grid games
++    mcp.AddTool("self.game.bench_tilt",
++                "Bench only: stand in for the accelerometer's analog lean while a game runs: roll_pm and pitch_pm in permille of a full lean (-1000 to 1000, right and forward positive). "
++                "Both 0 with clear=true removes it. It also ends with the game. Answers {ok, roll_pm, pitch_pm} (what a game reads now).",
++                PropertyList({Property("roll_pm", kPropertyTypeInteger, 0, -1000, 1000), Property("pitch_pm", kPropertyTypeInteger, 0, -1000, 1000), Property("clear", kPropertyTypeBoolean, false)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    if (properties["clear"].value<bool>()) {
++                        s_analog_bench.store(0);
++                    } else {
++                        mga_t a;
++                        a.valid = 1;
++                        a.roll_pm = properties["roll_pm"].value<int>();
++                        a.pitch_pm = properties["pitch_pm"].value<int>();
++                        s_analog_bench.store(mga_pack(&a));
++                    }
++                    int r = 0, p = 0;
++                    const bool ok = maipai_games_tilt_analog(&r, &p);
++                    return std::string("{\"ok\":true,\"valid\":") + (ok ? "true" : "false") + ",\"roll_pm\":" + std::to_string(r) + ",\"pitch_pm\":" + std::to_string(p) + "}";
++                });
+     mcp.AddTool("self.game.bench_tap", "Bench only: tap the running game's screen at x, y (screen pixels) as a finger would. "
+                 "Taps in the reserved screen edges do nothing, as for a finger.",
+                 PropertyList({Property("x", kPropertyTypeInteger, 160, 0, 319), Property("y", kPropertyTypeInteger, 120, 0, 239)}),
+diff --git a/firmware/main/hal/maipai_games.h b/firmware/main/hal/maipai_games.h
+--- a/firmware/main/hal/maipai_games.h
++++ b/firmware/main/hal/maipai_games.h
+@@ -34,6 +34,9 @@ enum { MAIPAI_GAME_EV_SHAKE = 5, MAIPAI_GAME_EV_PET = 6 };  // equal to MG_EV_SH
+ void maipai_games_post_input(int event);
+ // One accelerometer sample, m/s^2, about every 100 ms, from the imu task: the tilt detector for the games that listen for tilts.
+ void maipai_games_imu_feed(float ax, float ay, float az, uint32_t now_ms);
++// Patch SF107: the analog lean of the unit for a game, in permille of a full lean (right and forward positive), from the filtered accelerometer. True when it is a valid reading
++// (the unit is about one g, not carried or just shaken); false and 0, 0 otherwise. Any task, one atomic load.
++bool maipai_games_tilt_analog(int* roll_pm, int* pitch_pm);
+ // The imu task saw a shake: a shake event for the game, and the tilt detector keeps quiet for a moment.
+ void maipai_games_shake(uint32_t now_ms);
+ // The saved best of each game, for the games page: 0 when none. `lower` tells which way is better.
+@@ -52,5 +55,6 @@ inline void maipai_games_release(int, int, int, int, unsigned) {}
+ inline void maipai_games_post_input(int) {}
+ enum { MAIPAI_GAME_EV_SHAKE = 5, MAIPAI_GAME_EV_PET = 6 };
+ inline void maipai_games_imu_feed(float, float, float, unsigned) {}
++inline bool maipai_games_tilt_analog(int* r, int* p) { *r = *p = 0; return false; }
+ inline void maipai_games_shake(unsigned) {}
+ #endif
+diff --git a/firmware/main/hal/maipai_games_analog_core.h b/firmware/main/hal/maipai_games_analog_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_games_analog_core.h
+@@ -0,0 +1,72 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The analog tilt for games (patch SF107; design docs/design/accelerometer-games.md). Pure C99. Host test: host/tests/firmware/accel_analog_core_test.c.
++ * The result of the last sample is packed in one 32 bit word (valid in bit 31, roll plus 1000 in bits 0 to 11, pitch plus 1000 in bits 12 to 23), so the imu task can publish it
++ * with one atomic store and any task can read it with one load.
++ */
++#ifndef MAIPAI_GAMES_ANALOG_CORE_H
++#define MAIPAI_GAMES_ANALOG_CORE_H
++
++#include <stdint.h>
++
++/* Patch SF107: the analog tilt for games. Called with every 20 ms accelerometer sample (m/s^2). Pure C99, no clock of its own (the caller passes the time). */
++#define MGA_ALPHA 0.25f          /* a single pole at 50 Hz: a time constant of about 70 ms */
++#define MGA_DEAD_G 0.10f         /* the head's own wobble reads as flat */
++#define MGA_FULL_G 0.50f         /* about 30 degrees reads as full scale */
++#define MGA_MIN_MAG 7.0f         /* m/s^2: the same window as the tilt detector's */
++#define MGA_MAX_MAG 12.6f
++#define MGA_QUIET_MS 700u        /* no reading right after a shake */
++
++typedef struct {
++    float f[3];
++    int primed;
++    int roll_pm, pitch_pm, valid;   /* permille of a full lean: right and forward positive */
++} mga_t;
++
++static inline int mga_scale(float d)   /* d in m/s^2 from the rest pose */
++{
++    const float g = d / 9.80665f, a = g < 0 ? -g : g;
++    if (a < MGA_DEAD_G) return 0;
++    float v = (a - MGA_DEAD_G) / (MGA_FULL_G - MGA_DEAD_G) * 1000.0f;
++    if (v > 1000.0f) v = 1000.0f;
++    return g < 0 ? -(int)v : (int)v;
++}
++
++/* x, y, z: one sample. rest: the rest pose of the tilt detector. quiet: nonzero right after a shake. Returns the valid flag. */
++static inline int mga_update(mga_t* a, float x, float y, float z, const float rest[3], int quiet)
++{
++    const float in[3] = {x, y, z};
++    for (int i = 0; i < 3; i++) a->f[i] = a->primed ? a->f[i] + MGA_ALPHA * (in[i] - a->f[i]) : in[i];
++    a->primed = 1;
++    const float m2 = a->f[0] * a->f[0] + a->f[1] * a->f[1] + a->f[2] * a->f[2];
++    if (quiet || m2 < MGA_MIN_MAG * MGA_MIN_MAG || m2 > MGA_MAX_MAG * MGA_MAX_MAG) {
++        a->roll_pm = a->pitch_pm = 0;
++        a->valid = 0;
++        return 0;
++    }
++    a->roll_pm = mga_scale(a->f[0] - rest[0]);        /* a roll to the unit's right turns the pull toward +x */
++    a->pitch_pm = -mga_scale(a->f[2] - rest[2]);      /* forward is toward -z, so forward reads positive */
++    a->valid = 1;
++    return 1;
++}
++
++static inline uint32_t mga_pack(const mga_t* a)
++{
++    if (!a->valid) return 0u;
++    return 0x80000000u | (uint32_t)(a->roll_pm + 1000) | ((uint32_t)(a->pitch_pm + 1000) << 12);
++}
++
++/* Returns 1 and fills the two permille values when the word holds a valid reading, else 0 (and both 0). */
++static inline int mga_unpack(uint32_t w, int* roll_pm, int* pitch_pm)
++{
++    if (!(w & 0x80000000u)) {
++        *roll_pm = *pitch_pm = 0;
++        return 0;
++    }
++    *roll_pm = (int)(w & 0xFFFu) - 1000;
++    *pitch_pm = (int)((w >> 12) & 0xFFFu) - 1000;
++    return 1;
++}
++
++#endif
