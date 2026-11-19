@@ -66,6 +66,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/fable-memory-review-2026-11-16.md` (174): Memory and risk review of the merged firmware, 2026-11-16
 - `docs/design/face-detect-esp-dl-2026-11-17.md` (241): Face detection on the unit with ESP-DL: can the head track a face alone? (2026-11-17)
 - `docs/design/face-seek-2026-11-17.md` (343): Turning toward people: core, wiring, lease, setting and detector evaluation (2026-11-17)
+- `docs/design/face-styles.md` (50): Face styles as recipes
 - `docs/design/faces-core-2026-11-16.md` (21): Faces core, 2026-11-16 (patches X01 and X02)
 - `docs/design/faces-gate-2026-11-16.md` (61): Faces wired in and busy gate, 2026-11-16
 - `docs/design/faces-status-2026-11-16.md` (42): Faces and always-on behaviors, status 2026-11-16
@@ -184,7 +185,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1177): Feature ledger
+- `docs/dev/feature-ledger.html` (84): no header
+- `docs/dev/feature-ledger.html` (84): no header
+- `docs/dev/feature-ledger.md` (1178): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -365,10 +368,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/images/dance-settings.svg` (1): no header
 - `docs/images/dance.svg` (1): no header
 - `docs/images/face-camera-off.svg` (1): no header
-- `docs/images/face-colors.svg` (1): no header
 - `docs/images/face-full-quiet.svg` (1): no header
 - `docs/images/face-mute.svg` (1): no header
-- `docs/images/face-styles.svg` (1): no header
 - `docs/images/find-me.svg` (1): no header
 - `docs/images/first-turn.svg` (1): no header
 - `docs/images/flasher.svg` (1): no header
@@ -436,6 +437,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
 - `docs/plan/face-parts.md` (76): Face parts and the asset bank (plan)
+- `docs/plan/face-styles-verdict.md` (36): Face styles: what fits and what does not
 - `docs/plan/first-release-notes-draft.md` (52): First release notes draft (2026-11-18)
 - `docs/plan/first-run-brain-choice.md` (25): The brain choice at first run: what the robot sends and what the host does (2026-11-18)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
@@ -546,7 +548,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/choose-a-brain.md` (42): Choose a brain
 - `docs/user/coding-companion.md` (38): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
-- `docs/user/face-and-look.md` (128): Change how the robot looks
+- `docs/user/face-and-look.md` (136): Change how the robot looks
 - `docs/user/faq.md` (50): Questions people ask
 - `docs/user/features.md` (162): What the robot can do
 - `docs/user/find-and-remote.md` (79): Find the robot and control it remotely
@@ -819,6 +821,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF112-first-run-choice-sets-the-brain-route.patch` (42): SF112: the first-run brain choice is saved as the unit's brain route
 - `firmware/patches/SF114-offline-lines-reader.patch` (391): SF114: the offline lines reader (lines by situation: subtitle plus mumble)
 - `firmware/patches/SF115-game-over-bench-times-the-flush.patch` (77): SF115: the game-over bench times the real flush; the other games' game-over taps show the pressed look
+- `firmware/patches/SF116-review-fixes-r2-limiter-settings-serial-servo-reconnect.patch` (438): SF116: review fixes for the limiter, the saved-settings readers, the bench serial tools, the servo peak, the L
 - `firmware/patches/SF12-listen-ended-event.patch` (31): When the listening guard ends a turn on its own (8 s with no voice, or the 60 s cap), the unit pushes a listen
 - `firmware/patches/SF13-lock-lockout-survives-restart.patch` (87): The lock tools keep a running lockout across a restart: the strikes and the time left on the lockout are saved
 - `firmware/patches/SF14-offline-dance-rest-cap.patch` (88): A cap on continuous offline dancing: after ten minutes of motion without a pause of 30 s the unit rests for th
@@ -1023,6 +1026,26 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/Y04-find-and-game-screen-cues.patch` (85): two on-screen cues. (1) Find-my-robot: every find chirp (Y02) shows a happy face and the words "Here I am!" fo
 - `firmware/patches/Z01-boot-event-names-the-crash.patch` (121): The boot event names the crash. It now carries reason_name (poweron, software, panic, int_wdt, task_wdt, wdt, 
 - `firmware/sdkconfig.core.defaults` (21): Measured from pristine base: app binary -47,056 B, DIRAM -132 B.
+- `firmware/styles/cat.json` (21): no header
+- `firmware/styles/cat.rcp` (1): no header
+- `firmware/styles/classic.json` (19): no header
+- `firmware/styles/classic.rcp` (0): no header
+- `firmware/styles/eyes_only.json` (19): no header
+- `firmware/styles/eyes_only.rcp` (0): no header
+- `firmware/styles/heart_eyes.json` (21): no header
+- `firmware/styles/heart_eyes.rcp` (0): no header
+- `firmware/styles/hose.json` (21): no header
+- `firmware/styles/hose.rcp` (0): no header
+- `firmware/styles/neon.json` (21): no header
+- `firmware/styles/neon.rcp` (0): no header
+- `firmware/styles/retro_pixel.json` (19): no header
+- `firmware/styles/retro_pixel.rcp` (0): no header
+- `firmware/styles/robot.json` (20): no header
+- `firmware/styles/robot.rcp` (0): no header
+- `firmware/styles/round.json` (19): no header
+- `firmware/styles/round.rcp` (0): no header
+- `firmware/styles/sleepy.json` (20): no header
+- `firmware/styles/sleepy.rcp` (0): no header
 - `firmware/tailnet/PIN` (4): The private-network client for travel (patch TN01). Downloaded by scripts/fw-tailnet.sh at this commit into a
 - `firmware/tailnet/microlink-region.patch` (48): the second library patch for the pinned private-network client (applied by scripts/fw-tailnet.sh after microli
 - `firmware/tailnet/microlink.patch` (310): the library patch for the pinned private-network client (applied by scripts/fw-tailnet.sh to the downloaded co
@@ -2223,6 +2246,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/dicepoker_core_test.c` (62): Host test of Dice Poker's core (patch UX18): every hand ranks as the poker-dice counts say, the rolls and hold
 - `host/tests/firmware/dirty_core_test.c` (151): Host test for the dirty rectangles and the gaze spring (patch V20).
 - `host/tests/firmware/face_cores_test.c` (432): Host test for the face cores (patches F01 to F06): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>.
+- `host/tests/firmware/face_recipe_core_test.c` (139): Host test for the face recipes (patch UXF01): the reader, the writable style row, the four eye designs and the
 - `host/tests/firmware/face_track_core_test.c` (749): Host test for the face tracker's control loop (patch FD04): the real ft_tick, driven with scripted detections 
 - `host/tests/firmware/face_zone_core_test.c` (112): Host test for the fixed zones of the screen (patches N01, N04): the banner zone (y 0 to 28), the face zone (y 
 - `host/tests/firmware/facedet_core_test.c` (153): Host test for the face detector's pure part (patch FD02): the real fd_convert_rgb888, fd_crop_origin, fd_pick,
@@ -2408,6 +2432,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/update-header-vectors.json` (104): no header
 - `host/tests/fixtures/update-signature-vectors.json` (79): no header
 - `host/tests/golden/face-known.json` (1): no header
+- `host/tests/golden/face_styles_digests.json` (158): no header
 - `host/tests/golden/golden-order.sha1` (1): no header
 - `host/tests/golden/pack_games_digests.json` (509): no header
 - `host/tests/golden/tolerance.json` (110): no header
@@ -2493,6 +2518,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_expression_suppression.py` (83): The suppression table (dev.md section 5's "Suppressed or reinterpreted when" column)."""
 - `host/tests/test_eyes_client.py` (267): The Reachy Eyes serial client, clean-room (docs/dev/eyes-wire-protocol.md).
 - `host/tests/test_face_preview_parity.py` (127): ruff: noqa: E501
+- `host/tests/test_face_recipes.py` (76): Patch UXF01 (docs/design/face-styles.md): face styles as 44-byte recipes. The JSON sources and the .rcp files 
+- `host/tests/test_face_styles_golden.py` (59): Golden renders of every face style (docs/plan/face-styles-verdict.md): a digest of the thirteen mood pictures 
 - `host/tests/test_face_wrap_soak.py` (53): ruff: noqa: E501
 - `host/tests/test_face_zone_layout.py` (48): ruff: noqa: E501
 - `host/tests/test_faces.py` (397): Face settings per unit: validation, saving and the push to the unit (patches F01 to F06)."""
@@ -2513,6 +2540,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_firmware_nx_patches.py` (159): ruff: noqa: E501
 - `host/tests/test_firmware_packs2.py` (94): ruff: noqa: E501
 - `host/tests/test_firmware_pages_patches.py` (154): ruff: noqa: E501
+- `host/tests/test_firmware_review_r2_sources.py` (81): Source contracts for the replay-only firmware review fixes.
 - `host/tests/test_firmware_roam_patches.py` (140): ruff: noqa: E501
 - `host/tests/test_firmware_seek_core.py` (66): Turning toward a person (firmware patch S10): the core is plain C; compile and run its host test, and check th
 - `host/tests/test_firmware_seek_wire.py` (100): Turning toward a person on the unit (firmware patches S12, S13, S14): the wiring core is plain C; build it fro
@@ -2969,7 +2997,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/camera-sweep-table.py` (64): turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the o
 - `scripts/captions-check.py` (25): every image in README.md, docs/user, docs/playground and docs/dev has a visible caption: a standalone image is
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (44): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (45): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/choices-check.py` (44): Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices
 - `scripts/dashboard-words-check.py` (46): the dashboard's front pages stay calm (owner request 2026-11-19): at most 6 controls, at most 60 words, labels
 - `scripts/dev-dashboard.sh` (37): run the host settings dashboard against seeded demo data (two stand-in units, no hardware, no real data) so it
@@ -2984,6 +3012,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/exposure-allowed.json` (10): no header
 - `scripts/exposure-test.py` (304): the exposure suite. One run measures what the host contacts, what it exposes and what protects it, and prints 
 - `scripts/exposure-test.sh` (5): run the exposure suite (see scripts/exposure-test.py). Usage: bash scripts/exposure-test.sh [--write]
+- `scripts/face-kit/make_patch.py` (336): Builds firmware/patches/UXF01-face-style-recipes.patch from the reference tree: copies the three files it chan
+- `scripts/face-recipe.py` (69): Face recipes: the style assets (kind style, docs/plan/face-parts.md). firmware/styles/NAME.json holds the numb
 - `scripts/feature-ledger.py` (513): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
 - `scripts/funding-check.py` (98): fail when the README or the docs point to a funding page that .github/FUNDING.yml does not list.
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
@@ -3000,7 +3030,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
 - `scripts/fw-face-render/grid_render.cc` (804): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
 - `scripts/fw-face-render/hooks_banner.cc` (335): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
-- `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
+- `scripts/fw-face-render/hooks_new.cc` (74): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
 - `scripts/fw-face-render/lock_render.sh` (25): draw the lock screen and the keypad with the real LVGL and the unit's own drawing code (maipai_lock_draw.h) on
 - `scripts/fw-face-render/more_host.cc` (59): Host stand-ins for what the More screen (maipai_more.cc) asks of the rest of the unit: the language, the lock,
@@ -3087,7 +3117,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/sounds-demo.py` (87): A page to listen to the robot's sounds: the game sounds (the unit's own tone clips and the sketches) and the o
 - `scripts/spec-dir.sh` (4): no header
 - `scripts/spec-drift-check.sh` (32): the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. Fails when a vendored file diff
-- `scripts/spelling-allow.txt` (63): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
+- `scripts/spelling-allow.txt` (66): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
 - `scripts/spelling-check.py` (98): fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere).
 - `scripts/stackchan-egress-proof.sh` (66): no header
 - `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.
@@ -3116,7 +3146,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/e2e_hostile.py` (341): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/ed25519_pure.py` (103): Ed25519 (RFC 8032) in plain Python, for the places the `cryptography` package is not there (the browser build 
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
+- `scripts/virtual-unit/face_matrix.py` (191): Real renders of every face style: every mood, four face colors, three backgrounds, drawn by the unit's own fac
+- `scripts/virtual-unit/face_style_cost.py` (79): Frame cost of every face style against the display budget (docs/dev/display-capabilities.md, docs/plan/face-st
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
+- `scripts/virtual-unit/face_styles.py` (22): The face styles, colors, backgrounds and moods the contact sheets and the budget table use: one list, here.
 - `scripts/virtual-unit/fake_host.py` (135): A fake host for the playground's Live mode: the routes of docs/plan/playground-live.md (under /api/playground,
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/game_over_look_sheet.py` (37): The two pictures of docs/design/game-over-look.md, made from the goldens (needs ffmpeg): before and after (tod

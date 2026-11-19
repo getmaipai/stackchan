@@ -1,0 +1,21 @@
+{
+ "name": "neon",
+ "title": "Neon anime",
+ "about": "Big glowing ring eyes with a bright iris and small sparkles.",
+ "eye_d": 84,
+ "eye_x": 66,
+ "eye_y": -14,
+ "mouth_y": 56,
+ "mouth_w": 30,
+ "mouth_t": 5,
+ "ew": 84,
+ "eh": 90,
+ "mouth": "cute",
+ "r_pct": 100,
+ "pupil": 0,
+ "brows": 1,
+ "drift": 6,
+ "blw": 4,
+ "look": "neon",
+ "extras": "neon"
+}
