@@ -26,7 +26,7 @@ One record is one thing the robot can say. Fields:
 | `rating` | `kid` or `adult` | `kid` is the default and the only rating a shelf holds unless the owner turns on adult humor (section 6). |
 | `text` | UTF-8 | Joke: setup and punchline split by one `|`. Riddle: the question. Trivia: the question. Story: the body, paragraphs split by `|`. |
 | `answer` | UTF-8, may be empty | Riddle and trivia: the correct answer, 40 bytes at most. Empty for joke and story. |
-| `extra` | UTF-8, may be empty | Trivia only: two wrong answers split by `|`, so the unit can show three tiles. Added to the field list in the task; see open question 2. |
+| `extra` | UTF-8, may be empty | Trivia only: two wrong answers split by `|`, so the unit can show three tiles. Added to the field list in the task; see open question 2 (answered: it stays). |
 | `heard` | u32 | Not in the shelf body. The shelf is never rewritten in place. `heard` is the count of the telling (a running counter, 0 means never). It lives in the heard list (section 5). Stamps are counters, not dates, because the unit may not know the date (`offline-audit.md` row 12). The host maps counters to dates when it syncs. |
 
 Length caps, so one record fits the unit's screen and the shelf budget: joke 160 bytes, riddle question 140, trivia question 140, story 1,600. The text may carry accents. The screen folds them to plain ASCII where the font lacks them (`docs/user/features.md`, "Language packs"), the same rule as every other screen string.
@@ -99,7 +99,7 @@ The host keeps the master library as plain files in its data folder, one JSON Li
 3. Facts (trivia): the model answers the question without seeing the answer. A mismatch drops the record. Questions about "the latest", "current" or dates after the model's cutoff are dropped.
 4. Riddle: one clear answer. The model is asked for a second possible answer; if it gives one, drop it.
 
-This filter curates content the host stores to tell later. It is not a chat filter and does not change the own-LLM brain's rule of decision 13 (the brain adds none). Open question 1 asks whether the owner wants that stated in the safety doc.
+This filter curates content the host stores to tell later. It is not a chat filter and does not change the own-LLM brain's rule of decision 13 (the brain adds none). The user docs state this (decision 35).
 
 **Dedupe.** Normalize (lowercase, fold accents, drop punctuation, collapse space). Drop on exact hash. Then drop near duplicates inside a kind and language: token set similarity of 0.7 or more, or the same answer with a similar question (riddles and trivia). Compare against the library, the shelf, the heard history and the rejected list. Keep a dedupe report (count dropped and why) for the dashboard.
 
@@ -141,14 +141,14 @@ The shelf and record format go into the shared spec as `schema/pantry-record.jso
 4. Generator, filter, dedupe, dashboard page. (app)
 5. Telling screens and mumble. (firmware, `model-games.md`)
 
-## Open questions
+## Open questions (answered, decision 35)
 
-1. Does the owner want the curation filter named in the safety doc, given decision 13 and open decision 1 in `docs/plan/OPEN-DECISIONS.md`?
-2. Is `extra` (two wrong answers) acceptable as a field beyond the seven in the task? Without it, trivia offline is reveal only, no tiles.
-3. Heard list in the asset store as a unit-written item (chosen) or in the key-value partition?
-4. Ratings: `kid` and `adult` only, or add `teen`? A teen robot needs Home, so I left it out.
-5. Quiet window default 02:00 to 05:00: confirm, or use the owner's quiet hours as set.
-6. Decision 24 names a "code-made mumble". No design for it exists in the repo (searched `docs/`, `host/`, `firmware/`). `model-games.md` states what the pantry needs from it.
+1. The curation filter is named in the user docs (`docs/user/privacy.md`, `docs/user/jokes-and-games-content.md`): it curates stored content, never chat. Yes.
+2. `extra` stays: trivia offline shows three tiles. Yes.
+3. The heard list is a unit-written item in the asset store. Built that way (`self.pantry.heard`).
+4. Ratings are `kid` and `adult` only. A teen robot needs Home. Built that way (`record.RATINGS`).
+5. The refill window is the owner's quiet hours when set, else 02:00 to 05:00. Built: `_pantry_window` in `host/maipai_body/app.py` reads the quiet-hours schedule, and `sync.in_window` takes fractional hours.
+6. The code-made mumble exists: see [offline-mumble.md](offline-mumble.md) (UX16 core and SF87). `model-games.md` states what the pantry needs from it.
 
 ## Host build status (app track, 2026-11-18)
 

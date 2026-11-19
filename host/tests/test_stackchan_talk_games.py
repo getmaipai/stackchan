@@ -22,6 +22,7 @@ START_EN = {
     "trivia": ["let's play trivia", "play trivia", "trivia", "quiz me", "I want to play a trivia game"],
     "word_chain": ["word chain", "play word chain", "let's play the word chain game", "I want to play word chain"],
     "would_you_rather": ["would you rather", "let's play would you rather", "play would you rather", "ask me a would you rather question"],
+    "jokes": ["play jokes", "jokes", "joke time", "let's play the joke game"],
     "bedtime_story": ["tell me a bedtime story", "tell me a story", "read me a story", "story time", "can you tell me a story before bed", "I want a bedtime story"],
 }
 START_ES = {
@@ -30,6 +31,7 @@ START_ES = {
     "trivia": ["juguemos a la trivia", "jugar a trivia", "jugar al trivial"],
     "word_chain": ["cadena de palabras", "juguemos a las palabras encadenadas", "jugar a la cadena de palabras"],
     "would_you_rather": ["qué prefieres", "juguemos a qué prefieres", "pregúntame qué prefieres"],
+    "jokes": ["juguemos a los chistes", "chistes", "hora de chistes"],
     "bedtime_story": ["cuéntame un cuento", "cuéntame un cuento para dormir", "léeme un cuento", "hora del cuento"],
 }
 

@@ -74,20 +74,23 @@ Say one of these to start:
 
 - "Play twenty questions" (you think of something; the robot asks yes or no questions)
 - "Tell me a riddle"
+- "Play jokes"
 - "Let's play trivia"
 - "Word chain"
 - "Would you rather"
 - "Tell me a bedtime story"
 
-Spanish works too: "juguemos a veinte preguntas", "dime una adivinanza", "juguemos a la trivia", "cadena de palabras", "qué prefieres", "cuéntame un cuento".
+Spanish works too: "juguemos a veinte preguntas", "dime una adivinanza", "juguemos a los chistes", "juguemos a la trivia", "cadena de palabras", "qué prefieres", "cuéntame un cuento".
 
 The robot starts with a fixed line, with no model needed. After that the model plays and reacts with faces and effects when you are right or wrong. A game ends when you say "stop the game", "I'm done" or "that's enough", when it reaches its round limit, or after five quiet minutes. Then chat is normal again. The games follow the same child and content rules as ordinary chat. The settings page lists them under **Talk games** on the Games page.
+
+If the model stops answering in the middle of jokes, riddles or trivia and you turned on the [jokes and games content](jokes-and-games-content.md) package, the robot keeps playing from its saved library.
 
 ## Pet mood
 
 The robot has a mood that depends on how you care for it. Petting, talking and playing lift it. Being ignored for days lowers it.
 The mood is saved across days and shows in the face and the idle moves. It never affects what the robot can do for you.
-Turn it off with `pet_mood = false`.
+It lives on the robot and works with the host off. There is no switch for it on the host; it is a build option when you [build from source](../dev/build-from-source.md).
 
 ![Three mood faces: happy, bored and lonely.](../images/mood-faces.svg)
 

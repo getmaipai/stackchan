@@ -20,6 +20,8 @@ Listed here as code is vendored or patched. Each entry names the upstream, its l
 
 ## Host dependencies
 
+The packages these pull in are listed, with the license each declares, in [docs/dev/third-party-indirect.md](docs/dev/third-party-indirect.md). A few of them (the Reachy simulator and its GStreamer parts) arrive only through a development dependency and are not part of a release export; their licenses are marked "to confirm upstream" in that table until checked.
+
 Installed by pip from `host/pyproject.toml` (exact versions in `host/uv.lock`); none is vendored here.
 
 | Package | License | Used for |

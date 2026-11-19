@@ -265,3 +265,15 @@ def test_the_tool_link_reads_status_and_the_heard_list_in_batches_and_sends_deni
     assert calls[-1][1]["ids"] == ",".join(sorted([JOKE.id_hex[:8], RIDDLE.id_hex[:8]]))
     assert link.install_shelf("u", "joke", "en", b"x") is False, "no asset transport yet: the old shelf stays"
     assert ToolUnitLink(call, lambda u, k, l, b: True).install_shelf("u", "joke", "en", b"x") is True
+
+
+def test_refill_window_takes_fractional_hours_and_crosses_midnight():
+    import time
+
+    from maipai_packages.pantry.sync import in_window
+
+    def at(h, m):
+        return time.mktime((2026, 11, 18, h, m, 0, 0, 0, -1))
+
+    assert in_window(at(21, 45), 21.5, 7.0) and in_window(at(3, 0), 21.5, 7.0) and not in_window(at(21, 15), 21.5, 7.0)
+    assert in_window(at(2, 30), 2, 5) and not in_window(at(5, 0), 2, 5)

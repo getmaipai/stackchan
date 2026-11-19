@@ -20,6 +20,7 @@ When music plays near the robot, it finds the beat and dances to it in steps: ey
 
 - It will not dance to speech, and it pauses when the music pauses.
 - It does nothing while the robot is muted or in full quiet.
+- With several robots on one host, each robot listens and dances on its own, and muting one silences only that one.
 - It moves only as much as the movement limits below allow.
 - Away from your hub, the robot still sways on its own.
 

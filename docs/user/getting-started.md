@@ -58,6 +58,8 @@ The first time it starts, the robot asks three things on its own screen: your la
 
 *First start, step 3: How should I think? Pair with MaiPai Home, or Use my own model. Both stay in your home.*
 
+Step 3 has two routes: **Hosted by M5Stack/Xiaozhi**, where your voice goes to their servers outside your home, and **Custom**, where it stays where you point it (MaiPai Home, your own servers, or a small model this host sets up). The hosted route is planned and cannot be picked yet. You can change the route later on the [Brain page](choose-a-brain.md).
+
 ## If the robot cannot join Wi-Fi
 
 It opens a setup page. Connect your phone to the network named `stackchan-` and four letters or digits. The robot's screen shows a six-digit setup code. Open the page, pick your Wi-Fi, enter the password, the host address and the code. The page stays open after, so you can add more networks.

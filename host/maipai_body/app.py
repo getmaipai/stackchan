@@ -2044,6 +2044,7 @@ def _start_stackchan_night(
     from maipai_body.presence.sleep_auto import QuietHours, luma_reader
 
     quiet = QuietHours()
+    voice.quiet_hours = quiet  # the pantry refills inside the owner's quiet hours when they are set
     watch = ["identify"]  # the default until the hub says otherwise
 
     class _StreamCamera:
@@ -4918,6 +4919,15 @@ def _start_wake_word_maker(backend) -> None:
     backend.wakeword = WakeWordMaker(WakeStore(folder))
 
 
+def _pantry_window(voice) -> tuple[float, float]:
+    """The refill window: the owner's quiet hours when they are set, else 02:00 to 05:00 (decision 35)."""
+    try:
+        start, end = voice.quiet_hours.minutes()
+    except Exception:
+        start = end = -1
+    return (start / 60, end / 60) if start >= 0 else (2, 5)
+
+
 def _leave_hosted_units(voice) -> int:
     """The person left the hosted route on the Brain page: each connected unit that has the tool erases its vendor link."""
     from maipai_body import brain_route
@@ -4985,7 +4995,7 @@ def _start_pantry(backend, voice=None) -> None:
             for unit in list(voice._sessions):
                 try:
                     idle = voice._turns_running == 0 and unit not in voice._speaking
-                    run_unit(backend.pantry.library, link, unit, UnitState(idle=idle), nightly_done=done_tonight)
+                    run_unit(backend.pantry.library, link, unit, UnitState(idle=idle), window=_pantry_window(voice), nightly_done=done_tonight)
                 except Exception:
                     logger.debug("pantry sync of one unit failed", exc_info=True)
 

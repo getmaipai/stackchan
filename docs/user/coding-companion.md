@@ -10,7 +10,8 @@ Off by default. The robot sits on your desk and shows what a coding agent on you
 - Blue ring light: the agent is working.
 - Amber ring light and one soft tone: the agent needs you. The tone plays at most once a minute.
 - Green ring light: the agent finished.
-- Red is never used for this: red means an alarm or a low battery.
+- Red is never used for this: red is kept for the security alert and the charging light.
+- These colors are a short look the agent sets. Blue, green and amber also mean other things on the [light bars page](lights-and-sounds.md), and the agent look never overrides an alert, a timer or an update.
 - The screen shows only "Working", "Needs you" or "Finished". If you set `show_request_text = true`, it may show a short cleaned version of the request, and never one that looks like a password, key, file path or web address.
 
 Mute, sleep, quiet hours and a remote cue all win: when one holds, the robot shows nothing.

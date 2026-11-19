@@ -10,7 +10,7 @@ from maipai_packages.coding_companion.clean import clean_project, clean_text
 
 STATES = ("working", "waiting", "finished")
 KINDS = ("permission", "question", "finished", "")
-# State -> the ring light color. No red: red is for the alarm and a low battery.
+# State -> the ring light color. No red: red is kept for the security alert and the charging light.
 LIGHT = {"working": "blue", "waiting": "amber", "finished": "green"}
 LIGHT_SECONDS = 20
 STALE_WORKING_S = 30 * 60  # a "working" state nobody refreshed for this long is not shown as working

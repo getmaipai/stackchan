@@ -16,9 +16,19 @@ The host asks your model for batches of twenty and keeps only what passes its ch
 - **Riddles.** A riddle with a second good answer is dropped.
 - **Copies.** The same line twice, or the same idea in other words, is kept once.
 
+The checks above apply to what the host stores to tell later. They are not a filter on your chats: what your model says in a conversation is between you and your model.
+
+## When it refills
+
+During your quiet hours if you set them, otherwise between 2:00 and 5:00 at night, and at once when a shelf runs low. It never refills while the robot is busy.
+
 ## See and change what it keeps
 
 Open the settings page, **Games and fun**, and find **Jokes and games content**. Each row has **Delete** (it may come back later) and **Never again** (it never comes back, and the robot skips it at once). **Refill now** asks your model for more of the kind and language you picked. The card shows how many model calls were used today against your daily cap.
+
+## Games without a model
+
+Say "play jokes", "tell me a riddle" or "let's play trivia". If your model stops answering in the middle of one of these games, the robot keeps playing from the library: it asks the next riddle or trivia question, checks your answer, keeps the score and never tells the same one twice. When the library runs out it says so and the game ends. Twenty questions, word chain, would you rather and bedtime stories need a model, so they stop with the usual "I cannot think right now" line.
 
 ## Limits
 

@@ -65,3 +65,20 @@ def test_turn_hook_plays_a_riddle_turn_when_the_model_is_out_of_reach(tmp_path):
     assert play("piano") is True and said[-1].startswith("Right") and games.state("unit-a").score == 1
     games.run(TalkCommand("start", "twenty_questions", "en"), "unit-a")
     assert play("a dog") is False  # no library half: the usual offline line follows
+
+
+def test_jokes_one_per_turn_never_twice_and_run_out_politely(tmp_path):
+    talk, _ = make(tmp_path, [Record("joke", "en", "kid", "Why did the egg laugh? It was a yolk.", ""), Record("joke", "en", "kid", "What do you call a bear with no teeth? A gummy bear.", "")])
+    first = talk.line("a", "jokes", "en", "go")[0]
+    second = talk.line("a", "jokes", "en", "another")[0]
+    assert first != second and "?" in first and "?" in second
+    assert talk.line("a", "jokes", "en", "another")[0].startswith("I do not have any more")
+
+
+def test_play_jokes_starts_the_jokes_game_and_a_bare_joke_ask_stays_chat():
+    from maipai_body.bodies.stackchan.talk_games import parse
+
+    for said in ("play jokes", "jokes", "joke time", "juguemos a los chistes"):
+        command = parse(said)
+        assert command is not None and command.game == "jokes", said
+    assert parse("tell me a joke") is None

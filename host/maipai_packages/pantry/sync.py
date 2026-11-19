@@ -40,12 +40,14 @@ def _hour(now: float) -> int:
     return time.localtime(now).tm_hour
 
 
-def in_window(now: float, start: int = 2, end: int = 5) -> bool:
-    hour = _hour(now)
+def in_window(now: float, start: float = 2, end: float = 5) -> bool:
+    """True inside the refill window; the bounds are hours of the local day and may carry a fraction (21.5 is 21:30)."""
+    local = time.localtime(now)
+    hour = local.tm_hour + local.tm_min / 60
     return start <= hour < end if start < end else hour >= start or hour < end
 
 
-def plan(shelves: list[dict], state: UnitState, now: float, *, window: tuple[int, int] = (2, 5), nightly_done: set[tuple[str, str]] = frozenset()) -> list[tuple[str, str, str]]:
+def plan(shelves: list[dict], state: UnitState, now: float, *, window: tuple[float, float] = (2, 5), nightly_done: set[tuple[str, str]] = frozenset()) -> list[tuple[str, str, str]]:
     """The shelves to refill now, at most three, as (kind, language, why). Nightly in the quiet window, or at once when stock is low; never while busy."""
     if not (state.idle and not state.in_game and not state.muted_for_other_than_night and state.on_power_or_over_half):
         return []
@@ -89,7 +91,7 @@ def build_shelf(library: Library, unit: str, kind: str, language: str, free_byte
     return None
 
 
-def run_unit(library: Library, link: UnitLink, unit: str, state: UnitState, *, now: float | None = None, window: tuple[int, int] = (2, 5), nightly_done: set[tuple[str, str]] | None = None) -> dict:
+def run_unit(library: Library, link: UnitLink, unit: str, state: UnitState, *, now: float | None = None, window: tuple[float, float] = (2, 5), nightly_done: set[tuple[str, str]] | None = None) -> dict:
     """One sync pass for one unit: take its heard list, send denials, refill what the rule says. Returns what happened, for the log and the dashboard."""
     now = time.time() if now is None else now
     result = {"heard": 0, "swapped": [], "skipped": ""}

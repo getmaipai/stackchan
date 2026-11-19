@@ -120,6 +120,18 @@ TALK_GAMES: tuple[TalkGame, ...] = (
         8,
     ),
     TalkGame(
+        "jokes",
+        {"en": "Jokes", "es": "Chistes"},
+        {"en": "Say: play jokes", "es": "Di: juguemos a los chistes"},
+        {
+            "en": "Okay, jokes! Say go and I will tell the first one.",
+            "es": "Vale, chistes. Di ya y te cuento el primero.",
+        },
+        "Game: jokes. Each turn tell one short, kind, original joke in the person's language, then wait. If they ask for another, tell a different one; never repeat a joke told in this game. "
+        "Keep every joke gentle and fit for children. End the reply with a cheer.",
+        5,
+    ),
+    TalkGame(
         "bedtime_story",
         {"en": "Bedtime story", "es": "Cuento para dormir"},
         {"en": "Say: tell me a bedtime story", "es": "Di: cuéntame un cuento para dormir"},
@@ -208,6 +220,8 @@ _SPEECH = (
     ("word_chain", r"(?:(?:jugar|juguemos|juega|jugamos|empieza|empezar|pon|hagamos) )?(?:a |al |el juego de |las |la )*(?:cadena de palabras|palabras encadenadas)(?: conmigo)?", "es"),
     ("would_you_rather", r"(?:(?:play|start|do|have|try|ask me|give me) )?(?:a |the |some )?(?:game of )?would you rather(?: game| questions?)?(?: with me)?", "en"),
     ("would_you_rather", r"(?:(?:jugar|juguemos|juega|jugamos|preguntame|hazme|dime|pon|hagamos) )?(?:a |al |el juego de |me )*(?:que )?(?:prefieres|preferirias)(?: juego)?", "es"),
+    ("jokes", r"(?:play )?(?:a |the |some )?(?:jokes|joke game|joke time)(?: game)?(?: with me)?", "en"),  # a bare "tell me a joke" stays chat: the model tells one
+    ("jokes", r"(?:(?:jugar|juguemos|juega|jugamos) (?:a )?(?:los )?)?(?:chistes|juego de chistes|hora de chistes)", "es"),
     ("bedtime_story", r"(?:(?:tell|read|give|say)(?: me| us)? |play )?(?:a |another |one |some )?(?:(?:bedtime|night time|nighttime|good night|sleepy) )?(?:story|stories)(?: time)?(?: before bed| for bed| to fall asleep| at bedtime)?|story time", "en"),
     ("bedtime_story", r"(?:(?:cuentame|cuenta|dime|lee|leeme|ponme) )?(?:me )?(?:un |otro )?(?:cuento|historia)(?: para dormir| de buenas noches| antes de dormir| de dormir)?|hora del cuento", "es"),
 )

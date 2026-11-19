@@ -94,6 +94,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - [StackChan voice path: what to measure (2026-10-20)](stackchan-voice-measurements-2026-10-20.md)
 - [StackChan wireless firmware update (design, 2026-11-14)](stackchan-wireless-update-2026-11-14.md)
 - [Suite speed (2026-11-18)](test-speed.md)
+- [Third-party packages pulled in by the host](third-party-indirect.md)
 - [Unit choices audit (decision 20 of 2026-11-18)](unit-choices-audit.md)
 - [Every check that rejects a bad update image (2026-11-18)](update-checks.md)
 - [Flasher and updater](updater.md)

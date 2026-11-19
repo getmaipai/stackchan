@@ -1,5 +1,5 @@
 # ruff: noqa: E501
-"""Talk games with no model (docs/design/model-games.md, state S1): riddles and trivia played from the pantry library.
+"""Talk games with no model (docs/design/model-games.md, state S1): jokes, riddles and trivia played from the pantry library.
 
 When the model cannot be reached in the middle of a riddle or trivia game, the host plays the next turn from the library with fixed lines, so the game goes on.
 The host keeps the score. Twenty questions, word chain and the other model games have no library half and are left to the usual offline line. Only ``kid``
@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from maipai_packages.pantry.library import Library
 from maipai_packages.pantry.record import Record, normalize
 
-GAME_KIND = {"riddles": "riddle", "trivia": "trivia"}
+GAME_KIND = {"riddles": "riddle", "trivia": "trivia", "jokes": "joke"}
 
 LINES = {
     "en": {
@@ -97,6 +97,8 @@ class PantryTalk:
                 record = self._pick(unit, game_id, lang)
                 if record is None:
                     return words["none"], False
+                if game_id == "jokes":
+                    return record.text, False  # one joke per turn, nothing to answer
                 if game_id == "trivia":
                     wrong = record.extra.split("|")
                     choices = [record.answer, *wrong]

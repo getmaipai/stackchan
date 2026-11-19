@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 902 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 903 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 54 items, 6 measured, 21 estimated, 27 placeholders or not built. 84 of 902 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 54 items, 6 measured, 21 estimated, 27 placeholders or not built. 84 of 903 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 28 | 267 | 8 | 51 | 375 | 64 |
-| Maker and tech | 0 | 0 | 72 | 395 | 60 | 0 | 527 | 69 |
+| Maker and tech | 0 | 0 | 73 | 395 | 60 | 0 | 528 | 69 |
 
 ## Everyday user
 
@@ -899,7 +899,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: pantry** | Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the owner's model, filters, dedupes and keeps, and the unit keeps a small shelf of. | proven virtual | 70 | not declared | `host/maipai_packages/pantry` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (87)
+### Scripts and tools (88)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -989,6 +989,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: test-all.sh** | the complete host suite, with the virtual unit renderers built first when a firmware tree is on this Mac. | proven virtual | 70 | not declared | `scripts/test-all.sh` | file exists, a test names it | doc missing |
 | **Script: test-fast.sh** | the host suite without the slow tests (the end to end on the virtual unit and the sanitizer fuzz, marked `slow`), in 4 pytest processes at once, for quick feedback while | built | 40 | not declared | `scripts/test-fast.sh` | file exists | doc missing |
 | **Script: test-sharded.py** | Run the host suite in N pytest processes at once, one group of test files each (no plugin needed). | built | 40 | not declared | `scripts/test-sharded.py` | file exists | doc missing |
+| **Script: third-party-indirect.py** | write docs/dev/third-party-indirect.md, the license of every package in host/uv.lock that host/pyproject.toml does not name itself. | built | 40 | not declared | `scripts/third-party-indirect.py` | file exists | doc missing |
 | **Script: translation-pack.py** | The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and correct, and the importer that takes the corrections back with checks. | proven virtual | 70 | not declared | `scripts/translation-pack.py` | file exists, a test names it | doc missing |
 
 ### Tool protocol (36)
@@ -1078,7 +1079,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 16 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 17 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -1116,6 +1117,7 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 32 | **Sixteen shapes a part** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 | 33 | **Score-only games never say "You won!"** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 | 34 | **The Brain choice offers two equal routes** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 35 | **Pantry open questions answered (coordinator defaults, 2026-11-18)** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 
 ## Scrapped (9)
 

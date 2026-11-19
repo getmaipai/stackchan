@@ -2,9 +2,9 @@
 
 > Independent project. Not affiliated with or endorsed by M5Stack or the original StackChan creators.
 
-## 1.0.0
+## 1.0.0 (not published yet)
 
-The first release of MaiPai for StackChan. Everything on the [Features](features.md) page is in this release unless it is marked Needs MaiPai Home.
+The first release of MaiPai for StackChan, still being finished. Everything on the [Features](features.md) page is in this release unless it is marked Needs MaiPai Home.
 
 - Private by design: the robot talks only to your host or your MaiPai Home hub.
 - Voice with a wake word, follow-up questions and a persona text. Saying "stop" quiets it while it talks; interrupting with other words is planned.
@@ -38,7 +38,7 @@ MaiPai for StackChan targets the StackChan robot with the CoreS3 controller. If 
 
 ## Earlier versions
 
-There are none. There is one first release, 1.0.0, and no earlier tags.
+There are none. 1.0.0 will be the first release, and there are no earlier tags.
 
 ## Still need help?
 
