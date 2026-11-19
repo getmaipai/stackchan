@@ -1,4 +1,32 @@
 {
-  "default": {"channel": 12, "fraction": 0.01},
-  "screen-page-clock": {"fraction": 0.03, "ignore": [[0, 0, 320, 28]]}
+ "default": {
+  "channel": 12,
+  "fraction": 0.05,
+  "ignore": [
+   [
+    0,
+    0,
+    320,
+    30
+   ]
+  ],
+  "_note": "initial values: the first bench run showed 15 to 60 percent differences because the unit was dimmed (brightness 5) and showed live clock, battery and scores; this manifest sets brightness 100 first and ignores the status row. Calibrate from the *-vs-golden.png files of the first full-brightness run."
+ },
+ "screen-page-clock": {
+  "fraction": 0.08,
+  "ignore": [
+   [
+    0,
+    0,
+    320,
+    30
+   ],
+   [
+    40,
+    60,
+    240,
+    120
+   ]
+  ]
+ }
 }

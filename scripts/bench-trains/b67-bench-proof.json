@@ -1,0 +1,248 @@
+{
+ "name": "b67-bench-proof",
+ "build_dir": "~/esp/stackchan-rebuild/b67/firmware/build-bench",
+ "soak_s": 630,
+ "settle_s": 2,
+ "heap_interval_s": 20,
+ "tolerance_file": "host/tests/golden/tolerance.json",
+ "checks": [
+  {
+   "name": "privacy-silent",
+   "tool": "self.privacy.get",
+   "expect": {
+    "muted": {
+     "min": 1
+    }
+   }
+  },
+  {
+   "name": "asset-use",
+   "tool": "self.bench.asset_use",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-info",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "sound-info-volume0",
+   "tool": "self.audio.sound_info",
+   "expect": {
+    "volume_now": {
+     "max": 10
+    }
+   }
+  },
+  {
+   "name": "game-refused-in-quiet",
+   "tool": "self.game.start",
+   "args": {
+    "name": "connect4"
+   },
+   "expect": {
+    "ok": false
+   }
+  },
+  {
+   "name": "banner-degraded",
+   "tool": "self.banner.set",
+   "args": {
+    "text": "Camera needs you",
+    "kind": "degraded"
+   },
+   "expect": {
+    "ok": true,
+    "shown": true
+   },
+   "post": [
+    {
+     "tool": "self.banner.set",
+     "args": {
+      "text": "",
+      "kind": "degraded"
+     }
+    }
+   ]
+  },
+  {
+   "name": "screen-page-clock",
+   "pre": [
+    {
+     "tool": "self.screen.set_brightness",
+     "args": {
+      "brightness": 100
+     },
+     "optional": true
+    },
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "clock"
+     }
+    }
+   ],
+   "snapshot": "screen-page-clock",
+   "settle_s": 1.2,
+   "post": [
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "face"
+     }
+    }
+   ]
+  },
+  {
+   "name": "screen-page-games",
+   "pre": [
+    {
+     "tool": "self.screen.set_brightness",
+     "args": {
+      "brightness": 100
+     },
+     "optional": true
+    },
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "games"
+     }
+    }
+   ],
+   "snapshot": "screen-page-games",
+   "settle_s": 1.2,
+   "post": [
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "face"
+     }
+    }
+   ]
+  },
+  {
+   "name": "screen-page-actions",
+   "pre": [
+    {
+     "tool": "self.screen.set_brightness",
+     "args": {
+      "brightness": 100
+     },
+     "optional": true
+    },
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "actions"
+     }
+    }
+   ],
+   "snapshot": "screen-page-actions",
+   "settle_s": 1.2,
+   "post": [
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "face"
+     }
+    }
+   ]
+  },
+  {
+   "name": "screen-control-sheet",
+   "pre": [
+    {
+     "tool": "self.screen.set_brightness",
+     "args": {
+      "brightness": 100
+     },
+     "optional": true
+    },
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "sheet"
+     }
+    }
+   ],
+   "snapshot": "screen-control-sheet",
+   "settle_s": 1.2,
+   "post": [
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "face"
+     }
+    }
+   ]
+  },
+  {
+   "name": "screen-settings-general",
+   "pre": [
+    {
+     "tool": "self.screen.set_brightness",
+     "args": {
+      "brightness": 100
+     },
+     "optional": true
+    },
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "settings"
+     }
+    }
+   ],
+   "snapshot": "screen-settings-general",
+   "settle_s": 1.2,
+   "post": [
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "face"
+     }
+    }
+   ]
+  },
+  {
+   "name": "more-menu",
+   "pre": [
+    {
+     "tool": "self.screen.set_brightness",
+     "args": {
+      "brightness": 100
+     },
+     "optional": true
+    },
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "more"
+     }
+    }
+   ],
+   "snapshot": "more-menu",
+   "settle_s": 1.2,
+   "post": [
+    {
+     "tool": "self.page.show",
+     "args": {
+      "name": "face"
+     }
+    }
+   ]
+  }
+ ],
+ "person": [
+  "mines long press",
+  "real finger vertical swipes",
+  "hardware button held 3 s (Setup and App Center)",
+  "the amber look of self.banner.set is not drawn yet (screen track)"
+ ],
+ "goldens_ref": "origin/ux/unproven-games"
+}

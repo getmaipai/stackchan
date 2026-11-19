@@ -107,3 +107,29 @@ def test_a_failing_check_does_not_stop_the_train(tmp_path):
     res = bt.run_train(man, FakeUnit(tmp_path), tmp_path / "out", sleep=lambda s: __import__("time").sleep(0.01))
     assert [c["status"] for c in res["checks"]] == ["FAIL", "PASS", "PASS"] and not res["pass"]
     assert json.loads((tmp_path / "out" / "result.json").read_text())["train"] == "t"
+
+
+def test_console_memory_lines_are_read():
+    text = "I (1) SystemInfo: mem internal_free=66707 internal_min=39828 int_big=31744 x\nSystemInfo: mem internal_free=66000 internal_min=39000 int_big=30000\n"
+    assert bt.console_samples(text) == [{"free": 66707, "min": 39828, "big": 31744}, {"free": 66000, "min": 39000, "big": 30000}]
+
+
+def test_an_optional_pre_step_may_fail(tmp_path):
+    class U(FakeUnit):
+        def call(self, name, args=None, wait=30):
+            if name == "self.screen.set_brightness":
+                raise RuntimeError("refused")
+            return super().call(name, args, wait)
+
+    png(tmp_path / "gold.png", 8, 8, lambda x, y: (10, 20, 30))
+    check = {"name": "shot", "snapshot": "gold", "pre": [{"tool": "self.screen.set_brightness", "args": {"brightness": 100}, "optional": True}]}
+    res = bt.run_check(U(tmp_path), check, tmp_path, {}, tmp_path, 0, sleep=lambda s: None)
+    assert res["status"] == "PASS"
+    check["pre"][0]["optional"] = False
+    assert bt.run_check(U(tmp_path), check, tmp_path, {}, tmp_path, 0, sleep=lambda s: None)["status"] == "FAIL"
+
+
+def test_a_mismatch_writes_a_side_by_side(tmp_path):
+    png(tmp_path / "gold.png", 8, 8, lambda x, y: (200, 20, 30))
+    res = bt.run_check(FakeUnit(tmp_path), {"name": "shot", "snapshot": "gold"}, tmp_path, {}, tmp_path, 0, sleep=lambda s: None)
+    assert res["status"] == "FAIL" and (tmp_path / "shot-vs-golden.png").exists()
