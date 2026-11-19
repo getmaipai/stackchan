@@ -17,10 +17,19 @@
 //   hilo CUR NEXT|REVEAL|RESULT 1 right 2 wrong 3 same|STREAK|en or es   the Higher or Lower screen (patch UX21): cards are 0 to 51 (suit * 13 + rank - 1)
 //   reversi MOVES|THINKING|en or es                      the Reversi screen (patch UX22): the person's cells (0 to 63) in order, the unit answering each; THINKING 1 stops before the unit's last answer
 //   reversi board BOARD64|TURN 1 person 2 unit|LAST|LASTPASS|en or es   a hand-made Reversi position ('.' empty, 'P' person, 'U' unit)
+//   battleship SEED|CELLS FIRED AT|en or es    the Battleship-lite screen (patch UX23): the sea of that seed after the shots, in order
+//   pong BX BY VX VY|PY UY|PERSON UNIT|en or es   the Pong screen (patch UX24): the ball (px in the court), the paddles' tops, the points
+//   flyer SEED|STEPS|BIRD Y|SCORE|PHASE 0 play 1 over|en or es   the flyer screen (patch UX25): the course of that seed scrolled STEPS ticks, the bird at BIRD Y (px)
+//   diffbegin / diffend NAME             frame cost: after diffbegin every tick of `advance` and every `play` step is drawn in full and compared with the frame before; diffend prints, for the run,
+//                                        `cost NAME frames N changed_px M bbox_px B bbox_px_max X`: the pixels that changed per frame, and the area of their bounding box (what a flush of only the changed rectangle costs)
+//   play pong TICKS AIM | play flyer SEED TICKS | play battleship SEED SHOTS | play reversi SEED | play hilo SEED GUESSES    drive a game by itself (a fixed, simple policy) one step per frame, for diffbegin
+//   technique NAME N                     (PERF=1) draw one visual technique in a 100 by 100 pixel box N times and print `technique NAME objects O us_per_refresh U flushed_px F` (see docs/plan/games-visual-budget.md)
+//   objcount                             print `objects N labels L`: the LVGL objects on the top layer and how many of them are labels (RAM on the unit)
 //   snap FILE.png
 // Build: see scripts/virtual-unit/build-screens.sh. Placement: host-side development tool; no firmware change. Upstream: none.
 #include <lvgl.h>
 #include <zlib.h>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -56,6 +65,18 @@
 #include "maipai_reversi.h"   /* patch UX22: Reversi */
 #define HAVE_REVERSI 1
 #endif
+#if __has_include("maipai_battleship.h")
+#include "maipai_battleship.h"   /* patch UX23: Battleship-lite */
+#define HAVE_BATTLESHIP 1
+#endif
+#if __has_include("maipai_pong.h")
+#include "maipai_pong.h"   /* patch UX24: Pong */
+#define HAVE_PONG 1
+#endif
+#if __has_include("maipai_flyer.h")
+#include "maipai_flyer.h"   /* patch UX25: Flappy-style flyer */
+#define HAVE_FLYER 1
+#endif
 #if __has_include("maipai_qa.h")
 #include "maipai_qa.h"   /* patch UX17: the question and answer game screens */
 #define HAVE_QA 1
@@ -69,7 +90,8 @@ static uint8_t s_buf[320 * 240 * 2];
 static uint32_t g_now = 1000;
 static std::vector<std::vector<uint8_t>> s_strip;
 static uint32_t tick_cb() { return g_now; }
-static void flush_cb(lv_display_t* d, const lv_area_t*, uint8_t*) { lv_display_flush_ready(d); }
+static long s_flushed_px = 0;   // PERF=1: the pixels the display was asked to flush (partial mode: only the dirty areas)
+static void flush_cb(lv_display_t* d, const lv_area_t* a, uint8_t*) { s_flushed_px += (long)(a->x2 - a->x1 + 1) * (a->y2 - a->y1 + 1); lv_display_flush_ready(d); }
 
 static void write_png(const char* path, const std::vector<uint8_t>& rgb, int w, int h)
 {
@@ -134,6 +156,44 @@ static void c4_land(Grid* g, int owner)
     gan_shake(&g->anim, now_ms());
 }
 
+// ---- frame cost (diffbegin / diffend): how much of the glass changes from one frame to the next ----
+static std::vector<uint16_t> s_prev;
+static bool s_diffing = false, s_have_prev = false;
+static long s_d_frames = 0, s_d_changed = 0, s_d_bbox = 0, s_d_bbox_max = 0, s_d_tiles = 0, s_d_tiles_max = 0;
+
+static void diff_frame()
+{
+    lv_obj_invalidate(lv_screen_active());
+    lv_obj_invalidate(lv_layer_top());
+    lv_refr_now(nullptr);
+    std::vector<uint16_t> now(320 * 240);
+    for (int i = 0; i < 320 * 240; i++) now[i] = (uint16_t)(s_buf[i * 2] | (s_buf[i * 2 + 1] << 8));
+    if (s_have_prev) {
+        int x0 = 999, y0 = 999, x1 = -1, y1 = -1;
+        long changed = 0;
+        bool tile[15][20] = {};   // 16 by 16 pixel tiles that hold a change: the area a flush of several small dirty rectangles costs
+        for (int y = 0; y < 240; y++) for (int x = 0; x < 320; x++) if (now[y * 320 + x] != s_prev[y * 320 + x]) {
+            changed++;
+            tile[y / 16][x / 16] = true;
+            if (x < x0) x0 = x;
+            if (x > x1) x1 = x;
+            if (y < y0) y0 = y;
+            if (y > y1) y1 = y;
+        }
+        const long bbox = changed ? (long)(x1 - x0 + 1) * (y1 - y0 + 1) : 0;
+        long tiles = 0;
+        for (int ty = 0; ty < 15; ty++) for (int tx = 0; tx < 20; tx++) if (tile[ty][tx]) tiles += 256;
+        s_d_tiles += tiles;
+        if (tiles > s_d_tiles_max) s_d_tiles_max = tiles;
+        s_d_frames++;
+        s_d_changed += changed;
+        s_d_bbox += bbox;
+        if (bbox > s_d_bbox_max) s_d_bbox_max = bbox;
+    }
+    s_prev = now;
+    s_have_prev = true;
+}
+
 static void tick(Grid* g)
 {
     gan_ev_t ev[GAN_EV_MAX];
@@ -169,7 +229,7 @@ int main()
     lv_tick_set_cb(tick_cb);
     lv_display_t* d = lv_display_create(320, 240);
     lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);
-    lv_display_set_buffers(d, s_buf, nullptr, sizeof(s_buf), LV_DISPLAY_RENDER_MODE_FULL);
+    lv_display_set_buffers(d, s_buf, nullptr, sizeof(s_buf), getenv("PERF") ? LV_DISPLAY_RENDER_MODE_PARTIAL : LV_DISPLAY_RENDER_MODE_FULL);   // PERF=1: only the dirty areas are drawn and flushed, as on the unit
     lv_display_set_flush_cb(d, flush_cb);
     lv_obj_set_style_bg_color(lv_screen_active(), lv_color_black(), 0);
     static const char* const kWords[] = {"robot", "planet", "garden", "rocket"};
@@ -249,7 +309,7 @@ int main()
             g->flag_mode = !g->flag_mode;
         } else if (c == "advance") {
             int ms; in >> ms;
-            for (int t = 0; t < ms; t += 30) { g_now += 30; tick(g); }
+            for (int t = 0; t < ms; t += 30) { g_now += 30; tick(g); if (s_diffing) diff_frame(); }
         } else if (c == "over") {
 #ifdef HAVE_GAME_OVER
             std::string rest; std::getline(in, rest);
@@ -377,6 +437,178 @@ int main()
 #else
             printf("this firmware tree has no Reversi (patch UX22)\n");
 #endif
+        } else if (c == "battleship") {
+#ifdef HAVE_BATTLESHIP
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 3) f.push_back("");
+            static bs_t bg;
+            bs_init(&bg, (uint32_t)atoi(f[0].c_str()));
+            std::stringstream cs(f[1]); int cell; while (cs >> cell) bs_fire(&bg, cell);
+            bsh::screen(lv_layer_top(), &bg, f[2] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no Battleship-lite (patch UX23)\n");
+#endif
+        } else if (c == "pong") {
+#ifdef HAVE_PONG
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 4) f.push_back("");
+            static pg_t pgm;
+            pg_init(&pgm, 1);
+            int bx = 150, by = 90, vx = 3, vy = 0; std::stringstream bs(f[0]); bs >> bx >> by >> vx >> vy;
+            pgm.bx = bx * 16; pgm.by = by * 16; pgm.vx = vx * 16; pgm.vy = vy * 16;
+            int py = 76, uy = 76; std::stringstream ps(f[1]); ps >> py >> uy; pgm.py = (int16_t)py; pgm.uy = (int16_t)uy;
+            int sp = 0, su = 0; std::stringstream sc(f[2]); sc >> sp >> su; pgm.sp = (uint8_t)sp; pgm.su = (uint8_t)su;
+            pgs::screen(lv_layer_top(), &pgm, f[3] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no Pong (patch UX24)\n");
+#endif
+        } else if (c == "flyer") {
+#ifdef HAVE_FLYER
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 6) f.push_back("");
+            static fl_t fg;
+            fl_init(&fg, (uint32_t)atoi(f[0].c_str()));
+            const int steps = atoi(f[1].c_str()), by = atoi(f[2].c_str());
+            for (int i = 0; i < steps; i++) { fg.y = by * 16; fg.vy = 0; fl_step(&fg); fg.phase = FL_PLAY; }
+            fg.y = by * 16; fg.vy = 0; fg.score = (uint16_t)atoi(f[3].c_str()); fg.phase = (uint8_t)(atoi(f[4].c_str()) ? FL_OVER : FL_PLAY);
+            flys::screen(lv_layer_top(), &fg, f[5] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no flyer (patch UX25)\n");
+#endif
+        } else if (c == "technique") {
+            std::string name; int n = 200; in >> name >> n;
+            lv_obj_t* box = lv_obj_create(lv_layer_top());
+            lv_obj_remove_style_all(box);
+            lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_pos(box, 110, 70);
+            lv_obj_set_size(box, 100, 100);
+            lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
+            lv_obj_set_style_bg_color(box, lv_color_hex(0x2C3E7A), 0);
+            int objects = 1;
+            if (name == "radius") lv_obj_set_style_radius(box, 14, 0);
+            else if (name == "circle") lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
+            else if (name == "border") { lv_obj_set_style_radius(box, 14, 0); lv_obj_set_style_border_width(box, 3, 0); lv_obj_set_style_border_color(box, lv_color_hex(0x6A86D8), 0); }
+            else if (name == "gradient") { lv_obj_set_style_radius(box, 14, 0); lv_obj_set_style_bg_grad_color(box, lv_color_hex(0x10141C), 0); lv_obj_set_style_bg_grad_dir(box, LV_GRAD_DIR_VER, 0); }
+            else if (name == "shadow") { lv_obj_set_style_radius(box, 14, 0); lv_obj_set_style_shadow_width(box, 14, 0); lv_obj_set_style_shadow_offset_y(box, 5, 0); lv_obj_set_style_shadow_color(box, lv_color_black(), 0); lv_obj_set_style_shadow_opa(box, LV_OPA_60, 0); }
+            else if (name == "shadow-small") { lv_obj_set_style_radius(box, 14, 0); lv_obj_set_style_shadow_width(box, 6, 0); lv_obj_set_style_shadow_offset_y(box, 2, 0); lv_obj_set_style_shadow_color(box, lv_color_black(), 0); lv_obj_set_style_shadow_opa(box, LV_OPA_60, 0); }
+            else if (name == "alpha") { lv_obj_set_style_radius(box, 14, 0); lv_obj_set_style_bg_opa(box, LV_OPA_50, 0); }
+            else if (name == "outline") { lv_obj_set_style_radius(box, 14, 0); lv_obj_set_style_outline_width(box, 4, 0); lv_obj_set_style_outline_color(box, lv_color_hex(0xF2B24A), 0); }
+            else if (name == "highlight") {   // a soft highlight: a pale rounded strip over the top half (a second object)
+                lv_obj_set_style_radius(box, 14, 0);
+                lv_obj_t* h = lv_obj_create(box); lv_obj_remove_style_all(h); lv_obj_set_pos(h, 6, 4); lv_obj_set_size(h, 88, 26); lv_obj_set_style_radius(h, 10, 0);
+                lv_obj_set_style_bg_opa(h, LV_OPA_20, 0); lv_obj_set_style_bg_color(h, lv_color_white(), 0); objects++;
+            }
+            else if (name == "particles8" || name == "particles24") {   // small discs spread over the box, one object each
+                const int k = name == "particles8" ? 8 : 24;
+                lv_obj_set_style_bg_opa(box, LV_OPA_TRANSP, 0);
+                for (int i = 0; i < k; i++) { lv_obj_t* p = lv_obj_create(box); lv_obj_remove_style_all(p); lv_obj_set_size(p, 8, 8); lv_obj_set_pos(p, 4 + (i * 37) % 84, 4 + (i * 53) % 84); lv_obj_set_style_radius(p, LV_RADIUS_CIRCLE, 0); lv_obj_set_style_bg_opa(p, LV_OPA_COVER, 0); lv_obj_set_style_bg_color(p, lv_color_hex(0xF2B24A), 0); objects++; }
+            }
+            else if (name == "label") { lv_obj_t* l = lv_label_create(box); lv_label_set_text(l, "Higher"); lv_obj_set_style_text_font(l, &lv_font_montserrat_20, 0); lv_obj_set_style_text_color(l, lv_color_white(), 0); lv_obj_center(l); objects++; }
+            else if (name == "label-scaled") { lv_obj_t* l = lv_label_create(box); lv_label_set_text(l, "K"); lv_obj_set_style_text_font(l, &lv_font_montserrat_20, 0); lv_obj_set_style_text_color(l, lv_color_white(), 0); lv_obj_set_style_transform_scale(l, 512, 0); lv_obj_center(l); objects++; }
+            else if (name == "rotate") { lv_obj_set_style_radius(box, 14, 0); lv_obj_set_size(box, 70, 70); lv_obj_set_style_transform_rotation(box, 300, 0); }
+            else if (name == "squash") { lv_obj_set_style_radius(box, 14, 0); lv_obj_set_style_transform_scale_x(box, 300, 0); lv_obj_set_style_transform_scale_y(box, 200, 0); }
+            else if (name == "image-mask") { lv_obj_set_style_radius(box, 14, 0); lv_obj_set_style_clip_corner(box, true, 0); }
+            lv_refr_now(nullptr);
+            s_flushed_px = 0;
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < n; i++) { lv_obj_invalidate(box); lv_refr_now(nullptr); }
+            const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / n;
+            printf("technique %s objects %d us_per_refresh %.1f flushed_px %ld\n", name.c_str(), objects, us, s_flushed_px / n);
+            fflush(stdout);
+            lv_obj_delete(box);
+        } else if (c == "objcount") {
+            int objs = 0, labels = 0;
+            std::vector<lv_obj_t*> stack{lv_layer_top()};
+            while (!stack.empty()) {
+                lv_obj_t* o = stack.back(); stack.pop_back();
+                const uint32_t n = lv_obj_get_child_count(o);
+                for (uint32_t i = 0; i < n; i++) { lv_obj_t* ch = lv_obj_get_child(o, (int32_t)i); objs++; if (lv_obj_check_type(ch, &lv_label_class)) labels++; stack.push_back(ch); }
+            }
+            printf("objects %d labels %d\n", objs, labels);
+            fflush(stdout);
+        } else if (c == "diffbegin") {
+            s_diffing = true; s_have_prev = false; s_d_frames = s_d_changed = s_d_bbox = s_d_bbox_max = s_d_tiles = s_d_tiles_max = 0;
+            diff_frame();   // the first frame is the reference
+        } else if (c == "diffend") {
+            std::string name; in >> name;
+            const long n = s_d_frames ? s_d_frames : 1;
+            printf("cost %s frames %ld changed_px %ld bbox_px %ld bbox_px_max %ld tile_px %ld tile_px_max %ld\n", name.c_str(), s_d_frames, s_d_changed / n, s_d_bbox / n, s_d_bbox_max, s_d_tiles / n, s_d_tiles_max);
+            fflush(stdout);
+            s_diffing = false;
+        } else if (c == "play") {
+            std::string what; in >> what;
+            lv_obj_t* cur = nullptr;
+            auto show = [&](lv_obj_t* o) { if (cur) lv_obj_delete(cur); cur = o; diff_frame(); };
+#ifdef HAVE_PONG
+            if (what == "pong") {
+                int ticks, aim; in >> ticks >> aim;
+                static pg_t pgp; pg_init(&pgp, 3);
+                show(pgs::screen(lv_layer_top(), &pgp, false));
+                for (int t = 0; t < ticks && pgp.phase == PG_PLAY; t++) { pg_drag(&pgp, pg_ball_cy(&pgp) + (pgp.vx < 0 ? aim : 0)); pg_step(&pgp); show(pgs::screen(lv_layer_top(), &pgp, false)); }
+            }
+#endif
+#ifdef HAVE_FLYER
+            if (what == "flyer") {
+                int seed, ticks; in >> seed >> ticks;
+                static fl_t flp; fl_init(&flp, (uint32_t)seed);
+                show(flys::screen(lv_layer_top(), &flp, false));
+                for (int t = 0; t < ticks && flp.phase == FL_PLAY; t++) {
+                    int next = -1;
+                    for (int i = 0; i < FL_PIPES; i++) if (flp.px[i] + FL_PIPE_W * 16 >= FL_BIRD_X * 16 && (next < 0 || flp.px[i] < flp.px[next])) next = i;
+                    const int mid = next >= 0 ? flp.gap[next] + FL_GAP / 2 : (FL_TOP + FL_BOTTOM) / 2;
+                    if (fl_bird_top(&flp) + FL_BIRD / 2 > mid + 14 && flp.vy >= 0) fl_tap(&flp);
+                    fl_step(&flp);
+                    show(flys::screen(lv_layer_top(), &flp, false));
+                }
+            }
+#endif
+#ifdef HAVE_BATTLESHIP
+            if (what == "battleship") {
+                int seed, shots; in >> seed >> shots;
+                static bs_t bsp; bs_init(&bsp, (uint32_t)seed);
+                show(bsh::screen(lv_layer_top(), &bsp, false));
+                for (int i = 0, fired = 0; i < BS_CELLS && fired < shots && bsp.phase == BS_PLAY; i++) if (((i / 6 + i % 6) % 2) == 0) { bs_fire(&bsp, i); fired++; show(bsh::screen(lv_layer_top(), &bsp, false)); }
+            }
+#endif
+#ifdef HAVE_REVERSI
+            if (what == "reversi") {
+                int seed; in >> seed;
+                static rv_t rvp; rv_init(&rvp);
+                show(rvs::screen(lv_layer_top(), &rvp, false));
+                uint32_t r = (uint32_t)seed;
+                for (int guard = 0; guard < 140 && rvp.phase == RV_PLAY; guard++) {
+                    if (rvp.turn == RV_PERSON) {
+                        int cells[64], n = 0;
+                        for (int i = 0; i < RV_CELLS; i++) if (rv_legal(&rvp, i, RV_PERSON)) cells[n++] = i;
+                        r = r * 1664525u + 1013904223u;
+                        rv_person_move(&rvp, cells[(r >> 8) % (uint32_t)n]);
+                    } else rv_unit_move(&rvp);
+                    show(rvs::screen(lv_layer_top(), &rvp, false));
+                }
+            }
+#endif
+#ifdef HAVE_HILO
+            if (what == "hilo") {
+                int seed, guesses; in >> seed >> guesses;
+                static hl_t hlp; hl_init(&hlp, (uint32_t)seed);
+                show(hlo::screen(lv_layer_top(), hlp, false, false));
+                for (int i = 0; i < guesses && hlp.phase == HL_PLAY; i++) {
+                    hl_guess(&hlp, hl_rank(hl_current(&hlp)) <= 7);
+                    show(hlo::screen(lv_layer_top(), hlp, true, false));
+                    if (hlp.phase == HL_PLAY) show(hlo::screen(lv_layer_top(), hlp, false, false));
+                }
+            }
+#endif
+            if (cur) lv_obj_delete(cur);
         } else if (c == "snap") {
             std::string f; in >> f; snap(f.c_str());
         }
