@@ -122,6 +122,31 @@ int main(void)
     CHECK(mpy_pick(&sh, MPY_TRIVIA, MPY_KID, &h, 5) == -1);                              /* nothing left of that kind */
     CHECK(mpy_pick(&sh, MPY_JOKE, MPY_KID, &h, 5) == 0);
 
+    /* ---- the trivia tiles ---- */
+    {
+        char tiles[3][MPY_TILE_BYTES];
+        int right = -1, seen_pos[3] = {0, 0, 0};
+        for (uint32_t seed = 1; seed < 300; seed++) {
+            const int n = mpy_tiles("Mars", "Venus|Jupiter", seed, tiles, &right);
+            CHECK(n == 3 && right >= 0 && right < 3 && strcmp(tiles[right], "Mars") == 0);
+            int found = 0;
+            for (int i = 0; i < 3; i++) found += strcmp(tiles[i], "Venus") == 0 || strcmp(tiles[i], "Jupiter") == 0 || strcmp(tiles[i], "Mars") == 0;
+            CHECK(found == 3);
+            seen_pos[right]++;
+        }
+        CHECK(seen_pos[0] > 40 && seen_pos[1] > 40 && seen_pos[2] > 40);                /* the right answer is not always in the same place */
+        CHECK(mpy_tiles("Eight", "Six", 5, tiles, &right) == 2 && strcmp(tiles[right], "Eight") == 0);
+        CHECK(mpy_tiles("Eight", "", 5, tiles, &right) == 0);                          /* no wrong answers: no tiles */
+        CHECK(mpy_tiles("Eight", "||", 5, tiles, &right) == 0);
+        CHECK(mpy_tiles("Eight", "A|B|C|D", 5, tiles, &right) == 3);                    /* at most three tiles */
+        char big[200];
+        memset(big, 'x', sizeof(big)); big[150] = '\0';
+        mpy_tiles(big, "y", 5, tiles, &right);
+        CHECK(strlen(tiles[right]) == MPY_TILE_CHARS);                                  /* a long answer is cut to 40 characters */
+        mpy_tiles("\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9", "z", 5, tiles, &right);   /* 30 accented letters, 60 bytes: whole characters only */
+        CHECK(strlen(tiles[right]) % 2 == 0 && strlen(tiles[right]) <= MPY_TILE_BYTES - 4);
+    }
+
     /* ---- the heard list: encode, decode, sync, room ---- */
     static uint8_t sector[4096];
     mph_encode(&h, sector);
