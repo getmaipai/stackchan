@@ -53,8 +53,13 @@ def _read_all(paths, suffixes) -> str:
     return "\n".join(parts)
 
 
+def _tracked_under(prefix: str) -> list[Path]:
+    """Files git tracks under a folder, in sorted order: untracked leftovers (caches, a test's output, files a Pillow install writes) never change the ledger."""
+    return [ROOT / f for f in sorted(tracked()) if f.startswith(prefix)]
+
+
 def tests_corpus() -> str:
-    return _read_all((ROOT / "host" / "tests").rglob("*"), {".py", ".c", ".cc", ".mjs", ".json", ".h"}) + "\n" + _read_all((ROOT / "flasher" / "test").rglob("*"), {".mjs"})
+    return _read_all(_tracked_under("host/tests/"), {".py", ".c", ".cc", ".mjs", ".json", ".h"}) + "\n" + _read_all(_tracked_under("flasher/test/"), {".mjs"})
 
 
 def bench_corpus() -> dict[str, str]:
@@ -67,7 +72,7 @@ def docs_text(rel: str) -> str:
 
 
 def tracked() -> list[str]:
-    return subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.splitlines()
+    return subprocess.run(["git", "ls-files", "-c"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.splitlines()
 
 
 # ---- the user pages --------------------------------------------------------------------------------------------

@@ -30,6 +30,7 @@ PICTURES = {
     "four-in-a-row": "game-c4-playing.png",
     "game-over": "game-over-c4-win.png",
     "question-game": "game-trivia-ask.png",
+    "mumble": "mumble-mouth-sync.png",
 }
 
 

@@ -64,6 +64,8 @@ To start one by voice, say "play tic tac toe", "play do it", "play rock paper sc
 
 Every game is a small data file that one built-in game engine plays. A game from outside the robot's firmware must be signed with the update key, and an unsigned one is refused with a plain message. Loading outside games is not switched on yet.
 
+More games are built and on the way. See [New games: what works and what is coming](more-games.md).
+
 ## Talk games
 
 <span class="planned-tag">Built, not flashed</span> Not tested with a live model.
@@ -84,7 +86,7 @@ Spanish works too: "juguemos a veinte preguntas", "dime una adivinanza", "juguem
 
 The robot starts with a fixed line, with no model needed. After that the model plays and reacts with faces and effects when you are right or wrong. A game ends when you say "stop the game", "I'm done" or "that's enough", when it reaches its round limit, or after five quiet minutes. Then chat is normal again. The games follow the same child and content rules as ordinary chat. The settings page lists them under **Talk games** on the Games page.
 
-If the model stops answering in the middle of jokes, riddles or trivia and you turned on the [jokes and games content](jokes-and-games-content.md) package, the robot keeps playing from its saved library.
+See also [Twenty Questions, riddles, jokes and trivia](question-games.md). If the model stops answering in the middle of jokes, riddles or trivia and you turned on the [jokes and games content](jokes-and-games-content.md) package, the robot keeps playing from its saved library.
 
 ## Pet mood
 
