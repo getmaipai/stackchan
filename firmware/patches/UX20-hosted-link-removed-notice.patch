@@ -1,0 +1,146 @@
+# Intent: The notice "Hosted link removed" (owner decision 34): shown on the unit after it left the hosted brain (M5Stack/Xiaozhi) for a custom one and the saved hosted link (the cl_ settings) was wiped. A mark, the title, what was removed, where the voice goes now, and one OK button (160 by 56), in the six languages of the first run. Two new header-only files; the leaving-hosted flow (firmware track) builds it with mbn::build and closes it on OK.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_brain_notice_core.h, maipai_brain_notice.h (new, ours)
+# Check after a flash: after the switch from hosted to custom the screen shows Hosted link removed with the two lines and OK; OK closes it; the saved cl_ settings are gone afterwards.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_brain_notice_core.h b/firmware/main/hal/maipai_brain_notice_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_brain_notice_core.h
+@@ -0,0 +1,59 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The notice "Hosted link removed" (patch UX20, owner decision 34): shown on the unit after it left the hosted brain (M5Stack/Xiaozhi) for a custom one and the saved hosted link
++ * (the cl_ settings) was wiped. It says what was removed and where the voice goes now, in the six languages of the first run, with one OK button. Plain C99, no hardware.
++ * Language order is the first run's: 0 English, 1 Spanish, 2 French, 3 German, 4 Portuguese, 5 Italian.
++ */
++#ifndef MAIPAI_BRAIN_NOTICE_CORE_H
++#define MAIPAI_BRAIN_NOTICE_CORE_H
++
++#define MBN_W 320
++#define MBN_H 240
++#define MBN_LANGS 6
++
++static inline int mbn_lang(int lang) { return lang >= 0 && lang < MBN_LANGS ? lang : 0; }
++
++static inline const char* mbn_title(int lang)
++{
++    static const char* const t[MBN_LANGS] = {"Hosted link removed", "Enlace alojado eliminado", "Lien hébergé supprimé", "Gehostete Verbindung entfernt", "Link hospedado removido", "Collegamento ospitato rimosso"};
++    return t[mbn_lang(lang)];
++}
++
++/* What was removed. */
++static inline const char* mbn_removed(int lang)
++{
++    static const char* const t[MBN_LANGS] = {"The saved link to M5Stack/Xiaozhi is deleted.", "Se borró el enlace guardado con M5Stack/Xiaozhi.", "Le lien enregistré avec M5Stack/Xiaozhi est effacé.",
++                                              "Die gespeicherte Verbindung zu M5Stack/Xiaozhi ist gelöscht.", "O link salvo com M5Stack/Xiaozhi foi apagado.", "Il collegamento salvato con M5Stack/Xiaozhi è stato cancellato."};
++    return t[mbn_lang(lang)];
++}
++
++/* Where the voice goes now. */
++static inline const char* mbn_now(int lang)
++{
++    static const char* const t[MBN_LANGS] = {"Your voice now goes where you pointed it.", "Tu voz ahora va donde tú indicaste.", "Votre voix va maintenant où vous l'avez indiqué.",
++                                              "Ihre Stimme geht jetzt dorthin, wohin Sie es festgelegt haben.", "Sua voz agora vai para onde você indicou.", "La tua voce ora va dove l'hai indicato."};
++    return t[mbn_lang(lang)];
++}
++
++static inline const char* mbn_ok(int lang)
++{
++    (void)lang;
++    return "OK";
++}
++
++/* Where everything sits: the mark (28 px, y 4 to 32), the title (y 36), the two lines (y 70 to 164 at most), and OK (160 by 56 at the bottom, 8 px from the glass edge). */
++#define MBN_MARK_Y 4
++#define MBN_MARK_D 28
++#define MBN_TITLE_Y 36
++#define MBN_TEXT_Y 70
++#define MBN_TEXT_W 296
++static inline void mbn_ok_box(int* x, int* y, int* w, int* h)
++{
++    *x = 80;
++    *y = 176;
++    *w = 160;
++    *h = 56;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_brain_notice.h b/firmware/main/hal/maipai_brain_notice.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_brain_notice.h
+@@ -0,0 +1,71 @@
++// SPDX-License-Identifier: MIT
++// The "Hosted link removed" screen (patch UX20): see maipai_brain_notice_core.h. Header only; built on lv_layer_top() by whoever shows it (the leaving-hosted flow).
++#pragma once
++#include <lvgl.h>
++#include "maipai_brain_notice_core.h"
++#include "maipai_ui_style.h"
++
++namespace mbn {
++inline lv_obj_t* label(lv_obj_t* parent, const char* t, const lv_font_t* font, uint32_t rgb, int y) {
++    lv_obj_t* l = lv_label_create(parent);
++    lv_label_set_text(l, t);
++    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
++    lv_obj_set_style_text_font(l, font, 0);
++    lv_obj_set_style_text_color(l, lv_color_hex(rgb), 0);
++    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_set_width(l, MBN_TEXT_W);
++    lv_obj_set_pos(l, (MBN_W - MBN_TEXT_W) / 2, y);
++    return l;
++}
++
++inline lv_obj_t* build(lv_obj_t* parent, int lang, lv_event_cb_t on_ok, void* user) {
++    lv_obj_t* root = lv_obj_create(parent);
++    lv_obj_remove_style_all(root);
++    lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(root, MBN_W, MBN_H);
++    lv_obj_set_pos(root, 0, 0);
++    lv_obj_set_style_bg_color(root, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
++    // the mark: a blue-gray disc with a bar through it (a link cut)
++    lv_obj_t* d = lv_obj_create(root);
++    lv_obj_remove_style_all(d);
++    lv_obj_remove_flag(d, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(d, MBN_MARK_D, MBN_MARK_D);
++    lv_obj_set_pos(d, (MBN_W - MBN_MARK_D) / 2, MBN_MARK_Y);
++    lv_obj_set_style_radius(d, LV_RADIUS_CIRCLE, 0);
++    lv_obj_set_style_bg_color(d, lv_color_hex(0x7FA0D0), 0);
++    lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
++    lv_obj_t* bar = lv_obj_create(d);
++    lv_obj_remove_style_all(bar);
++    lv_obj_set_size(bar, 18, 4);
++    lv_obj_set_pos(bar, 5, 12);
++    lv_obj_set_style_radius(bar, 2, 0);
++    lv_obj_set_style_bg_color(bar, lv_color_hex(0x10141C), 0);
++    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
++    const char* title = mbn_title(lang);
++    lv_point_t p;
++    lv_text_get_size(&p, title, maipai_ui_style::big_font(), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
++    label(root, title, p.x <= MBN_TEXT_W ? maipai_ui_style::big_font() : maipai_ui_style::small_font(), 0xFFFFFF, MBN_TITLE_Y);
++    lv_obj_t* a = label(root, mbn_removed(lang), maipai_ui_style::small_font(), 0xC8CED8, MBN_TEXT_Y);
++    lv_obj_update_layout(a);
++    label(root, mbn_now(lang), maipai_ui_style::small_font(), 0xC8CED8, MBN_TEXT_Y + lv_obj_get_height(a) + 4);
++    int x, y, w, h;
++    mbn_ok_box(&x, &y, &w, &h);
++    lv_obj_t* b = lv_obj_create(root);
++    lv_obj_remove_style_all(b);
++    lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_set_pos(b, x, y);
++    lv_obj_set_size(b, w, h);
++    lv_obj_set_style_radius(b, 10, 0);
++    lv_obj_set_style_bg_color(b, maipai_ui_style::accent(), 0);
++    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
++    if (on_ok) {
++        lv_obj_add_event_cb(b, on_ok, LV_EVENT_CLICKED, user);
++    }
++    lv_obj_t* t = label(b, mbn_ok(lang), maipai_ui_style::big_font(), 0x10141C, 0);
++    lv_obj_set_width(t, w);
++    lv_obj_align(t, LV_ALIGN_CENTER, 0, 0);
++    return root;
++}
++}  // namespace mbn

@@ -1,0 +1,249 @@
+# Intent: Dice Poker (the first of the new games of docs/plan/more-games.md, ranked 2; spec docs/design/dice-poker.md). Five dice, a roll and two re-rolls of the dice you do not hold, a hand rank (pair to five of a kind), five rounds; it is a score-only game and ends on Game over with the total (owner decision 33). Two new header-only files: the pure rules, hand ranking and touch targets (maipai_dicepoker_core.h, tested on all 7776 hands) and the LVGL screen (maipai_dicepoker.h) that the host renderer draws. Five 52 px dice 8 px apart, Roll again and Keep as 148 by 56 buttons. This patch adds the rules, the screen and their tests only: registering the game in the unit's games list, the touch routing, the sounds (rattle, thud, fanfare from the existing table) and its best score are the firmware track's. Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_dicepoker_core.h, maipai_dicepoker.h (ours)
+# Check after a flash: (after the wiring) Dice Poker rolls five dice, a tap on a die holds it, Roll again re-rolls the rest twice at most, Keep banks the hand's points, and after round five the shared game over screen shows the total.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_dicepoker_core.h b/firmware/main/hal/maipai_dicepoker_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_dicepoker_core.h
+@@ -0,0 +1,137 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Dice Poker (patch UX18; spec docs/design/dice-poker.md): five dice, a roll and two re-rolls of the dice you do not hold, a hand rank, five rounds. A score-only game: it ends on
++ * Game over with the total (owner decision 33). Pure C99, no ESP and no LVGL call, no heap. The rules and the layout of the touch targets live here so a host test checks them.
++ */
++#ifndef MAIPAI_DICEPOKER_CORE_H
++#define MAIPAI_DICEPOKER_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define DP_DICE 5
++#define DP_ROUNDS 5
++#define DP_ROLLS 3                 /* the first roll and two re-rolls */
++enum { DP_HIGH = 0, DP_PAIR, DP_TWO_PAIR, DP_THREE, DP_STRAIGHT, DP_FULL, DP_FOUR, DP_FIVE, DP_RANKS };
++static const uint8_t DP_POINTS[DP_RANKS] = {0, 10, 20, 30, 40, 50, 70, 100};   /* what a hand scores */
++enum { DP_PHASE_ROLL = 0, DP_PHASE_HOLD, DP_PHASE_DONE };                       /* before the first roll, choosing what to hold, the five rounds are over */
++enum { DP_B_NONE = 0, DP_B_DIE0, DP_B_DIE1, DP_B_DIE2, DP_B_DIE3, DP_B_DIE4, DP_B_ROLL, DP_B_KEEP, DP_B_QUIT };
++
++typedef struct {
++    uint8_t d[DP_DICE];            /* 1 to 6 */
++    uint8_t held;                  /* bit i set: die i is held */
++    uint8_t rolls_left;            /* re-rolls still to come in this round (2 after the first roll) */
++    uint8_t round;                 /* 1 to DP_ROUNDS */
++    uint8_t phase;
++    uint16_t score;                /* the total so far */
++    uint32_t rng;
++} dp_t;
++
++static inline uint32_t dp_rand(dp_t* g)
++{
++    g->rng = g->rng * 1664525u + 1013904223u;
++    return g->rng >> 8;
++}
++
++static inline void dp_init(dp_t* g, uint32_t seed)
++{
++    memset(g, 0, sizeof(*g));
++    g->rng = seed != 0 ? seed : 1u;
++    g->round = 1;
++    g->phase = DP_PHASE_ROLL;
++    for (int i = 0; i < DP_DICE; i++) g->d[i] = 1;
++}
++
++/* The rank of a hand. */
++static inline int dp_rank(const uint8_t* d)
++{
++    int c[7] = {0, 0, 0, 0, 0, 0, 0};
++    for (int i = 0; i < DP_DICE; i++) c[d[i] > 6 ? 6 : d[i]]++;
++    int pairs = 0, three = 0, four = 0, five = 0;
++    for (int v = 1; v <= 6; v++) {
++        if (c[v] == 5) five = 1;
++        else if (c[v] == 4) four = 1;
++        else if (c[v] == 3) three = 1;
++        else if (c[v] == 2) pairs++;
++    }
++    if (five) return DP_FIVE;
++    if (four) return DP_FOUR;
++    if (three && pairs == 1) return DP_FULL;
++    int run = 0, best = 0;
++    for (int v = 1; v <= 6; v++) { run = c[v] == 1 ? run + 1 : 0; if (run > best) best = run; }
++    if (best == 5) return DP_STRAIGHT;
++    if (three) return DP_THREE;
++    if (pairs == 2) return DP_TWO_PAIR;
++    if (pairs == 1) return DP_PAIR;
++    return DP_HIGH;
++}
++
++/* Roll the dice that are not held. The first roll of a round rolls all five. Returns 0 when no roll is allowed now. */
++static inline int dp_roll(dp_t* g)
++{
++    if (g->phase == DP_PHASE_DONE) return 0;
++    if (g->phase == DP_PHASE_ROLL) {
++        g->held = 0;
++        g->rolls_left = DP_ROLLS - 1;
++        for (int i = 0; i < DP_DICE; i++) g->d[i] = (uint8_t)(1 + dp_rand(g) % 6u);
++        g->phase = DP_PHASE_HOLD;
++        return 1;
++    }
++    if (g->rolls_left == 0 || g->held == 0x1F) return 0;
++    for (int i = 0; i < DP_DICE; i++) if (!((g->held >> i) & 1)) g->d[i] = (uint8_t)(1 + dp_rand(g) % 6u);
++    g->rolls_left--;
++    return 1;
++}
++
++static inline int dp_toggle_hold(dp_t* g, int i)
++{
++    if (g->phase != DP_PHASE_HOLD || g->rolls_left == 0 || i < 0 || i >= DP_DICE) return 0;
++    g->held ^= (uint8_t)(1u << i);
++    return 1;
++}
++
++/* Bank the hand: add its points, go to the next round or finish. Returns the points of this hand, or -1 when there is nothing to keep yet. */
++static inline int dp_keep(dp_t* g)
++{
++    if (g->phase != DP_PHASE_HOLD) return -1;
++    const int pts = DP_POINTS[dp_rank(g->d)];
++    g->score = (uint16_t)(g->score + pts);
++    if (g->round >= DP_ROUNDS) { g->phase = DP_PHASE_DONE; return pts; }
++    g->round++;
++    g->phase = DP_PHASE_ROLL;
++    g->held = 0;
++    return pts;
++}
++
++/* ---- the screen: five dice in a row, then the hand, then the buttons (all targets 8 px apart on the 8 px margin) ---- */
++typedef struct { int16_t x, y, w, h; uint8_t id; } dp_rect_t;
++static inline void dp_set(dp_rect_t* r, int x, int y, int w, int h, int id) { r->x = (int16_t)x; r->y = (int16_t)y; r->w = (int16_t)w; r->h = (int16_t)h; r->id = (uint8_t)id; }
++/* Dice 52 px square (a secondary target), 8 px apart, centered: 5 * 52 + 4 * 8 = 292. Under them the hand name, then two buttons 148 by 56 at y 176 (Roll again and Keep; before the first
++ * roll one 304 by 56 Roll button). Returns how many targets. */
++static inline int dp_buttons(const dp_t* g, dp_rect_t* r)
++{
++    int n = 0;
++    if (g->phase == DP_PHASE_ROLL) {
++        dp_set(&r[n++], 8, 176, 304, 56, DP_B_ROLL);
++        return n;
++    }
++    for (int i = 0; i < DP_DICE; i++) dp_set(&r[n++], 14 + i * 60, 62, 52, 52, DP_B_DIE0 + i);
++    dp_set(&r[n++], 8, 176, 148, 56, DP_B_ROLL);
++    dp_set(&r[n++], 164, 176, 148, 56, DP_B_KEEP);
++    return n;
++}
++static inline int dp_hit(const dp_rect_t* r, int n, int px, int py)
++{
++    for (int i = 0; i < n; i++) if (px >= r[i].x && px < r[i].x + r[i].w && py >= r[i].y && py < r[i].y + r[i].h) return r[i].id;
++    return DP_B_NONE;
++}
++
++static inline const char* dp_rank_name(int rank, int es)
++{
++    static const char* const en[DP_RANKS] = {"High dice", "A pair", "Two pair", "Three of a kind", "Straight", "Full house", "Four of a kind", "Five of a kind"};
++    static const char* const sp[DP_RANKS] = {"Nada", "Una pareja", "Dos parejas", "Trio", "Escalera", "Full", "Poker", "Repoker"};
++    return rank >= 0 && rank < DP_RANKS ? (es ? sp[rank] : en[rank]) : "";
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_dicepoker.h b/firmware/main/hal/maipai_dicepoker.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_dicepoker.h
+@@ -0,0 +1,96 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Dice Poker's screen, drawn with LVGL only (patch UX18), so the host renderer draws the unit's own picture. The game over screen is the shared one (maipai_game_over.h).
++ */
++#ifndef MAIPAI_DICEPOKER_H
++#define MAIPAI_DICEPOKER_H
++
++#include <lvgl.h>
++#include <stdio.h>
++#include "maipai_dicepoker_core.h"
++
++namespace dpk {
++
++inline lv_obj_t* tile(lv_obj_t* parent, int x, int y, int w, int h, uint32_t fill, uint32_t edge, int edge_w, int radius)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_pos(o, x, y);
++    lv_obj_set_size(o, w, h);
++    lv_obj_set_style_bg_color(o, lv_color_hex(fill), 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    lv_obj_set_style_radius(o, radius, 0);
++    lv_obj_set_style_border_width(o, edge_w, 0);
++    lv_obj_set_style_border_color(o, lv_color_hex(edge), 0);
++    return o;
++}
++
++inline lv_obj_t* words(lv_obj_t* parent, const char* t, const lv_font_t* font, uint32_t rgb, int x, int y, int w, lv_text_align_t align)
++{
++    lv_obj_t* l = lv_label_create(parent);
++    lv_label_set_text(l, t);
++    lv_obj_set_style_text_font(l, font, 0);
++    lv_obj_set_style_text_color(l, lv_color_hex(rgb), 0);
++    lv_obj_set_style_text_align(l, align, 0);
++    lv_obj_set_width(l, w);
++    lv_obj_set_pos(l, x, y);
++    return l;
++}
++
++// The pips of a die in a 3 by 3 pattern (bit k of the mask: row k / 3, column k % 3).
++inline int pips(int v)
++{
++    static const int mask[7] = {0, 0x010, 0x101, 0x111, 0x145, 0x155, 0x16D};   // 1 center; 2 opposite corners; 3 diagonal; 4 corners; 5 corners and center; 6 two columns of three
++    return mask[v < 1 || v > 6 ? 0 : v];
++}
++
++inline lv_obj_t* screen(lv_obj_t* parent, const dp_t& g, bool es)
++{
++    lv_obj_t* r = lv_obj_create(parent);
++    lv_obj_remove_style_all(r);
++    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(r, 320, 240);
++    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    char head[40], sc[24];
++    snprintf(head, sizeof(head), es ? "Ronda %d de %d" : "Round %d of %d", g.round, DP_ROUNDS);
++    snprintf(sc, sizeof(sc), es ? "Puntos %d" : "Score %d", g.score);
++    words(r, head, &lv_font_montserrat_16, 0x9AA3B0, 8, 30, 160, LV_TEXT_ALIGN_LEFT);
++    words(r, sc, &lv_font_montserrat_16, 0xE8E8E8, 212, 30, 100, LV_TEXT_ALIGN_RIGHT);
++    dp_rect_t b[8];
++    const int n = dp_buttons(&g, b);
++    if (g.phase != DP_PHASE_ROLL) {
++        for (int i = 0; i < DP_DICE; i++) {
++            const bool held = (g.held >> i) & 1;
++            lv_obj_t* d = tile(r, b[i].x, b[i].y, b[i].w, b[i].h, 0xF4F1E8, held ? 0xF2B24A : 0xB8B2A0, held ? 3 : 1, 10);
++            const int m = pips(g.d[i]);
++            for (int k = 0; k < 9; k++) {
++                if ((m >> k) & 1) tile(d, 8 + (k % 3) * 13, 8 + (k / 3) * 13, 8, 8, 0x1A1A1A, 0x1A1A1A, 0, LV_RADIUS_CIRCLE);
++            }
++            if (held) words(r, es ? "FIJO" : "HOLD", &lv_font_montserrat_14, 0xF2B24A, b[i].x - 4, b[i].y + b[i].h + 2, b[i].w + 8, LV_TEXT_ALIGN_CENTER);
++        }
++        words(r, dp_rank_name(dp_rank(g.d), es), &lv_font_montserrat_20, 0xFFFFFF, 8, 140, 304, LV_TEXT_ALIGN_CENTER);
++    } else {
++        words(r, es ? "Lanza los cinco dados" : "Roll all five dice", &lv_font_montserrat_20, 0xFFFFFF, 8, 96, 304, LV_TEXT_ALIGN_CENTER);
++    }
++    for (int i = (g.phase == DP_PHASE_ROLL ? 0 : DP_DICE); i < n; i++) {
++        const bool keep = b[i].id == DP_B_KEEP, roll = b[i].id == DP_B_ROLL;
++        lv_obj_t* o = tile(r, b[i].x, b[i].y, b[i].w, b[i].h, keep ? 0x2E7D4F : (roll ? 0x2C3E7A : 0x242424), keep ? 0x7FE0B8 : 0x6A86D8, 1, 12);
++        lv_obj_t* t = lv_label_create(o);
++        char again[24];
++        snprintf(again, sizeof(again), es ? "Lanzar (%d)" : "Roll again (%d)", g.rolls_left);   // the re-rolls left are on the button
++        const char* w = keep ? (es ? "Quedarme" : "Keep") : (g.phase == DP_PHASE_ROLL ? (es ? "Lanzar" : "Roll") : again);
++        lv_label_set_text(t, w);
++        lv_obj_set_style_text_font(t, strlen(w) > 12 ? &lv_font_montserrat_16 : &lv_font_montserrat_20, 0);
++        lv_obj_set_style_text_color(t, lv_color_white(), 0);
++        lv_obj_center(t);
++    }
++    return r;
++}
++
++}  // namespace dpk
++
++#endif

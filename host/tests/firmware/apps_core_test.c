@@ -110,13 +110,13 @@ static void test_timers_alarms(void)
         if (i > 0) {
             int px, py, pw, ph;
             mac_preset_box(i - 1, &px, &py, &pw, &ph);
-            CHECK(py + ph + 4 == y);                                      /* 4 px apart */
+            CHECK(py + ph + (MAC_TL_PITCH - MAC_TL_BTN_H) == y);                                      /* 8 px apart (patch UX13f) */
         }
     }
-    CHECK(mac_tl_content_h() == 8 * 60 - 4 && mac_tl_content_h() > MAC_TL_H);   /* the column scrolls */
+    CHECK(mac_tl_content_h() == 8 * 64 - 8 && mac_tl_content_h() > MAC_TL_H && MAC_TL_PITCH - MAC_TL_BTN_H >= 8);   /* the column scrolls */
     int by, bh;
     CHECK(mac_scroll_bar(mac_tl_content_h(), MAC_TL_H, 0, &by, &bh) == 1);
-    CHECK(MAC_TROW_H >= 64 && MAC_TROW_PITCH > MAC_TROW_H && mac_trows_content_h(0) == 0 && mac_trows_content_h(1) == MAC_TROW_H && mac_trows_content_h(3) > MAC_TR_H);
+    CHECK(MAC_TROW_H >= 64 && MAC_TROW_PITCH - MAC_TROW_H >= 8 && mac_trows_content_h(0) == 0 && mac_trows_content_h(1) == MAC_TROW_H && mac_trows_content_h(3) > MAC_TR_H);
     mac_trow_cancel_box(&x, &y, &w, &h);
     CHECK(w >= MAC_TARGET_MIN && h >= 56 && x + w <= MAC_TR_W && y + h <= MAC_TROW_H && x >= MAC_TROW_BAR_W + 8);   /* a big Cancel in each row, beside the bar */
     CHECK(mac_bar_fill(100, 100) == MAC_TROW_BAR_W && mac_bar_fill(150, 100) == MAC_TROW_BAR_W && mac_bar_fill(50, 100) == MAC_TROW_BAR_W / 2 && mac_bar_fill(0, 100) == 0 && mac_bar_fill(5, 0) == 0 && mac_bar_fill(1, 100000) == 2);
@@ -128,8 +128,8 @@ static void test_timers_alarms(void)
         mac_cancel_box(i, &x2, &y2, &w2, &h2);
         CHECK(w2 >= MAC_TARGET_MIN && h2 >= MAC_TARGET_MIN && x2 >= x && x2 + w2 <= x + w && y2 == y);   /* a big Cancel in each row */
     }
-    CHECK(!mac_list_scrolls(0) && !mac_list_scrolls(1) && !mac_list_scrolls(3) && mac_list_scrolls(4) && mac_list_scrolls(MAC_ACTIVE_MAX));
-    CHECK(mac_list_content_h(3) <= MAC_LIST_H && mac_list_content_h(0) == 0);
+    CHECK(!mac_list_scrolls(0) && !mac_list_scrolls(1) && !mac_list_scrolls(2) && mac_list_scrolls(3) && mac_list_scrolls(MAC_ACTIVE_MAX));   /* patch UX13f: two 56 px rows show, the rest scroll */
+    CHECK(mac_list_content_h(2) <= MAC_LIST_H && mac_list_content_h(0) == 0 && MAC_ROW_H >= 56 && MAC_ROW_PITCH - MAC_ROW_H >= 8 && MAC_BTN_ROW_H >= 56 && MAC_ROW_TOP - (MAC_BTN_ROW_Y + MAC_BTN_ROW_H) >= 8);
     char b[24];
     mac_fmt_left(b, sizeof(b), 272); CHECK(strcmp(b, "4:32") == 0);
     mac_fmt_left(b, sizeof(b), 3725); CHECK(strcmp(b, "1:02:05") == 0);

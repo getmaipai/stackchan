@@ -27,9 +27,11 @@ int main(void)
     CHECK(mgo_hit(160, 100) == MGO_BTN_NONE && mgo_hit(100, y1 - 1) == MGO_BTN_NONE);
     /* texts */
     CHECK(strcmp(mgo_title(MGO_WON, 0), "You won!") == 0 && strcmp(mgo_title(MGO_LOST, 0), "You lost") == 0 && strcmp(mgo_title(MGO_DRAW, 0), "Draw") == 0);
+    CHECK(strcmp(mgo_title(MGO_OVER, 0), "Game over") == 0 && strcmp(mgo_title(MGO_TIMEUP, 0), "Time's up") == 0 && strcmp(mgo_title(MGO_OVER, 1), "Fin del juego") == 0);   /* no verdict words for a score-only game (decision 33) */
+    CHECK(strstr(mgo_title(MGO_OVER, 0), "won") == NULL && strstr(mgo_title(MGO_OVER, 0), "lost") == NULL && strstr(mgo_title(MGO_TIMEUP, 0), "won") == NULL);
     CHECK(strcmp(mgo_title(MGO_DRAW, 1), "Empate") == 0 && strcmp(mgo_button_label(MGO_BTN_QUIT, 1), "Salir") == 0 && strcmp(mgo_button_label(MGO_BTN_AGAIN, 0), "Play again") == 0);
     for (int es = 0; es <= 1; es++) {
-        const char* all[] = {mgo_title(MGO_WON, es), mgo_title(MGO_LOST, es), mgo_title(MGO_DRAW, es), mgo_button_label(MGO_BTN_AGAIN, es), mgo_button_label(MGO_BTN_QUIT, es), mgo_new_best_label(es)};
+        const char* all[] = {mgo_title(MGO_WON, es), mgo_title(MGO_LOST, es), mgo_title(MGO_DRAW, es), mgo_title(MGO_OVER, es), mgo_title(MGO_TIMEUP, es), mgo_button_label(MGO_BTN_AGAIN, es), mgo_button_label(MGO_BTN_QUIT, es), mgo_new_best_label(es)};
         for (unsigned i = 0; i < sizeof(all) / sizeof(all[0]); i++) {
             for (const char* p = all[i]; *p; p++) CHECK((unsigned char)*p < 128);   /* plain ASCII: the games' fonts have no accents */
         }

@@ -168,10 +168,10 @@ def test_the_unit_loads_its_lock_before_anything_listens_and_reboot_stays_locked
 def test_color_memory_uses_the_full_height_and_the_pack_tool_allows_it():
     data = json.loads((ROOT / "firmware" / "games" / "memory.json").read_text())
     rows = {r["name"]: r for r in data["regions"]}
-    assert {r["y"] for r in rows.values()} == {28, 128}
-    assert all(r["h"] == 96 and r["w"] == 138 for r in rows.values())
-    assert rows["bl"]["y"] - (rows["tl"]["y"] + rows["tl"]["h"]) == 4  # 4 px gap
-    assert rows["tr"]["x"] - (rows["tl"]["x"] + rows["tl"]["w"]) == 4
+    assert {r["y"] for r in rows.values()} == {28, 130}
+    assert all(r["h"] == 94 and r["w"] == 136 for r in rows.values())
+    assert rows["bl"]["y"] - (rows["tl"]["y"] + rows["tl"]["h"]) == 8  # 8 px gap (the screen standard)
+    assert rows["tr"]["x"] - (rows["tl"]["x"] + rows["tl"]["w"]) == 8
     assert max(r["y"] + r["h"] for r in rows.values()) == 224
 
 

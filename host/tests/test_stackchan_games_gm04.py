@@ -172,8 +172,8 @@ def test_rock_paper_scissors_is_a_best_of_three_with_a_count_a_window_and_two_bi
     regions = {r["name"]: r for r in rps["regions"]}
     assert list(regions) == ["rock", "paper", "scissors", "again", "quit"]
     assert regions["rock"]["x"] == 20 and regions["scissors"]["x"] + regions["scissors"]["w"] == 300
-    assert all(regions[n]["h"] >= 94 for n in ("rock", "paper", "scissors"))
-    assert all(regions[n]["w"] >= 138 and regions[n]["y"] + regions[n]["h"] == 224 for n in ("again", "quit"))
+    assert all(regions[n]["h"] >= 88 for n in ("rock", "paper", "scissors"))
+    assert all(regions[n]["w"] >= 136 and regions[n]["y"] + regions[n]["h"] == 224 for n in ("again", "quit"))
     c1 = next(r for r in rps["rules"] if r["state"] == "c1" and r["on"] == "enter")["do"]
     assert ["rand", "bot", 3] in c1  # the unit's pick is drawn when the round starts
     changes_bot = [r for r in rps["rules"] for a in r.get("do", []) if a[0] in ("set", "rand", "copy") and a[1] == "bot"]

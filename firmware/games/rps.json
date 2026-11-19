@@ -72,35 +72,35 @@
    "name": "rock",
    "x": 20,
    "y": 78,
-   "w": 93,
-   "h": 94
+   "w": 88,
+   "h": 88
   },
   {
    "name": "paper",
-   "x": 113,
+   "x": 116,
    "y": 78,
-   "w": 93,
-   "h": 94
+   "w": 88,
+   "h": 88
   },
   {
    "name": "scissors",
-   "x": 206,
+   "x": 212,
    "y": 78,
-   "w": 94,
-   "h": 94
+   "w": 88,
+   "h": 88
   },
   {
    "name": "again",
    "x": 20,
    "y": 176,
-   "w": 138,
+   "w": 136,
    "h": 48
   },
   {
    "name": "quit",
-   "x": 162,
+   "x": 164,
    "y": 176,
-   "w": 138,
+   "w": 136,
    "h": 48
   }
  ],
@@ -151,8 +151,8 @@
    "type": "box",
    "x": 22,
    "y": 80,
-   "w": 89,
-   "h": 90,
+   "w": 84,
+   "h": 84,
    "radius": 12,
    "color": "#2f6fb5",
    "states": [
@@ -164,10 +164,10 @@
   },
   {
    "type": "box",
-   "x": 115,
+   "x": 118,
    "y": 80,
-   "w": 89,
-   "h": 90,
+   "w": 84,
+   "h": 84,
    "radius": 12,
    "color": "#2f6fb5",
    "states": [
@@ -179,10 +179,10 @@
   },
   {
    "type": "box",
-   "x": 208,
+   "x": 214,
    "y": 80,
-   "w": 90,
-   "h": 90,
+   "w": 84,
+   "h": 84,
    "radius": 12,
    "color": "#2f6fb5",
    "states": [
@@ -195,7 +195,7 @@
   {
    "type": "icon",
    "icon": "rock",
-   "x": 66,
+   "x": 64,
    "y": 112,
    "size": 56,
    "color": "#ffffff",
@@ -225,7 +225,7 @@
   {
    "type": "icon",
    "icon": "scissors",
-   "x": 253,
+   "x": 256,
    "y": 112,
    "size": 56,
    "color": "#ffffff",
@@ -240,9 +240,9 @@
   {
    "type": "text",
    "text": "rock",
-   "x": 66,
+   "x": 64,
    "y": 156,
-   "w": 88,
+   "w": 84,
    "size": "medium",
    "color": "#ffffff",
    "states": [
@@ -257,7 +257,7 @@
    "text": "paper",
    "x": 160,
    "y": 156,
-   "w": 88,
+   "w": 84,
    "size": "medium",
    "color": "#ffffff",
    "states": [
@@ -270,9 +270,9 @@
   {
    "type": "text",
    "text": "scissors",
-   "x": 253,
+   "x": 256,
    "y": 156,
-   "w": 88,
+   "w": 84,
    "size": "medium",
    "color": "#ffffff",
    "states": [
@@ -594,7 +594,7 @@
    "type": "box",
    "x": 20,
    "y": 176,
-   "w": 138,
+   "w": 136,
    "h": 48,
    "radius": 12,
    "color": "#2b8a3e",
@@ -609,9 +609,9 @@
   },
   {
    "type": "box",
-   "x": 162,
+   "x": 164,
    "y": 176,
-   "w": 138,
+   "w": 136,
    "h": 48,
    "radius": 12,
    "color": "#4a5a70",
@@ -627,9 +627,9 @@
   {
    "type": "text",
    "text": "again",
-   "x": 89,
+   "x": 88,
    "y": 200,
-   "w": 130,
+   "w": 128,
    "size": "large",
    "color": "#ffffff",
    "states": [
@@ -642,9 +642,9 @@
   {
    "type": "text",
    "text": "rematch",
-   "x": 89,
+   "x": 88,
    "y": 200,
-   "w": 130,
+   "w": 128,
    "size": "large",
    "color": "#ffffff",
    "states": [
@@ -655,9 +655,9 @@
   {
    "type": "text",
    "text": "quit",
-   "x": 231,
+   "x": 232,
    "y": 200,
-   "w": 130,
+   "w": 128,
    "size": "large",
    "color": "#ffffff",
    "states": [

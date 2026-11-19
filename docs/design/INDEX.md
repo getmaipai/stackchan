@@ -373,7 +373,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/OPEN-DECISIONS.md` (23): Open decisions (2026-11-18)
 - `docs/plan/bug-claims.md` (10): Bug claims
 - `docs/plan/camera-frames-path.md` (50): Camera frames to the host (feature 8g): the path today, where it breaks, the smallest fix
-- `docs/plan/cloud-brain-firmware-test.md` (93): Cloud brain test: can our firmware use the vendor's hosted servers?
+- `docs/plan/cloud-brain-firmware-test.md` (102): Cloud brain test: can our firmware use the vendor's hosted servers?
 - `docs/plan/coding-companion-package.md` (36): Coding companion and agent tools (package design, for review before building)
 - `docs/plan/custom-wake-word.md` (42): A wake word the family chooses (feature 8e): what the unit needs
 - `docs/plan/dance-vectors.md` (40): Dance vectors for the host director (from the virtual unit's session, patch SF51)
@@ -532,6 +532,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/configs/sdkconfig.bench.defaults` (3): no header
 - `firmware/configs/sdkconfig.cam640.defaults` (3): Build kind "cam640": the bench image with the camera at 640 by 480 (YUYV, about 16 frames a second) instead of
 - `firmware/configs/sdkconfig.cloudtest.defaults` (5): The cloud brain test image (patch SF96): never the default, never in a release. The unit runs the vendor's pub
+- `firmware/configs/sdkconfig.cloudtest.late.defaults` (5): Read after sdkconfig.core.defaults (patch SF99), so it can override the core trim for this one kind.
 - `firmware/configs/sdkconfig.full.defaults` (7): Build kind "full": every optional module compiled in and no bench tools: the size and static RAM of the one-im
 - `firmware/configs/sdkconfig.gate.defaults` (2): Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
 - `firmware/configs/sdkconfig.heaptrace.defaults` (3): Build kind "heap" (bench plus a live-allocation trace from boot: self.bench.heap_trace). Costs about 40 KB of 
@@ -695,7 +696,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (361): no header
+- `firmware/patches/ORDER` (368): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -818,6 +819,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF96-cloud-brain-test-image-kind.patch` (300): A separate image kind, cloudtest, for trying the vendor's hosted brain with the owner's own account (never the
 - `firmware/patches/SF97-banner-note-from-the-host.patch` (76): A one-line note in the top banner row that the host sets when a part of the robot needs the owner (self.banner
 - `firmware/patches/SF98-leave-hosted-and-brain-route.patch` (332): The Brain route and a clean way out of the hosted brain (owner question 2026-11-18). self.brain.set_route cust
+- `firmware/patches/SF99-cloudtest-roots-clock-and-host-link.patch` (254): Fixes to the cloudtest image kind found by its first run on the unit (the vendor check failed at TLS and the h
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -888,12 +890,19 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX13a-settings-at-finger-size.patch` (213): Settings at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.md). The t
 - `firmware/patches/UX13b-more-at-finger-size.patch` (241): The More screen at finger size (owner review 2026-11-18, docs/design/screen-style.md), made together with SF69
 - `firmware/patches/UX13c-control-sheet-at-finger-size.patch` (312): The control sheet at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.m
+- `firmware/patches/UX13d-first-run-at-finger-size.patch` (131): The first-run screens at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-sty
 - `firmware/patches/UX13e-games-page-at-finger-size.patch` (165): The games page and the Apps and Games walls at finger size (owner review 2026-11-18, the physical standard in 
+- `firmware/patches/UX13f-timers-and-alarms-at-finger-size.patch` (164): Timers and Alarms at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.m
+- `firmware/patches/UX13g-lock-keypad-at-finger-size.patch` (55): The lock keypad meets the finger-size standard (owner decision 2026-11-18, superseding the earlier exception; 
 - `firmware/patches/UX14-clock-styles-tap-and-sleep-sign.patch` (190): The clock page gets three styles that a tap cycles, and shows when the unit sleeps (owner idea 2026-11-18, spe
 - `firmware/patches/UX14b-clock-flip-on-the-card-tween.patch` (133): The clock style change plays a card flip (owner idea 2026-11-18, spec docs/design/clock-styles.md "The flip").
 - `firmware/patches/UX15-shared-game-over-screen.patch` (225): One game-over screen for every game (owner idea 2026-11-18, spec docs/design/game-over-screen.md). A face for 
+- `firmware/patches/UX15c-game-over-neutral-end-after-sf82.patch` (64): A game that only counts a score never says "You won!" or "You lost" (owner decision 33, 2026-11-18). The share
 - `firmware/patches/UX16-offline-mumble-core.patch` (197): The offline mumble (owner decision 24, 2026-11-18; spec docs/design/offline-mumble.md). When the unit has word
 - `firmware/patches/UX17-question-and-answer-game-screens.patch` (285): The screens of the question-and-answer games (owner decisions 25 to 27, 2026-11-18; spec docs/design/qa-game-s
+- `firmware/patches/UX18-dice-poker.patch` (249): Dice Poker (the first of the new games of docs/plan/more-games.md, ranked 2; spec docs/design/dice-poker.md). 
+- `firmware/patches/UX19-brain-two-equal-routes.patch` (182): The brain step of the first run offers two equal routes (owner decision 34, 2026-11-18): A "Hosted by M5Stack/
+- `firmware/patches/UX20-hosted-link-removed-notice.patch` (146): The notice "Hosted link removed" (owner decision 34): shown on the unit after it left the hosted brain (M5Stac
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -1953,6 +1962,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/barge_core_test.c` (53): Host test for the talk-over decisions (patch SF18). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/beat_test.c` (64): include <stdio.h>
 - `host/tests/firmware/boottone_core_test.c` (35): Host test for the start-up sound rules (patch SF46). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the heade
+- `host/tests/firmware/brain_notice_core_test.c` (25): Host test of maipai_brain_notice_core.h (patch UX20): the "Hosted link removed" notice in six languages, and w
 - `host/tests/firmware/campro_core_test.c` (67): Host test for the camera probe core (patch SF45). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>.
 - `host/tests/firmware/core_guards_test.c` (81): Host test for the guards added after the static analysis run (patch SF83): the cases the analysis flagged must
 - `host/tests/firmware/dance_cap_core_test.c` (51): Host test for the offline dance cap (patch SF14). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the headers>
@@ -1968,10 +1978,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/facefx_core_test.c` (134): Host test for the fluid face core (patch H02): easing, time constants, speech level, mouth curve, gaze drift. 
 - `host/tests/firmware/filler_core_test.c` (220): Host test for "While it thinks" (patch TB03): the delay rule, the pick, the index reader, mu-law and the tone.
 - `host/tests/firmware/find_core_test.c` (27): Host test for the find-my-robot sound rule (patch Y02): the full sounds core with the find bypass. */
-- `host/tests/firmware/firstrun_core_test.c` (132): include <stdio.h>
+- `host/tests/firmware/firstrun_core_test.c` (181): include <stdio.h>
 - `host/tests/firmware/fx_core_test.c` (347): Host test for the screen effects and the governor (patches TA02, TA05): scanline row math, split invariance, c
 - `host/tests/firmware/fx_cost.c` (94): Host cost model for the overlays and effects (patches TA02, TA03). Runs every overlay for 30 simulated seconds
-- `host/tests/firmware/game_over_core_test.c` (46): Host test of the shared game-over screen's core (patch UX15): the layout meets the screen standard, taps land 
+- `host/tests/firmware/game_over_core_test.c` (48): Host test of the shared game-over screen's core (patch UX15): the layout meets the screen standard, taps land 
 - `host/tests/firmware/games_core_test.c` (572): Host test for the game engine core (patch G01):
 - `host/tests/firmware/games_drag_test.c` (65): Host test for the game drag bar (patch GM02) and the widened safe area (patches GM01 and GM03). */
 - `host/tests/firmware/games_gm_test.c` (642): Host test for patch GM04: the Do It reaction game and the best-of-three Rock Paper Scissors, each driven by a 
@@ -1991,7 +2001,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/linkurl_core_test.c` (39): Host test for the encrypted address rule (patch SF33). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/listen_core_test.c` (171): Host test for the listening cues (patch TB01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> ... -
 - `host/tests/firmware/listen_guard_core_test.c` (24): Host test for the listening guard rule of patch SF03. cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
-- `host/tests/firmware/lock_core_test.c` (197): Host test for the lock core (patch LK01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>.
+- `host/tests/firmware/lock_core_test.c` (198): Host test for the lock core (patch LK01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>.
 - `host/tests/firmware/look_core_test.c` (583): Host test for the look core (patch X01): styles, the eye and its lid, emotions, the mouth family, the sleep se
 - `host/tests/firmware/look_shapes_dump.c` (165): Prints the face model of maipai_look_core.h as JSON (patch V10), for the preview of the settings page.
 - `host/tests/firmware/mic3_core_test.c` (73): Host test for the MIC3 bench measurement (patch SF15). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
@@ -2012,7 +2022,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/packboot_core_test.c` (26): Host test for when the pack boot task starts (patch FM04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/packcache_core_test.c` (381): Host test for the flash cache of the active pack (patch TB02): layout, checksum at boot, fallback, wear, and a
 - `host/tests/firmware/packcache_k_test.c` (345): Host test for the pack cache with the phrase type and the format 2 directory (patch K10): the new type beside 
-- `host/tests/firmware/pages_core_test.c` (625): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
+- `host/tests/firmware/pages_core_test.c` (626): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/pairx_core_test.c` (81): Host test for the unit's pairing state machine (patch SF33), with the vectors of scripts/link-key-vector.py (f
 - `host/tests/firmware/pantry_core_test.c` (188): Host test of the pantry core (patch SF92): shelf checks, record parts, the heard list, choosing a record, and 
 - `host/tests/firmware/phrase_flow_test.c` (94): Host test for the offline phrase flow (patch V02): the link events and the pick, as maipai_sounds.cc drives th
@@ -2217,7 +2227,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (72): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (73): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
