@@ -766,9 +766,15 @@ CSS = CSS + CSS_NAV
 JS = JS + JS_NAV
 JS = JS.replace("/*__FACE_SHAPES__*/", face_js() + banner_js() + overlay_js()) + JS_POLISH + JS_PAGES_FULL + JS_LOCK + JS_LINK + JS_FAMILY + JS_WAKEMAKER + JS_CHARACTER
 
+from maipai_body.settings_ui_shell import css as _shell_css, js as _shell_js  # noqa: E402
+
+CSS = CSS + _shell_css()
+JS = JS + _shell_js()
+
 PAGE = r"""<!doctype html><html lang='__CODE__'><head><meta charset='utf-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
 <meta name='color-scheme' content='light dark'>
+<link rel='icon' href='/assets/brand/maipai-bot-icon-light.png'>
 <title>__TITLE__ - MaiPai for StackChan</title>
 <style>__CSS__</style>
 </head><body>

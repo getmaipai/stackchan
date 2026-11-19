@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 936 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 939 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 59 items, 6 measured, 26 estimated, 27 placeholders or not built. 84 of 936 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,640 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 59 items, 6 measured, 26 estimated, 27 placeholders or not built. 84 of 939 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,640 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 33 | 287 | 8 | 51 | 400 | 64 |
-| Maker and tech | 0 | 0 | 77 | 399 | 60 | 0 | 536 | 69 |
+| Maker and tech | 0 | 0 | 80 | 399 | 60 | 0 | 539 | 69 |
 
 ## Everyday user
 
@@ -591,7 +591,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Music feature stack** | 1 patch(es): The music feature task "musicfeat" (stack in PSRAM) had 584 bytes of... | proven virtual | 70 | not declared | `MF01-music-feature-task-stack-6144.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Movement limiter** | 1 patch(es): One movement limiter at the single place every servo target passes th... | proven virtual | 70 | not declared | `ML01-movement-limiter-at-the-servo-layer.patch` | average of 1 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 
-### Host modules (306)
+### Host modules (308)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -701,7 +701,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: __main__** | ``python -m maipai_body.dashboard``: serve a body's dashboard. | proven virtual | 70 | not declared | `host/maipai_body/dashboard/__main__.py` | file exists, a test names it | doc missing |
 | **Host: server** | The dashboard's stdlib HTTP server: a page, a JSON API, and a server-sent-event feed. | proven on unit | 100 | not declared | `host/maipai_body/dashboard/server.py` | `bench-b9.md` | doc missing |
 | **Host: telemetry** | The dashboard's view of a body: the latest state frame plus presence, as one JSON snapshot. | built | 40 | not declared | `host/maipai_body/dashboard/telemetry.py` | file exists | doc missing |
-| **Host: dashboard_shell** | Wrap a page that is `<style>...</style></head><body><main>...</main>...` in the shared layout. | built | 40 | not declared | `host/maipai_body/dashboard_shell.py` | file exists | doc missing |
+| **Host: dashboard_shell** | Wrap a page that is `<style>...</style></head><body><main>...</main>...` in the shared layout: sidebar, a wide search field, the five items. | built | 40 | not declared | `host/maipai_body/dashboard_shell.py` | file exists | doc missing |
 | **Host: degraded_banner** | One pass: send a changed line at once, repeat a standing one, clear once when it is over. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/degraded_banner.py` | file exists, a test names it | doc missing |
 | **Host: cue** | The typed cue and the phase-to-primitive mapping (``dev.md`` section 5). | proven on unit | 100 | not declared | `host/maipai_body/expression/cue.py` | `bench-b9.md`, `bench-window5.md` | doc missing |
 | **Host: engine** | The expression engine: one cue in, one primitive rendered or withheld. | proven virtual | 70 | not declared | `host/maipai_body/expression/engine.py` | file exists, a test names it | doc missing |
@@ -846,7 +846,9 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: settings_ui_nav** | JS = r | proven virtual | 70 | not declared | `host/maipai_body/settings_ui_nav.py` | file exists, a test names it | doc missing |
 | **Host: settings_ui_pages** | JS_PAGES = r | proven virtual | 70 | not declared | `host/maipai_body/settings_ui_pages.py` | file exists, a test names it | doc missing |
 | **Host: settings_ui_polish** | The settings page's newer sections, as script: overlays, listening cues, "While it thinks", look effects, packs and languages. | built | 40 | not declared | `host/maipai_body/settings_ui_polish.py` | file exists | doc missing |
+| **Host: settings_ui_shell** | The JavaScript of every moved page: each ``settings_ui_p_<name>.py`` next to this file holds a ``JS`` string that sets ``DETAIL['<page>/<name>']`` with the kit above. | built | 40 | not declared | `host/maipai_body/settings_ui_shell.py` | file exists | doc missing |
 | **Host: settings_ui_wakemaker** | The wake word maker card, added to the Voice page. | built | 40 | not declared | `host/maipai_body/settings_ui_wakemaker.py` | file exists | doc missing |
+| **Host: shell_style** | The five items as a bar at the foot of a phone screen. | built | 40 | not declared | `host/maipai_body/shell_style.py` | file exists | doc missing |
 | **Host: speaker_evidence** | The one shape of `speaker_evidence` the body puts on a turn. | proven virtual | 70 | not declared | `host/maipai_body/speaker_evidence.py` | file exists, a test names it | doc missing |
 | **Host: speaker_fusion** | SPEAK-04: face and voice fusion into one `speaker_evidence` and one `present`. | proven virtual | 70 | not declared | `host/maipai_body/speaker_fusion.py` | file exists, a test names it | doc missing |
 | **Host: spec_pin** | Shared commons spec source pin consumed by runtime and repository tooling. | proven virtual | 70 | not declared | `host/maipai_body/spec_pin.py` | file exists, a test names it | doc missing |
@@ -924,7 +926,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: pantry** | Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the owner's model, filters, dedupes and keeps, and the unit keeps a small shelf of. | proven virtual | 70 | not declared | `host/maipai_packages/pantry` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (92)
+### Scripts and tools (93)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -938,6 +940,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: check-no-keys.py** | refuse any firmware image, release folder or source tree that contains a key (safety fix). | proven virtual | 70 | not declared | `scripts/check-no-keys.py` | file exists, a test names it | doc missing |
 | **Script: check.sh** | repo gate. | proven virtual | 70 | not declared | `scripts/check.sh` | file exists, a test names it | doc missing |
 | **Script: choices-check.py** | Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices-rule.md).""" | built | 40 | not declared | `scripts/choices-check.py` | file exists | doc missing |
+| **Script: dashboard-words-check.py** | the dashboard's front pages stay calm (owner request 2026-11-19): at most 6 controls, at most 60 words, labels of 1 to 3 words, one help sentence of 12 words or fewer, and no jargon. | built | 40 | not declared | `scripts/dashboard-words-check.py` | file exists | doc missing |
 | **Script: dev-dashboard.sh** | run the host settings dashboard against seeded demo data (two stand-in units, no hardware, no real data) so it can be looked at. | built | 40 | not declared | `scripts/dev-dashboard.sh` | file exists | doc missing |
 | **Script: docs-claims-check.py** | check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: tool names in backticks exist in schema/tools.json, MAIPAI_ names exist in firmware or ho... | built | 40 | not declared | `scripts/docs-claims-check.py` | file exists | doc missing |
 | **Script: docs-grade.py** | Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences. | built | 40 | not declared | `scripts/docs-grade.py` | file exists | doc missing |

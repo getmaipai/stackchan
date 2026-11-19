@@ -779,8 +779,21 @@ class SettingsBackend:
         segno.make(url, error="m").save(out, kind="svg", xmldecl=False, nl=False, scale=6, border=2)
         return {"enabled": True, "url": url, "svg": out.getvalue().decode("ascii")}
 
+    @staticmethod
+    def _brand_asset(name: str) -> tuple[int, str, bytes]:
+        """One of the org's brand PNGs (assets/brand, copied unchanged, see its PROVENANCE.md). Only a plain file name in that folder is served."""
+        from pathlib import Path
+
+        folder = Path(__file__).parent / "assets" / "brand"
+        target = folder / name
+        if "/" in name or "\\" in name or not name.endswith(".png") or not target.is_file():
+            return 404, "text/plain; charset=utf-8", b"That picture is not here."
+        return 200, "image/png", target.read_bytes()
+
     def route_get(self, path: str, lang: str, local_admin: bool) -> tuple[int, str, bytes] | None:
         """(status, content type, body) for a settings GET, or None when it is not a settings path."""
+        if path.startswith("/assets/brand/"):
+            return self._brand_asset(path[len("/assets/brand/") :])
         if path.startswith(FACES):
             if not local_admin:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()

@@ -40,4 +40,5 @@ python3 scripts/virtual-unit/tools_extract.py --check
 
 python3 scripts/make-vu-screenshots.py --check
 python3 scripts/readiness.py --check
+"$PY" scripts/dashboard-words-check.py
 "$PY" scripts/feature-ledger.py --check   # the host environment is the one source for the ledger (python3 on the Mac is 3.9 and can render it differently); regenerate with: cd host && uv run python ../scripts/feature-ledger.py
