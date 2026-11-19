@@ -11,7 +11,7 @@ JOBS=${3:-2}
 FW="$TREE/firmware"
 [ -d "$FW" ] || { echo "$FW is missing. Run scripts/fw-rebuild.sh first." >&2; exit 1; }
 # The committed overlay files are copied in so the tree always builds from what the repo holds.
-cp "$ROOT/firmware/configs/sdkconfig.bench.defaults" "$ROOT/firmware/configs/sdkconfig.gate.defaults" "$ROOT/firmware/configs/sdkconfig.talkover.defaults" "$ROOT/firmware/configs/sdkconfig.linkpsk.defaults" "$ROOT/firmware/configs/sdkconfig.aec.defaults" "$ROOT/firmware/configs/sdkconfig.heaptrace.defaults" "$ROOT/firmware/configs/sdkconfig.avatar.defaults" "$ROOT/firmware/configs/sdkconfig.cam640.defaults" "$ROOT/firmware/configs/sdkconfig.full.defaults" "$ROOT/firmware/configs/sdkconfig.irnfc.defaults" "$ROOT/firmware/configs/sdkconfig.nofont.defaults" "$ROOT/firmware/configs/sdkconfig.lean.defaults" "$ROOT/firmware/configs/sdkconfig.cloudtest.defaults" "$FW/"
+cp "$ROOT/firmware/configs/sdkconfig.bench.defaults" "$ROOT/firmware/configs/sdkconfig.gate.defaults" "$ROOT/firmware/configs/sdkconfig.talkover.defaults" "$ROOT/firmware/configs/sdkconfig.linkpsk.defaults" "$ROOT/firmware/configs/sdkconfig.aec.defaults" "$ROOT/firmware/configs/sdkconfig.heaptrace.defaults" "$ROOT/firmware/configs/sdkconfig.avatar.defaults" "$ROOT/firmware/configs/sdkconfig.cam640.defaults" "$ROOT/firmware/configs/sdkconfig.full.defaults" "$ROOT/firmware/configs/sdkconfig.irnfc.defaults" "$ROOT/firmware/configs/sdkconfig.nofont.defaults" "$ROOT/firmware/configs/sdkconfig.lean.defaults" "$ROOT/firmware/configs/sdkconfig.cloudtest.defaults" "$ROOT/firmware/configs/sdkconfig.cloudtest.late.defaults" "$FW/"
 case "$KIND" in
     plain) OVERLAYS="" ;;
     nofont) OVERLAYS="sdkconfig.nofont.defaults" ;;
@@ -46,6 +46,7 @@ D="$PWD/sdkconfig.defaults"
 if [ -n "$OVERLAYS" ]; then IFS=';' read -ra X <<< "$OVERLAYS"; for f in "${X[@]}"; do D="$D;$PWD/$f"; done; fi
 if [ -n "${FW_BUILD:-}" ]; then printf 'CONFIG_MAIPAI_FW_BUILD=%s\n' "$FW_BUILD" > sdkconfig.build.defaults; D="$D;$PWD/sdkconfig.build.defaults"; fi  # the signed-update build number of this image
 B="build-$KIND"
+rm -f "$FW/sdkconfig.late.defaults"; if [ "$KIND" = cloudtest ]; then cp "$FW/sdkconfig.cloudtest.late.defaults" "$FW/sdkconfig.late.defaults"; fi   # patch SF99: only the cloud brain test image reads the late file
 SDK="sdkconfig.f$KIND"
 # A fresh sdkconfig the first time; later calls on the same tree rebuild incrementally.
 if [ ! -f "$B/build.ninja" ]; then

@@ -44,3 +44,17 @@ def test_no_kind_sets_a_stackchan_server_url():
     for p in (ROOT / "firmware" / "patches").glob("*.patch"):
         added = [l for l in p.read_text(errors="ignore").splitlines() if l.startswith("+") and not l.startswith("+++") and "47.113" in l]
         assert not added, p.name
+
+
+def test_public_roots_exist_only_in_the_cloudtest_late_file():
+    """The normal image carries no public roots on purpose; the cloud brain test adds them through its own late file, read after the core trim."""
+    core = (ROOT / "firmware" / "configs").parent  # firmware/
+    for path in (ROOT / "firmware" / "configs").glob("sdkconfig.*.defaults"):
+        text = path.read_text()
+        if path.name == "sdkconfig.cloudtest.late.defaults":
+            assert "CERTIFICATE_BUNDLE_DEFAULT_FULL=y" in text
+        else:
+            assert "CERTIFICATE_BUNDLE_DEFAULT_FULL=y" not in text and "CERTIFICATE_BUNDLE_DEFAULT_CMN=y" not in text, path.name
+    script = (ROOT / "scripts" / "fw-build.sh").read_text()
+    assert 'rm -f "$FW/sdkconfig.late.defaults"' in script   # every other kind removes a stale late file first
+    assert core.exists()
