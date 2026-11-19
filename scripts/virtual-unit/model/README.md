@@ -34,7 +34,7 @@ stackchan
       neck                servo holder and its two covers (turns with yaw)
       servo_yaw, servo_pitch, battery, cable    inside the holder: size of the servos from their data sheet, the rest assumed (MATCH.md)
       battery_lead, servo_wires    the battery lead and the two servo leads (assumed paths)
-      black_bracket, ribbon_to_holder    the bracket on the tilt servo's back end, and the black flat cable where it enters the holder (owner's photos)
+      black_bracket, cable, ribbon_bridge    the bracket on the tilt servo's back end; the ribbon cable's flat run on the holder and the stretch that bends as the head nods (owner's photos)
       back_charge_led     red light in the holder back, between the screws
       screw_back_0, screw_back_1, screw_servo    the two cover screws on the holder back and the one on the tilt servo
       col_neck            collider cylinder

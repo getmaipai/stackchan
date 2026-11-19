@@ -152,14 +152,15 @@ function initRobot(THREE, canvas, hooks) {
     // nods. The model stores that stretch for a level head; here it is redrawn for the head's angle so the cable never looks like two.
     const br = N.ribbon_bridge && N.ribbon_bridge.userData.bridge;
     if (br) {
-      const still = N.ribbon_bridge.children.find(c => c.isMesh), SEG = 12, SIDES = 6, W = br.wires;
+      const still = N.ribbon_bridge.children.find(c => c.isMesh), SEG = 12, SIDES = 12, W = br.wires;   // the same round section as the rest of the ribbon
       const geo = new THREE.BufferGeometry(), pos = new Float32Array(W * (SEG + 1) * SIDES * 3), idx = [];
       for (let w = 0; w < W; w++) for (let k = 0; k < SEG; k++) for (let q = 0; q < SIDES; q++) {
         const a = (w * (SEG + 1) + k) * SIDES + q, b = (w * (SEG + 1) + k) * SIDES + (q + 1) % SIDES, c = a + SIDES, d = b + SIDES;
-        idx.push(a, b, d, a, d, c);
+        idx.push(a, d, b, a, c, d);   // wound so the faces point outward
       }
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx);
-      const mesh = new THREE.Mesh(geo, still.material); mesh.frustumCulled = false; M.yaw.add(mesh); still.visible = false;
+      const bm = still.material.clone(); bm.side = THREE.DoubleSide;   // lit from both sides, so the stretch never shows as a dark gap
+      const mesh = new THREE.Mesh(geo, bm); mesh.frustumCulled = false; M.yaw.add(mesh); still.visible = false;
       M.bridge = {mesh, pos, SEG, SIDES, W, br, key: null, from: new THREE.Vector3().fromArray(br.from.point_m), to: new THREE.Vector3().fromArray(br.to.point_m),
                   d0: new THREE.Vector3().fromArray(br.from.direction), d1: new THREE.Vector3().fromArray(br.to.direction)};
     }

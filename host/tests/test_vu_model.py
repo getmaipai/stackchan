@@ -393,7 +393,8 @@ def test_rear_internals_seen_in_the_owners_photo_are_named_nodes():
     head, yaw, base = descendants(j, by["head"][0]), descendants(j, by["yaw_joint"][0]), descendants(j, by["base"][0])
     for name in ["ring_board", "green_connector", "flex_cable_ring", "board_7p", "light_bar_left", "light_bar_right"] + [f"ring_led_{i}" for i in range(12)]:
         assert name in head and "mesh" in by[name][1], f"{name} is drawn and rides on the head"
-    assert {"black_bracket", "ribbon_to_holder"} <= yaw - head and {"coil", "flex_cable_low"} <= head and "base_board" in base - yaw
+    assert "ribbon_to_holder" not in by, "the old upright plate that stood across the wires is gone"
+    assert {"black_bracket", "ribbon_bridge"} <= yaw - head and {"coil", "flex_cable_low"} <= head and "base_board" in base - yaw
     assert by["base_board"][1]["extras"]["basis"] == "assumed" and "no picture of the open base" in by["base_board"][1]["extras"]["note"]
     mat = lambda name: [j["materials"][p["material"]]["name"] for p in j["meshes"][by[name][1]["mesh"]]["primitives"]]
     assert "silk" in mat("board_7p") and mat("green_connector") == ["conn_green"] and "flex_ink" in mat("flex_cable_ring")
@@ -519,11 +520,11 @@ def test_the_heads_board_is_laid_out_from_the_owners_close_photo():
     by = nodes_by_name(j)
     mat = lambda name: {j["materials"][p["material"]]["name"] for p in j["meshes"][by[name][1]["mesh"]]["primitives"]}
     assert {"chip", "conn", "cap_tan", "port_metal"} <= mat("board_parts"), "the cable socket, the flat cable socket, tan capacitors, solder ends and pins"
-    assert mat("coil") == {"ribbon", "servo_case"} and mat("cable") == {"ribbon"}, "the ribbon cable with its braided band on the head, and its run on the holder"
+    assert mat("coil") == {"ribbon"} and mat("cable") == {"ribbon"}, "the ribbon cable with its braided band on the head, and its run on the holder"
     coil_node, cable_node, board = by["coil"][1], by["cable"][1], by["board_7p"][1]
     assert coil_node["translation"][2] < board["translation"][2] - 0.003, "the loop stands away from the board, toward the back"
     cable_acc = j["accessors"][j["meshes"][cable_node["mesh"]]["primitives"][0]["attributes"]["POSITION"]]
-    assert cable_acc["max"][2] - cable_acc["min"][2] > 0.012, "on the holder the ribbon lies flat and runs back for more than 12 mm"
+    assert cable_acc["max"][2] - cable_acc["min"][2] > 0.011, "on the holder the ribbon lies flat and runs back for more than 11 mm"
     br = by["ribbon_bridge"][1]["extras"]["bridge"]
     assert br["wires"] == 8 and br["from"]["frame"] == "pitch_joint" and br["to"]["frame"] == "yaw_joint", "one cable: the stretch between head and holder names both ends"
     assert "ribbon_bridge" in descendants(j, by["yaw_joint"][0]) and "ribbon_bridge" not in descendants(j, by["head"][0])

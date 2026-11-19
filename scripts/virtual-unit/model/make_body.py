@@ -878,8 +878,8 @@ def assemble():
     # One cable in three stretches: the C on the head (`coil`), the flat run on the holder (`cable`), and between them a short stretch that
     # bends as the head nods (`ribbon_bridge`). The file holds the bridge as it lies with the head level; a view redraws it for the
     # head's angle from the two ends recorded on the node, so the ribbon never shows as two cables.
-    bridge_from, bridge_to = (ring_under - 15.0, zb - 4.4), (lie, zb - 7.6)          # (height, depth): the foot of the C, and where the flat run starts
-    bridge = wires(lambda x, pt: (x, pt[0], pt[1]), [bridge_from, (ring_under - 15.8, zb - 4.9), (lie + 0.35, zb - 6.0), bridge_to])
+    bridge_from, bridge_to = (ring_under - 15.4, zb - 6.9), (lie, zb - 8.9)          # (height, depth): the foot of the C, and where the flat run starts
+    bridge = wires(lambda x, pt: (x, pt[0], pt[1]), [bridge_from, (ring_under - 16.0, zb - 7.0), (lie + 0.3, zb - 7.6), bridge_to])
     cable += wires(lambda x, pt: (x, pt[0], pt[1]), [bridge_to, (lie, zb - 12.0), (lie, 0.0), (lie, -4.0)])
     screen_c = (0.0, cy - SCREEN_DROP_MM, face + 0.03)
 
@@ -1046,11 +1046,6 @@ def assemble():
     c = (14.7, 41.7, -19.35)
     g.node('screw_servo', yaw, sub(c, YAW_O), g.mesh('screw_servo', [g.primitive(head_t, c, 'screw'), g.primitive(cross, c, 'screw_dark')]),
            {'what': "socket-head screw in the black bracket on the tilt servo's back end", 'basis': 'assumed'})
-    # The black flat cable from the head's board into the holder (owner's photos): its last stretch stands in front of the tilt servo and
-    # goes down into the holder; the folded stack above it rides on the head (node coil, below).
-    lead_c = (0.0, PITCH_O[1] + 4.6, 7.2)
-    g.node('ribbon_to_holder', yaw, sub(lead_c, YAW_O), g.mesh('ribbon_to_holder', [g.primitive(box(lead_c, (7.5, 6.0, 0.4)), lead_c, 'ribbon')]),
-           {'what': 'the black flat cable where it goes down into the holder, in front of the tilt servo', 'basis': 'assumed', 'note': "seen in the owner's photos of the open back"})
     inside = [('servo_yaw', {'servo_case': servo_yaw}, 'pan servo: its case turns with the holder, its shaft sits in the base socket (size from the data sheet, position assumed)'),
               ('servo_pitch', {'servo_case': servo_pitch}, 'tilt servo: its shaft drives the arm on the nod axis (size from the data sheet, position assumed)'),
               ('battery', {'battery': battery}, '550 mAh battery behind the holder back cover (capacity published; size and position assumed)'),
@@ -1117,12 +1112,13 @@ def assemble():
     coil, coil_c = [], (-1.0, ring_under - 9.5, zb - 5.0)
     # Seen from the side the wires make a letter C that opens toward the board: its top end is in the connector, it bulges 7 mm away from
     # the board, and its bottom end comes back toward the board, where the braided band is; below the band the ribbon goes to the holder.
-    loop = [(7.4, 1.7), (7.2, 3.3), (7.5, 5.0), (8.5, 6.4), (10.0, 7.2), (11.6, 7.1), (12.8, 6.3), (13.6, 5.3), (14.4, 4.4), (15.0, 4.4)]   # (down, away from the board)
+    loop = [(7.4, 1.7), (7.2, 3.3), (7.5, 5.0), (8.3, 6.6), (9.6, 7.7), (11.0, 8.1), (12.4, 7.9), (13.6, 7.4), (14.6, 7.0), (15.4, 6.9)]   # (down, away from the board)
+    in_braid = [p2 for p2 in loop if 12.3 < p2[0] < 14.7]                                # the stretch of the path inside the braided band
 
     coil += wires(lambda x, pt: onboard(x, ring_under - pt[0], pt[1]), loop)
-    bc = onboard(coil_c[0], ring_under - 13.6, 5.3)                                  # the short woven band round the wires, on the slant at the foot of the C
-    braid = obox(bc, (4.4, 0.0, 0.0), (0.0, -0.8 * 0.66, 0.9 * 0.66 * 1.25), (0.0, 0.75 * 0.62, 0.66 * 0.62))
-    g.node('coil', head, sub(coil_c, PITCH_O), g.mesh('coil', [g.primitive(coil, coil_c, 'ribbon'), g.primitive(braid, coil_c, 'servo_case')]),
+    # The braided band does not cut the wires: each wire runs on through it, a little thicker and dull where the weave covers it.
+    braid = wires(lambda x, pt: onboard(x, ring_under - pt[0], pt[1]), in_braid, radius=0.47)
+    g.node('coil', head, sub(coil_c, PITCH_O), g.mesh('coil', [g.primitive(coil + braid, coil_c, 'ribbon')]),   # the woven stretch is the same eight wires, a touch thicker: nothing crosses them
            {'what': 'ribbon cable of eight black wires: out of its connector on the upright board, a loop away from the board, a braided band, down toward the holder', 'basis': 'assumed', 'note': "route from the owner's four close photos; it flexes as the head nods and is drawn at rest, a view joins it to the holder's run through ribbon_bridge at every head angle"})
     low = {'flex': [], 'flex_ink': []}                           # a second flat cable, white with blue print, low on the board (owner's photo from below)
     low['flex'] += slab(lambda u, v, c: (u, v, zb - c), -13.0, -2.0, cy - 16.0, cy - 12.6, 0.0, 0.2)
