@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
+import threading
 import tomllib
 from pathlib import Path
 from typing import Any
 
 from maipai_body.brain_setup import catalog
 
+_WRITE_LOCK = threading.RLock()  # one writer at a time in this process: read, edit and replace happen under it
 _TABLE = re.compile(r"^\s*\[([^\[\]]+)\]\s*(?:#.*)?$")
 
 
@@ -22,7 +26,13 @@ def _fmt(value: Any) -> str:
 
 
 def set_values(path: Path, table: str, values: dict[str, Any], remove: tuple[str, ...] = ()) -> None:
-    """Set keys in ``[table]`` (``""`` is the top of the file) and drop the keys in ``remove``. Other lines stay as they are."""
+    """Set keys in ``[table]`` (``""`` is the top of the file) and drop the keys in ``remove``. Other lines stay as they are.
+    The file is written to a temp file beside it and swapped in, so a crash never leaves it half written."""
+    with _WRITE_LOCK:
+        _set_values(Path(path), table, values, remove)
+
+
+def _set_values(path: Path, table: str, values: dict[str, Any], remove: tuple[str, ...]) -> None:
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
     out: list[str] = []
     current = ""
@@ -64,7 +74,21 @@ def set_values(path: Path, table: str, values: dict[str, Any], remove: tuple[str
             out += ([""] if out and out[-1].strip() else []) + [f"[{table}]"] + block
     text = "\n".join(out) + "\n"
     tomllib.loads(text)  # never leave a file the host cannot read
-    path.write_text(text, encoding="utf-8")
+    mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
+    fd, temp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temp, mode)
+        os.replace(temp, path)
+    except BaseException:
+        try:
+            os.unlink(temp)
+        except OSError:
+            pass
+        raise
 
 
 def apply_home(path: Path, url: str) -> None:

@@ -76,11 +76,6 @@ class BrainSetup:
     def apply(self, mode: str, body: dict[str, Any]) -> dict[str, Any]:
         was_hosted = brain_route.read(self.config_path) == "hosted"
         leave = {"note": brain_route.LEAVE_NOTE} if was_hosted else {}
-        if was_hosted and mode in ("home", "own") and self.on_leave_hosted is not None:
-            try:
-                self.on_leave_hosted()
-            except Exception:
-                pass  # the saved route still changes; the unit keeps its link until asked again
         try:
             if mode == "hosted":
                 if not brain_route.HOSTED_PROVEN:
@@ -90,14 +85,24 @@ class BrainSetup:
             if mode == "home":
                 modes.apply_home(self.config_path, str(body.get("url", "")))
                 modes.set_values(self.config_path, "", {"brain_route": "custom"})
+                self._leave_hosted_units(was_hosted)
                 return {"ok": True, "message": "Saved. The host now uses MaiPai Home. Restart the host, then pair the robot with Home.", **leave}
             if mode == "own":
                 modes.apply_own(self.config_path, str(body.get("llm_url", "")), str(body.get("model", "")), str(body.get("stt_url", "")), str(body.get("tts_url", "")), str(body.get("api_key_env", "")))
                 modes.set_values(self.config_path, "", {"brain_route": "custom"})
+                self._leave_hosted_units(was_hosted)
                 return {"ok": True, "message": "Saved. The host now uses your own stack. Restart the host to use it.", **leave}
         except ValueError as error:
             return {"ok": False, "error": str(error)}
         return {"ok": False, "error": "Pick hosted, home or own. The local stack is installed with the Install button."}
+
+    def _leave_hosted_units(self, was_hosted: bool) -> None:
+        """Only after the new setting is saved: each unit erases its vendor link and restarts."""
+        if was_hosted and self.on_leave_hosted is not None:
+            try:
+                self.on_leave_hosted()
+            except Exception:
+                pass  # the saved route already changed; the unit keeps its link until asked again
 
     # -- the local stack ---------------------------------------------------------------------------------------------------
     def install(self, choice: str) -> dict[str, Any]:

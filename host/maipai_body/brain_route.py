@@ -8,12 +8,15 @@ the host refuses to save it, so nobody is moved onto a route that cannot work.""
 
 from __future__ import annotations
 
+import logging
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
 HOSTED_PROVEN = False
+_refused_logged = False
 ROUTES = ("hosted", "custom")
 TOOL = "self.brain.set_route"  # firmware SF98; the unit also answers self.brain.status and sends the event brain_route
 
@@ -42,6 +45,12 @@ def on_event(config_path: Path, kind: str, extra: dict[str, Any] | None) -> bool
         return False
     route = (extra or {}).get("route")
     if route not in ROUTES or read(config_path) == route:
+        return False
+    if route == "hosted" and not HOSTED_PROVEN:
+        global _refused_logged
+        if not _refused_logged:
+            _refused_logged = True
+            logger.warning("A unit reported the hosted brain route, which this host does not accept yet. The saved route stays custom; no action is needed.")
         return False
     from maipai_body.brain_setup import modes
 
