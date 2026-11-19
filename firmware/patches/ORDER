@@ -371,3 +371,6 @@ UX21-higher-or-lower.patch
 UX22-reversi.patch
 UX20b-notice-console-line.patch
 UX19b-first-run-lines-that-fit.patch
+UX23-battleship-lite.patch
+UX24-pong.patch
+UX25-flyer.patch

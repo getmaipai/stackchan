@@ -1,0 +1,242 @@
+# Intent: Pong (spec docs/design/pong.md, rank 11 of docs/plan/more-games.md): the person's paddle (dragged up and down) against the unit's on a 304 by 192 court, first to 5 points; the unit's paddle is slower than the ball can get, so a ball hit near the paddle's edge is steep and wins the point; a long rally gets a wilder return so a game ends. Fixed point, 30 ticks a second, no clock of its own. Ends on You won or You lost with the score. Two new header-only files: the pure core and the screen (the court is ONE object, one draw callback). Registering the game, the drag, the tick, the sounds (tick, thud), the best score and the game-over call are the firmware track's.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pong_core.h, maipai_pong.h (new, ours)
+# Check after a flash: Games, Pong: an amber paddle on the left that follows the finger up and down, a pale blue paddle on the right, a ball; the score above; a point to five ends on the shared game-over screen; the ball never leaves the court.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_pong_core.h b/firmware/main/hal/maipai_pong_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pong_core.h
+@@ -0,0 +1,146 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Pong (patch UX24; spec docs/design/pong.md): the person's paddle on the left, dragged up and down, against the unit's paddle on the right. First to 5 points wins. A game with a real winner: it
++ * ends on You won or You lost with the score. The unit's paddle is slower than the ball can get (2.5 px a tick against a ball that reaches 10), so a ball that leaves the person's paddle near
++ * its edge is steep and wins the point. Fixed point (1/16 pixel), 30 ticks a second, no clock of its own (the caller steps it), no heap. Pure C99, no ESP and no LVGL call.
++ */
++#ifndef MAIPAI_PONG_CORE_H
++#define MAIPAI_PONG_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define PG_W 304            /* the court, in pixels: x 8 to 312 on the glass */
++#define PG_H 192            /* y 36 to 228 */
++#define PG_X0 8
++#define PG_Y0 36
++#define PG_PAD_H 40
++#define PG_PAD_W 6
++#define PG_PAD_X 6          /* a paddle's distance from its side wall */
++#define PG_BALL 8
++#define PG_WIN 5
++#define PG_TICK_MS 33
++#define PG_UNIT_SPEED 40    /* the unit's paddle, 1/16 px a tick (2.5 px) */
++#define PG_SPEED0 48        /* the serve, 1/16 px a tick (3 px) */
++#define PG_SPEED_MAX 160    /* the ball's fastest horizontal speed (10 px a tick) */
++enum { PG_PLAY = 0, PG_END };
++enum { PG_E_NONE = 0, PG_E_WALL, PG_E_HIT_PERSON, PG_E_HIT_UNIT, PG_E_PERSON_SCORED, PG_E_UNIT_SCORED };
++
++typedef struct {
++    int32_t bx, by;          /* the ball's top left, 1/16 px, in the court */
++    int32_t vx, vy;          /* 1/16 px a tick */
++    int16_t py, uy;          /* the paddles' tops, px, in the court */
++    uint8_t sp, su;          /* points: the person, the unit */
++    uint8_t phase;
++    uint8_t event;           /* what the last step did, for the sounds */
++    uint32_t rng;
++    uint32_t ticks;
++    uint8_t rally;           /* paddle hits since the serve: a long rally gets a wilder ball so it ends */
++} pg_t;
++
++static inline uint32_t pg_rand(pg_t* g)
++{
++    g->rng = g->rng * 1664525u + 1013904223u;
++    return g->rng >> 8;
++}
++
++static inline void pg_serve(pg_t* g, int toward_unit)
++{
++    g->bx = (PG_W / 2 - PG_BALL / 2) * 16;
++    g->by = (PG_H / 2 - PG_BALL / 2) * 16;
++    g->vx = toward_unit ? PG_SPEED0 : -PG_SPEED0;
++    g->vy = ((int)(pg_rand(g) % 5u) - 2) * 16;   /* -2 to +2 px a tick */
++    g->rally = 0;
++}
++
++static inline void pg_init(pg_t* g, uint32_t seed)
++{
++    memset(g, 0, sizeof(*g));
++    g->rng = seed != 0 ? seed : 1u;
++    g->py = g->uy = (int16_t)((PG_H - PG_PAD_H) / 2);
++    g->phase = PG_PLAY;
++    pg_serve(g, 1);
++}
++
++/* The person drags: the paddle's centre goes to `y` (a court y in px), kept inside the court. */
++static inline void pg_drag(pg_t* g, int y)
++{
++    int top = y - PG_PAD_H / 2;
++    if (top < 0) top = 0;
++    if (top > PG_H - PG_PAD_H) top = PG_H - PG_PAD_H;
++    g->py = (int16_t)top;
++}
++
++static inline int pg_ball_cy(const pg_t* g) { return (g->by >> 4) + PG_BALL / 2; }
++
++static inline void pg_point(pg_t* g, int person)
++{
++    if (person) { g->sp++; g->event = PG_E_PERSON_SCORED; } else { g->su++; g->event = PG_E_UNIT_SCORED; }
++    if (g->sp >= PG_WIN || g->su >= PG_WIN) { g->phase = PG_END; return; }
++    pg_serve(g, person);   /* the next ball goes toward the side that just lost the point: it receives */
++}
++
++/* One tick (PG_TICK_MS). The ball moves, the walls and paddles bounce it, a ball past a paddle is a point, and the unit's paddle follows. */
++static inline void pg_step(pg_t* g)
++{
++    if (g->phase != PG_PLAY) return;
++    g->event = PG_E_NONE;
++    g->ticks++;
++    const int32_t px_plane = (PG_PAD_X + PG_PAD_W) * 16;                       /* the person's paddle face */
++    const int32_t ux_plane = (PG_W - PG_PAD_X - PG_PAD_W - PG_BALL) * 16;      /* where the ball's left edge is when it touches the unit's paddle */
++    const int32_t old_bx = g->bx;
++    g->bx += g->vx;
++    g->by += g->vy;
++    if (g->by < 0) { g->by = -g->by; g->vy = -g->vy; g->event = PG_E_WALL; }
++    if (g->by > (PG_H - PG_BALL) * 16) { g->by = 2 * (PG_H - PG_BALL) * 16 - g->by; g->vy = -g->vy; g->event = PG_E_WALL; }
++    if (g->vx < 0 && old_bx >= px_plane && g->bx < px_plane) {   /* the ball crosses the person's paddle face */
++        const int cy = pg_ball_cy(g);
++        if (cy >= g->py - PG_BALL / 2 && cy <= g->py + PG_PAD_H + PG_BALL / 2) {
++            const int off = cy - (g->py + PG_PAD_H / 2);                      /* -24 to +24 */
++            g->bx = px_plane;
++            g->vx = -g->vx + 8;
++            if (g->vx > PG_SPEED_MAX) g->vx = PG_SPEED_MAX;
++            g->vy += off * 4;                                                 /* a hit at the edge sends it up to 6 px a tick steeper */
++            if (g->rally < 255) g->rally++;
++            g->event = PG_E_HIT_PERSON;
++        }
++    }
++    if (g->vx > 0 && old_bx <= ux_plane && g->bx > ux_plane) {   /* and the unit's */
++        const int cy = pg_ball_cy(g);
++        if (cy >= g->uy - PG_BALL / 2 && cy <= g->uy + PG_PAD_H + PG_BALL / 2) {
++            const int off = cy - (g->uy + PG_PAD_H / 2);
++            g->bx = ux_plane;
++            g->vx = -g->vx - 8;
++            if (g->vx < -PG_SPEED_MAX) g->vx = -PG_SPEED_MAX;
++            g->vy += off * 4;
++            if (g->rally < 255) g->rally++;
++            if (g->rally > 6) g->vy += ((int)(pg_rand(g) % 3u) - 1) * (g->rally - 6) * 16;   /* a long rally: the unit's return gets wilder with every hit */
++            g->event = PG_E_HIT_UNIT;
++        }
++    }
++    if (g->vy > 112) g->vy = 112;
++    if (g->vy < -112) g->vy = -112;
++    if (g->bx < -PG_BALL * 16) { pg_point(g, 0); return; }                  /* past the person: the unit scores */
++    if (g->bx > PG_W * 16) { pg_point(g, 1); return; }                      /* past the unit: the person scores */
++    {   /* the unit's paddle: toward the ball while it comes, back toward the middle while it goes, never faster than PG_UNIT_SPEED */
++        const int target = g->vx > 0 ? pg_ball_cy(g) - PG_PAD_H / 2 : (PG_H - PG_PAD_H) / 2;
++        int cur = g->uy * 16, want = target * 16;
++        if (want < 0) want = 0;
++        if (want > (PG_H - PG_PAD_H) * 16) want = (PG_H - PG_PAD_H) * 16;
++        const int d = want - cur, lim = g->vx > 0 ? PG_UNIT_SPEED : PG_UNIT_SPEED / 2;
++        cur += d > lim ? lim : (d < -lim ? -lim : d);
++        g->uy = (int16_t)(cur / 16);
++    }
++}
++
++/* The end result for the person: 1 won, 2 lost (0 while the game goes on). */
++static inline int pg_result(const pg_t* g)
++{
++    if (g->phase != PG_END) return 0;
++    return g->sp > g->su ? 1 : 2;
++}
++
++static inline void pg_ball_px(const pg_t* g, int* x, int* y) { *x = PG_X0 + (g->bx >> 4); *y = PG_Y0 + (g->by >> 4); }
++
++#endif
+diff --git a/firmware/main/hal/maipai_pong.h b/firmware/main/hal/maipai_pong.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pong.h
+@@ -0,0 +1,80 @@
++// SPDX-License-Identifier: MIT
++// The Pong screen (patch UX24; spec docs/design/pong.md). Header only, so the host renderer compiles the very same drawing code. The court is drawn by ONE object and one draw callback, redrawn
++// by the caller on every step (the unit redraws only the strip the ball and paddles moved through, as SF78 does for the grid games). The firmware track wires the drag (pg_drag), the 33 ms tick,
++// the sounds and the game-over call (You won or You lost, with the score). No ESP call here.
++#ifndef MAIPAI_PONG_H
++#define MAIPAI_PONG_H
++
++#include <lvgl.h>
++#include <stdio.h>
++#include "maipai_pong_core.h"
++
++namespace pgs {
++
++inline void rect(lv_layer_t* layer, int x, int y, int w, int h, int radius, uint32_t color, lv_opa_t opa = LV_OPA_COVER)
++{
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.bg_color = lv_color_hex(color);
++    d.bg_opa = opa;
++    d.radius = radius;
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + h - 1)};
++    lv_draw_rect(layer, &d, &a);
++}
++
++inline void draw_court(lv_event_t* e)
++{
++    const pg_t* g = static_cast<const pg_t*>(lv_event_get_user_data(e));
++    if (g == nullptr) return;
++    lv_layer_t* layer = lv_event_get_layer(e);
++    rect(layer, PG_X0 - 2, PG_Y0 - 2, PG_W + 4, PG_H + 4, 4, 0x1B3A5C);                               // the frame
++    rect(layer, PG_X0, PG_Y0, PG_W, PG_H, 2, 0x0B1626);                                              // the court
++    for (int y = PG_Y0 + 4; y < PG_Y0 + PG_H - 8; y += 16) rect(layer, PG_X0 + PG_W / 2 - 1, y, 3, 8, 1, 0x35506F);   // the net
++    rect(layer, PG_X0 + PG_PAD_X, PG_Y0 + g->py, PG_PAD_W, PG_PAD_H, 3, 0xF2B24A);                  // the person's paddle (amber)
++    rect(layer, PG_X0 + PG_W - PG_PAD_X - PG_PAD_W, PG_Y0 + g->uy, PG_PAD_W, PG_PAD_H, 3, 0x8FB4DA);   // the unit's paddle (pale blue)
++    int bx, by;
++    pg_ball_px(g, &bx, &by);
++    rect(layer, bx, by, PG_BALL, PG_BALL, LV_RADIUS_CIRCLE, 0xF1EEE4);
++}
++
++inline lv_obj_t* words(lv_obj_t* parent, const char* t, const lv_font_t* font, uint32_t rgb, int x, int y, int w, lv_text_align_t align)
++{
++    lv_obj_t* l = lv_label_create(parent);
++    lv_label_set_text(l, t);
++    lv_obj_set_style_text_font(l, font, 0);
++    lv_obj_set_style_text_color(l, lv_color_hex(rgb), 0);
++    lv_obj_set_style_text_align(l, align, 0);
++    lv_obj_set_width(l, w);
++    lv_obj_set_pos(l, x, y);
++    return l;
++}
++
++// `g` must outlive the screen. The score is above the court: the person's points left, the unit's right.
++inline lv_obj_t* screen(lv_obj_t* parent, const pg_t* g, bool es)
++{
++    lv_obj_t* r = lv_obj_create(parent);
++    lv_obj_remove_style_all(r);
++    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(r, 320, 240);
++    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    lv_obj_t* court = lv_obj_create(r);
++    lv_obj_remove_style_all(court);
++    lv_obj_remove_flag(court, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(court, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(court, 320, 240);
++    lv_obj_set_pos(court, 0, 0);
++    lv_obj_add_event_cb(court, draw_court, LV_EVENT_DRAW_MAIN, const_cast<pg_t*>(g));
++    char a[16], b[16];
++    snprintf(a, sizeof(a), "%d", g->sp);
++    snprintf(b, sizeof(b), "%d", g->su);
++    words(r, es ? "Tu" : "You", &lv_font_montserrat_16, 0xF2B24A, 8, 10, 100, LV_TEXT_ALIGN_LEFT);
++    words(r, a, &lv_font_montserrat_20, 0xF2B24A, 112, 8, 40, LV_TEXT_ALIGN_RIGHT);
++    words(r, b, &lv_font_montserrat_20, 0x8FB4DA, 168, 8, 40, LV_TEXT_ALIGN_LEFT);
++    words(r, es ? "Unidad" : "Unit", &lv_font_montserrat_16, 0x8FB4DA, 212, 10, 100, LV_TEXT_ALIGN_RIGHT);
++    return r;
++}
++
++}  // namespace pgs
++
++#endif

@@ -17,6 +17,9 @@
 //   hilo CUR NEXT|REVEAL|RESULT 1 right 2 wrong 3 same|STREAK|en or es   the Higher or Lower screen (patch UX21): cards are 0 to 51 (suit * 13 + rank - 1)
 //   reversi MOVES|THINKING|en or es                      the Reversi screen (patch UX22): the person's cells (0 to 63) in order, the unit answering each; THINKING 1 stops before the unit's last answer
 //   reversi board BOARD64|TURN 1 person 2 unit|LAST|LASTPASS|en or es   a hand-made Reversi position ('.' empty, 'P' person, 'U' unit)
+//   battleship SEED|CELLS FIRED AT|en or es    the Battleship-lite screen (patch UX23): the sea of that seed after the shots, in order
+//   pong BX BY VX VY|PY UY|PERSON UNIT|en or es   the Pong screen (patch UX24): the ball (px in the court), the paddles' tops, the points
+//   flyer SEED|STEPS|BIRD Y|SCORE|PHASE 0 play 1 over|en or es   the flyer screen (patch UX25): the course of that seed scrolled STEPS ticks, the bird at BIRD Y (px)
 //   snap FILE.png
 // Build: see scripts/virtual-unit/build-screens.sh. Placement: host-side development tool; no firmware change. Upstream: none.
 #include <lvgl.h>
@@ -55,6 +58,18 @@
 #if __has_include("maipai_reversi.h")
 #include "maipai_reversi.h"   /* patch UX22: Reversi */
 #define HAVE_REVERSI 1
+#endif
+#if __has_include("maipai_battleship.h")
+#include "maipai_battleship.h"   /* patch UX23: Battleship-lite */
+#define HAVE_BATTLESHIP 1
+#endif
+#if __has_include("maipai_pong.h")
+#include "maipai_pong.h"   /* patch UX24: Pong */
+#define HAVE_PONG 1
+#endif
+#if __has_include("maipai_flyer.h")
+#include "maipai_flyer.h"   /* patch UX25: Flappy-style flyer */
+#define HAVE_FLYER 1
 #endif
 #if __has_include("maipai_qa.h")
 #include "maipai_qa.h"   /* patch UX17: the question and answer game screens */
@@ -376,6 +391,53 @@ int main()
             lv_refr_now(nullptr);
 #else
             printf("this firmware tree has no Reversi (patch UX22)\n");
+#endif
+        } else if (c == "battleship") {
+#ifdef HAVE_BATTLESHIP
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 3) f.push_back("");
+            static bs_t bg;
+            bs_init(&bg, (uint32_t)atoi(f[0].c_str()));
+            std::stringstream cs(f[1]); int cell; while (cs >> cell) bs_fire(&bg, cell);
+            bsh::screen(lv_layer_top(), &bg, f[2] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no Battleship-lite (patch UX23)\n");
+#endif
+        } else if (c == "pong") {
+#ifdef HAVE_PONG
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 4) f.push_back("");
+            static pg_t pgm;
+            pg_init(&pgm, 1);
+            int bx = 150, by = 90, vx = 3, vy = 0; std::stringstream bs(f[0]); bs >> bx >> by >> vx >> vy;
+            pgm.bx = bx * 16; pgm.by = by * 16; pgm.vx = vx * 16; pgm.vy = vy * 16;
+            int py = 76, uy = 76; std::stringstream ps(f[1]); ps >> py >> uy; pgm.py = (int16_t)py; pgm.uy = (int16_t)uy;
+            int sp = 0, su = 0; std::stringstream sc(f[2]); sc >> sp >> su; pgm.sp = (uint8_t)sp; pgm.su = (uint8_t)su;
+            pgs::screen(lv_layer_top(), &pgm, f[3] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no Pong (patch UX24)\n");
+#endif
+        } else if (c == "flyer") {
+#ifdef HAVE_FLYER
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 6) f.push_back("");
+            static fl_t fg;
+            fl_init(&fg, (uint32_t)atoi(f[0].c_str()));
+            const int steps = atoi(f[1].c_str()), by = atoi(f[2].c_str());
+            for (int i = 0; i < steps; i++) { fg.y = by * 16; fg.vy = 0; fl_step(&fg); fg.phase = FL_PLAY; }
+            fg.y = by * 16; fg.vy = 0; fg.score = (uint16_t)atoi(f[3].c_str()); fg.phase = (uint8_t)(atoi(f[4].c_str()) ? FL_OVER : FL_PLAY);
+            fls::screen(lv_layer_top(), &fg, f[5] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no flyer (patch UX25)\n");
 #endif
         } else if (c == "snap") {
             std::string f; in >> f; snap(f.c_str());
