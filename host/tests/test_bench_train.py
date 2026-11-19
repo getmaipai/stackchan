@@ -143,3 +143,14 @@ def test_final_and_after_restart_checks_run(tmp_path):
     res = bt.run_train(man, unit, tmp_path / "out", sleep=lambda s: __import__("time").sleep(0.01))
     names = [c["name"] for c in res["checks"]]
     assert "last (after soak)" in names and "again (after restart)" in names
+
+
+def test_a_screen_check_clears_quiet_for_the_picture_and_restores_the_silent_state(tmp_path):
+    png(tmp_path / "gold.png", 8, 8, lambda x, y: (10, 20, 30))
+    unit = FakeUnit(tmp_path)
+    res = bt.run_check(unit, {"name": "shot", "snapshot": "gold"}, tmp_path, {}, tmp_path, 0, sleep=lambda s: None)
+    assert res["status"] == "PASS"
+    assert unit.calls[0] == "self.privacy.set" and unit.calls[-1] == "self.audio_speaker.set_volume"   # quiet off first, the silent state last
+    unit2 = FakeUnit(tmp_path)
+    bt.run_check(unit2, {"name": "tool", "tool": "self.privacy.get"}, tmp_path, {}, tmp_path, 0, sleep=lambda s: None)
+    assert unit2.calls == ["self.privacy.get"]                                                          # a tool check keeps the unit in full quiet

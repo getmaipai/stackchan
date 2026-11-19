@@ -1,4 +1,98 @@
 {
-  "default": {"channel": 12, "fraction": 0.01},
-  "screen-page-clock": {"fraction": 0.03, "ignore": [[0, 0, 320, 28]]}
+ "default": {
+  "channel": 12,
+  "fraction": 0.01,
+  "ignore": [
+   [
+    0,
+    0,
+    320,
+    28
+   ]
+  ]
+ },
+ "screen-page-clock": {
+  "fraction": 0.01,
+  "ignore": [
+   [
+    0,
+    0,
+    320,
+    28
+   ],
+   [
+    60,
+    30,
+    320,
+    170
+   ]
+  ]
+ },
+ "screen-page-games": {
+  "fraction": 0.025,
+  "ignore": [
+   [
+    0,
+    0,
+    320,
+    28
+   ]
+  ]
+ },
+ "screen-settings-general": {
+  "fraction": 0.03,
+  "ignore": [
+   [
+    0,
+    0,
+    320,
+    28
+   ]
+  ]
+ },
+ "more-menu": {
+  "fraction": 0.03,
+  "ignore": [
+   [
+    0,
+    0,
+    320,
+    28
+   ]
+  ]
+ },
+ "screen-control-sheet": {
+  "fraction": 0.02,
+  "ignore": [
+   [
+    0,
+    0,
+    320,
+    28
+   ],
+   [
+    0,
+    38,
+    320,
+    66
+   ],
+   [
+    100,
+    70,
+    320,
+    170
+   ]
+  ]
+ },
+ "screen-page-actions": {
+  "fraction": 0.01,
+  "ignore": [
+   [
+    0,
+    0,
+    320,
+    28
+   ]
+  ]
+ }
 }

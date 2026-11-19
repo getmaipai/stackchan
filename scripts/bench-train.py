@@ -288,7 +288,11 @@ def wait_ready(unit, timeout: float, sleep=time.sleep, clock=time.time) -> bool:
 
 def run_check(unit, check: dict, golden_dir: Path, tolerances: dict, out: Path, settle: float, sleep=time.sleep) -> dict:
     res = {"name": check["name"], "status": "PASS", "detail": ""}
+    screen = "snapshot" in check and check.get("quiet_off", True)
     try:
+        if screen:   # full quiet dims the screen (found by the bench, 2026-11-18): the goldens are bright, so quiet is cleared for the picture and the silent state comes back after
+            unit.call("self.privacy.set", {"quiet": 0}, 15.0)
+            unit.call("self.audio.set_sound_policy", {"enabled": False, "muted": True, "quiet_now": False}, 15.0)
         for step in check.get("pre", []):
             try:
                 unit.call(step["tool"], step.get("args", {}), step.get("wait", 30))
@@ -313,6 +317,8 @@ def run_check(unit, check: dict, golden_dir: Path, tolerances: dict, out: Path, 
             unit.call(step["tool"], step.get("args", {}), step.get("wait", 30))
     except Exception as exc:  # noqa: BLE001
         res.update(status="FAIL", detail=f"the check could not run: {exc}")
+    if screen:
+        apply_safe(unit)
     return res
 
 
