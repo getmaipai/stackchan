@@ -66,8 +66,8 @@ def rows() -> list[dict]:
         },
         {
             "row": "Install the host program without a terminal",
-            "evidence": [("install page", has(r"^docs/user/install-the-host\.md$")), ("host packaging", has(r"^host/pyproject\.toml$"))],
-            "missing": ["an installer a friend can double click (today: pipx from a terminal)", "a real launchd or systemd swap by `stackchan service update` (the rollback rule is tested with fakes and a bad-source venv install only; it needs the Studio service and a second host version, a bench step)"],
+            "evidence": [("install page", has(r"^docs/user/install-the-host\.md$")), ("host packaging", has(r"^host/pyproject\.toml$")), ("service handover tests (fakes, and the real launchd run under a throwaway label)", has(r"test_service_handover"))],
+            "missing": ["an installer a friend can double click (today: pipx from a terminal)", "a real launchd or systemd swap by `stackchan service update` (the rollback rule is tested with fakes and a bad-source venv install only; it needs the Studio service and a second host version, a bench step)", "the Keep the host running button on a real robot and the real service label (the success path ran on launchd under a throwaway label on 2026-11-19; the failure path is a bench step)"],
             "blocked": True,
             "unblock": [("owner", "choose the systems to support first (Mac, Windows, a Raspberry Pi) and whether a bundled app is wanted"), ("app", "build that installer, with the first-run page that opens the settings page and the pairing card, and test it on a clean machine")],
         },
@@ -117,7 +117,7 @@ def rows() -> list[dict]:
         {
             "row": "Docs a friend can follow",
             "evidence": [("user pages", docs_pages), ("claims check", has(r"^scripts/docs-claims-check\.py$")), ("screens from the virtual unit", has(r"^docs/images/vu-"))],
-            "missing": [f"{placeholders.group(1)} placeholder drawings still to replace with real pictures" if placeholders else "", "the pages read aloud to someone who has never seen the robot"],
+            "missing": [f"{placeholders.group(1)} placeholder drawings still to replace with real pictures" if placeholders else "", "the pages read aloud to someone who has never seen the robot (the host side was walked through on 2026-11-19 from an empty home with the virtual unit and fixed; no real person has done it)"],
             "blocked": False,
         },
     ]
