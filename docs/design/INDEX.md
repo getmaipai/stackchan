@@ -81,7 +81,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/firmware-rebuild.md` (10): Rebuild the firmware from the repo alone
 - `docs/design/firmware-spike-2026-11-15.md` (16): Firmware spike on unit, 2026-11-15
 - `docs/design/firmware-v1-cut.md` (245): Firmware v1 cut
-- `docs/design/first-run-flow.md` (55): First run on the robot (plan step 7)
+- `docs/design/first-run-flow.md` (59): First run on the robot (plan step 7)
 - `docs/design/flyer.md` (19): Flappy-style flyer
 - `docs/design/game-engine-note.md` (43): Game engine note (Train 3 item 15, design only, 2026-11-16)
 - `docs/design/game-over-look.md` (134): The game-over screen: a new look
@@ -182,7 +182,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1180): Feature ledger
+- `docs/dev/feature-ledger.md` (1183): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -574,7 +574,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/release-notes.md` (45): Release notes
 - `docs/user/run-as-a-service.md` (38): Keep the host running
 - `docs/user/security.md` (65): Keep the robot secure
-- `docs/user/settings.md` (120): Change a setting
+- `docs/user/settings.md` (143): Change a setting
 - `docs/user/status-and-health.md` (30): See what is running
 - `docs/user/swipe-pages.md` (97): Swipe pages and the control sheet
 - `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
@@ -1306,7 +1306,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/brain/home.py` (89): Home brain adapter. Existing clients retain transport behavior and timing."""
 - `host/maipai_body/brain/interface.py` (63): Typed interface between the body host and its answering brain."""
 - `host/maipai_body/brain/own_llm.py` (388): Own-LLM brain using owner-configured HTTP services and optional local speech models."""
-- `host/maipai_body/brain_page.py` (99): ruff: noqa: E501
+- `host/maipai_body/brain_page.py` (102): ruff: noqa: E501
 - `host/maipai_body/brain_route.py` (62): ruff: noqa: E501
 - `host/maipai_body/brain_setup/__init__.py` (1): Three ways to get a brain (docs/plan/minimal-stack.md): MaiPai Home, the person's own stack, or a minimal loca
 - `host/maipai_body/brain_setup/catalog.py` (106): The pinned downloads of the minimal local stack (docs/plan/minimal-stack.md).
@@ -1609,7 +1609,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/settings_ui_nav.py` (122): ruff: noqa: E501
 - `host/maipai_body/settings_ui_pages.py` (129): ruff: noqa: E501
 - `host/maipai_body/settings_ui_polish.py` (171): ruff: noqa: E501
-- `host/maipai_body/settings_ui_shell.py` (303): ruff: noqa: E501
+- `host/maipai_body/settings_ui_shell.py` (309): ruff: noqa: E501
 - `host/maipai_body/settings_ui_wakemaker.py` (34): ruff: noqa: E501
 - `host/maipai_body/shell_style.py` (102): ruff: noqa: E501
 - `host/maipai_body/speaker_evidence.py` (119): The one shape of `speaker_evidence` the body puts on a turn.
@@ -2192,7 +2192,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/facefx_core_test.c` (134): Host test for the fluid face core (patch H02): easing, time constants, speech level, mouth curve, gaze drift. 
 - `host/tests/firmware/filler_core_test.c` (220): Host test for "While it thinks" (patch TB03): the delay rule, the pick, the index reader, mu-law and the tone.
 - `host/tests/firmware/find_core_test.c` (27): Host test for the find-my-robot sound rule (patch Y02): the full sounds core with the find bypass. */
-- `host/tests/firmware/firstrun_core_test.c` (181): include <stdio.h>
+- `host/tests/firmware/firstrun_core_test.c` (193): include <stdio.h>
 - `host/tests/firmware/flyer_core_test.c` (143): Host test of maipai_flyer_core.h (patch UX25, Flappy-style flyer): gravity, the hop, the pipes and their gaps,
 - `host/tests/firmware/fx_core_test.c` (347): Host test for the screen effects and the governor (patches TA02, TA05): scanline row math, split invariance, c
 - `host/tests/firmware/fx_cost.c` (94): Host cost model for the overlays and effects (patches TA02, TA03). Runs every overlay for 30 simulated seconds
@@ -2673,7 +2673,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_service_handover.py` (118): The "Keep the host running" handover (decision 28): success, and every failure leaves the person with a runnin
 - `host/tests/test_service_startup_pin.py` (58): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
 - `host/tests/test_service_threads.py` (69): Every host service thread ends when its stop event is set (or `stop_all` runs); none of ours remain."""
-- `host/tests/test_settings_simplification.py` (39): Patch UX30 (docs/plan/unit-settings-simplification.md): the unit's Settings app has fewer rows, header only. T
+- `host/tests/test_settings_simplification.py` (53): Patch UX30 (docs/plan/unit-settings-simplification.md): the unit's Settings app has fewer rows, header only. T
 - `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
 - `host/tests/test_settings_ui.py` (460): ruff: noqa: E501
 - `host/tests/test_sf_patch_headers.py` (19): Public-readiness guard: the header lines of the safety patches (SF*) say what the patch does, with no review l
@@ -2999,6 +2999,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/link-key-vector.py` (124): Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
 - `scripts/make-dashboard-screens.py` (71): A screenshot of each host dashboard page at desktop and phone width, kept in docs/dev/dashboard-screens for re
+- `scripts/make-dashboard-shots.py` (43): the docs screenshots of the new dashboard (Home, Robot, Safety, Look and feel) at desktop and phone width, dra
 - `scripts/make-doc-indexes.py` (80): Keep docs/user/index.md and docs/dev/index.md: a hand-written start, then every page of the folder listed by i
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
 - `scripts/make-game-sounds.py` (286): Game sounds, synthesized from nothing: short tones, clacks and noise bursts with attack-decay-sustain-release 
