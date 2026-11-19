@@ -10,12 +10,13 @@ import pytest
 
 from maipai_packages.pantry import record as record_module
 from maipai_packages.pantry.library import Library
-from maipai_packages.pantry.record import Record, check
+from maipai_packages.pantry.dedupe import dedupe
+from maipai_packages.pantry.record import SITUATIONS, Record, check
 
 SEED = Path(record_module.__file__).parent / "seed"
 COUNTS = {
-    "en": {"joke": 100, "riddle": 100, "trivia": 100},
-    **{lang: {"joke": 40, "riddle": 40, "trivia": 40} for lang in ("es", "fr", "de", "pt", "it")},
+    "en": {"joke": 100, "riddle": 100, "trivia": 100, "line": 120},
+    **{lang: {"joke": 40, "riddle": 40, "trivia": 40, "line": 120} for lang in ("es", "fr", "de", "pt", "it")},
 }
 FILES = sorted(SEED.glob("*.json"))
 
@@ -50,6 +51,15 @@ def test_trivia_wrong_answers_differ_from_each_other_and_from_the_right_one(path
         wrong = row["extra"].split("|")
         assert len(wrong) == 2 and wrong[0] != wrong[1], row
         assert row["answer"] not in wrong, row
+
+
+@pytest.mark.parametrize("path", [p for p in FILES if p.stem.endswith("-line")], ids=lambda p: p.name)
+def test_every_situation_has_six_lines_and_the_lines_pass_the_dedupe(path):
+    records = [Record.from_json(row) for row in _load(path)]
+    per_situation = {tag: sum(1 for r in records if r.extra == tag) for tag in SITUATIONS}
+    assert per_situation == {tag: 6 for tag in SITUATIONS}, f"{path.name}: every situation needs exactly 6 lines, found {per_situation}."
+    kept, report = dedupe(records, [])
+    assert len(kept) == len(records), f"{path.name}: the dedupe drops lines that are too alike: {report.dropped}."
 
 
 def test_no_duplicate_ids_across_all_files():
