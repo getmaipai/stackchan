@@ -715,13 +715,13 @@ BUILDERS.play=async(p,u)=>{const id=u.device_id,g=await api(unitPath(id,'games')
   return h('div',{class:'item'},h('div',{class:'grow'},h('b',{},who),...x.games.map(gm=>{const t=(g.d.games.find(q=>q.id===gm.id)||{title:gm.id});return h('div',{class:'hint'},t.title+': '+gm.scores.join(', '))})),
    h('button',{type:'button',class:'btn bad',onclick:async()=>{if(!(await ask(T('Delete scores')+' - '+who+'?',T('Delete scores'))))return;const r=await save(unitPath(id,'forget-scores'),{person:x.person},true);if(r.ok){BUILT.play=false;p.querySelectorAll(':scope>:not(h1)').forEach(n=>n.remove());go('play',true)}else toast(r.d.error,'bad')}},T('Delete scores')))})):null;
  const pn=await api('/api/stackchan/pantry');
- const pantryCard=pn.ok&&pn.d.enabled?(()=>{const kinds=['joke','riddle','trivia','story'],f={kind:'',language:'',q:''},list=h('div',{class:'list'}),note=h('p',{class:'hint',role:'status'});
+ const pantryCard=pn.ok&&pn.d.enabled?(()=>{const kinds=['joke','riddle','trivia','story','line','object'],f={kind:'',language:'',q:''},list=h('div',{class:'list'}),note=h('p',{class:'hint',role:'status'});
   const load=async()=>{const r=await fetch('/api/stackchan/pantry/list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(f)}).then(x=>x.json()).catch(()=>null);list.replaceChildren();if(!r||!r.rows){list.append(h('div',{class:'banner'},T('net_error')));return}
    if(!r.rows.length)list.append(h('div',{class:'empty'},T('Nothing here yet. Press Refill now and your model will write some.')));
-   for(const x of r.rows)list.append(h('div',{class:'item',style:'min-height:56px'},h('div',{class:'grow'},h('b',{},x.text.replace('|',' ')),x.answer?h('div',{class:'hint'},x.answer):null,h('div',{class:'hint'},x.kind+' · '+x.language)),
+   for(const x of r.rows)list.append(h('div',{class:'item',style:'min-height:56px'},h('div',{class:'grow'},h('b',{},x.text.replace('|',' ')),x.answer?h('div',{class:'hint'},x.answer):null,h('div',{class:'hint'},x.kind+' · '+x.language+(x.situation?' · '+x.situation:'')+(x.built_in?' · built-in':''))),
     h('div',{class:'btns'},h('button',{type:'button',class:'btn',onclick:async()=>{const d=await save('/api/stackchan/pantry/delete',{id:x.id},true);if(d.ok)load()}},T('Delete')),
     h('button',{type:'button',class:'btn bad',onclick:async()=>{if(!(await ask(T('Never again')+'?',T('Never again'))))return;const d=await save('/api/stackchan/pantry/never-again',{id:x.id},true);if(d.ok)load()}},T('Never again')))));
-   note.textContent=(r.total+' · '+T('Used today')+' '+r.calls_today+'/'+r.daily_cap)};
+   note.textContent=(r.total+' · '+T('Used today')+' '+r.calls_today+'/'+r.daily_cap)+(f.kind==='line'&&r.situations?' · '+Object.entries(r.situations).sort().map(([k,v])=>k+' '+v).join(', '):'')};
   const kind=h('select',{'aria-label':T('Kind'),onchange:e=>{f.kind=e.target.value;load()}},h('option',{value:''},T('Kind')),...kinds.map(k=>h('option',{value:k},k)));
   const lang=h('select',{'aria-label':T('Language'),onchange:e=>{f.language=e.target.value;load()}},h('option',{value:''},T('Language')),...['en','es','fr','de','pt','it'].map(k=>h('option',{value:k},k)));
   const q=h('input',{type:'search','aria-label':T('Search'),placeholder:T('Search'),oninput:e=>{f.q=e.target.value;load()}});

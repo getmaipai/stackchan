@@ -32,13 +32,16 @@ class Pantry:
         built["ids_set"] = set(built["ids"])
         rows, needle = [], query.strip().lower()
         for record in self.library.records(kind, language):
-            if needle and needle not in (record.text + " " + record.answer).lower():
+            if needle and needle not in (record.text + " " + record.answer + " " + (record.extra if record.kind == "line" else "")).lower():
                 continue
-            rows.append({"built_in": record.id_hex in built["ids_set"], "id": record.id_hex, "kind": record.kind, "language": record.language, "rating": record.rating, "text": record.text, "answer": record.answer, "heard": record.id_hex in heard})
+            rows.append({"built_in": record.id_hex in built["ids_set"], "id": record.id_hex, "kind": record.kind, "language": record.language, "rating": record.rating, "text": record.text, "answer": record.answer, "situation": record.extra if record.kind == "line" else "", "heard": record.id_hex in heard})
+        situations: dict[str, int] = {}  # offline lines by situation, for the language filter (all languages when none)
+        for record in self.library.records("line", language):
+            situations[record.extra] = situations.get(record.extra, 0) + 1
         counts: dict[str, int] = {}
         for record in self.library.records():
             counts[f"{record.language}:{record.kind}"] = counts.get(f"{record.language}:{record.kind}", 0) + 1
-        return {"ok": True, "enabled": True, "built_in": {"state": built["state"], "records": built["records"], "text": built["text"]}, "counts": counts, "rows": rows[:limit], "total": len(rows), "refused": len(refused), "report": self.library.last_report(), "calls_today": self.library.calls_today(), "daily_cap": self.daily_cap}
+        return {"ok": True, "enabled": True, "built_in": {"state": built["state"], "records": built["records"], "text": built["text"]}, "counts": counts, "situations": situations, "rows": rows[:limit], "total": len(rows), "refused": len(refused), "report": self.library.last_report(), "calls_today": self.library.calls_today(), "daily_cap": self.daily_cap}
 
     def delete(self, id_hex: str) -> bool:
         return self.library.delete(id_hex)

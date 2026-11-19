@@ -30,6 +30,10 @@ Open the settings page, **Games and fun**, and find **Jokes and games content**.
 
 Say "play jokes", "tell me a riddle" or "let's play trivia". If your model stops answering in the middle of one of these games, the robot keeps playing from the library: it asks the next riddle or trivia question, checks your answer, keeps the score and never tells the same one twice. When the library runs out it says so and the game ends. Twenty questions also keeps playing from a built-in list of animals and things. Word chain, would you rather and bedtime stories need a model, so they stop with the usual "I cannot think right now" line.
 
+## Offline lines
+
+Pick the kind **line** on the same card to see the short lines the robot says by itself when it has no host, with the count for each situation (a greeting in the morning, a touch on the head, a low battery, and so on). Each line has **Delete** and **Never again**, like any other record. The model does not write lines; they come with the built-in set.
+
 ## Limits
 
 The robot's own shelf and the telling screens need a firmware update that is not built yet, so today the host keeps the library and the page works, and the robot does not tell from it. Records stay on your computer. Delete the `pantry` folder beside the pairing file to remove all of it.

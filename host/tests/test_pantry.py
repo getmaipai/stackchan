@@ -338,3 +338,15 @@ def test_lines_survive_the_shelf_and_dedupe_only_within_a_situation():
     assert len(kept) == 2  # similar words under two situations are both kept
     kept, _report = dedupe([Record("line", "en", "kid", "Hello there my friend", "", "greeting_day"), Record("line", "en", "kid", "Hello there my friend now", "", "greeting_day")], [])
     assert len(kept) == 1
+
+
+def test_the_dashboard_view_counts_offline_lines_by_situation_and_shows_the_tag(tmp_path):
+    from maipai_packages.pantry import Pantry
+    from maipai_packages.pantry.record import Record
+
+    pantry = Pantry(tmp_path, None, languages=("en",), seed=False)
+    pantry.library.add([Record("line", "en", "kid", "Good morning, friend.", "", "greeting_morning"), Record("line", "en", "kid", "Morning light is nice.", "", "greeting_morning"), Record("line", "en", "kid", "Good night.", "", "goodnight")])
+    view = pantry.view(kind="line", language="en")
+    assert view["situations"] == {"greeting_morning": 2, "goodnight": 1}
+    assert {r["situation"] for r in view["rows"]} == {"greeting_morning", "goodnight"}
+    assert pantry.view(kind="line", language="en", query="goodnight")["total"] == 1  # the situation is searchable
