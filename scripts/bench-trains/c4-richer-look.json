@@ -1,0 +1,409 @@
+{
+ "name": "c4-richer-look",
+ "build_dir": "~/esp/stackchan-rebuild/NEWBUILD/firmware/build-bench",
+ "soak_s": 120,
+ "settle_s": 2,
+ "heap_interval_s": 5,
+ "checks": [
+  {
+   "name": "heap-before-any-game",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "box-flat",
+   "tool": "self.game.bench_box",
+   "args": {
+    "technique": "flat",
+    "n": 50
+   },
+   "expect": {
+    "ok": true,
+    "us_per_redraw": {
+     "min": 1
+    }
+   },
+   "wait": 60
+  },
+  {
+   "name": "box-radius",
+   "tool": "self.game.bench_box",
+   "args": {
+    "technique": "radius",
+    "n": 50
+   },
+   "expect": {
+    "ok": true,
+    "us_per_redraw": {
+     "min": 1
+    }
+   },
+   "wait": 60
+  },
+  {
+   "name": "box-circle",
+   "tool": "self.game.bench_box",
+   "args": {
+    "technique": "circle",
+    "n": 50
+   },
+   "expect": {
+    "ok": true,
+    "us_per_redraw": {
+     "min": 1
+    }
+   },
+   "wait": 60
+  },
+  {
+   "name": "box-gradient",
+   "tool": "self.game.bench_box",
+   "args": {
+    "technique": "gradient",
+    "n": 50
+   },
+   "expect": {
+    "ok": true,
+    "us_per_redraw": {
+     "min": 1
+    }
+   },
+   "wait": 60
+  },
+  {
+   "name": "box-shadow-small",
+   "tool": "self.game.bench_box",
+   "args": {
+    "technique": "shadow-small",
+    "n": 50
+   },
+   "expect": {
+    "ok": true,
+    "us_per_redraw": {
+     "min": 1
+    }
+   },
+   "wait": 60
+  },
+  {
+   "name": "box-shadow",
+   "tool": "self.game.bench_box",
+   "args": {
+    "technique": "shadow",
+    "n": 50
+   },
+   "expect": {
+    "ok": true,
+    "us_per_redraw": {
+     "min": 1
+    }
+   },
+   "wait": 60
+  },
+  {
+   "name": "box-alpha",
+   "tool": "self.game.bench_box",
+   "args": {
+    "technique": "alpha",
+    "n": 50
+   },
+   "expect": {
+    "ok": true,
+    "us_per_redraw": {
+     "min": 1
+    }
+   },
+   "wait": 60
+  },
+  {
+   "name": "box-outline",
+   "tool": "self.game.bench_box",
+   "args": {
+    "technique": "outline",
+    "n": 50
+   },
+   "expect": {
+    "ok": true,
+    "us_per_redraw": {
+     "min": 1
+    }
+   },
+   "wait": 60
+  },
+  {
+   "name": "start-connect4",
+   "tool": "self.game.start",
+   "args": {
+    "name": "connect4"
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 10,
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    }
+   ]
+  },
+  {
+   "name": "heap-in-game-plain",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "look-0",
+   "tool": "self.game.bench_look",
+   "args": {
+    "level": 0
+   },
+   "expect": {
+    "ok": true,
+    "level": 0
+   },
+   "wait": 5
+  },
+  {
+   "name": "record-on-0",
+   "tool": "self.game.bench_record",
+   "args": {
+    "on": 1
+   },
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "drop-0-0",
+   "tool": "self.game.bench_tap",
+   "args": {
+    "x": 60,
+    "y": 120
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 3
+  },
+  {
+   "name": "drop-0-1",
+   "tool": "self.game.bench_tap",
+   "args": {
+    "x": 160,
+    "y": 120
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 3
+  },
+  {
+   "name": "drop-0-2",
+   "tool": "self.game.bench_tap",
+   "args": {
+    "x": 260,
+    "y": 120
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 3
+  },
+  {
+   "name": "frames-0",
+   "tool": "self.game.bench_frames",
+   "expect": {
+    "ok": true,
+    "gaps_ms": {
+     "max": 120
+    }
+   },
+   "wait": 5
+  },
+  {
+   "name": "heap-in-game-look-0",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "look-1",
+   "tool": "self.game.bench_look",
+   "args": {
+    "level": 1
+   },
+   "expect": {
+    "ok": true,
+    "level": 1
+   },
+   "wait": 5
+  },
+  {
+   "name": "record-on-1",
+   "tool": "self.game.bench_record",
+   "args": {
+    "on": 1
+   },
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "drop-1-0",
+   "tool": "self.game.bench_tap",
+   "args": {
+    "x": 60,
+    "y": 120
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 3
+  },
+  {
+   "name": "drop-1-1",
+   "tool": "self.game.bench_tap",
+   "args": {
+    "x": 160,
+    "y": 120
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 3
+  },
+  {
+   "name": "drop-1-2",
+   "tool": "self.game.bench_tap",
+   "args": {
+    "x": 260,
+    "y": 120
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 3
+  },
+  {
+   "name": "frames-1",
+   "tool": "self.game.bench_frames",
+   "expect": {
+    "ok": true,
+    "gaps_ms": {
+     "max": 120
+    }
+   },
+   "wait": 5
+  },
+  {
+   "name": "heap-in-game-look-1",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "look-2",
+   "tool": "self.game.bench_look",
+   "args": {
+    "level": 2
+   },
+   "expect": {
+    "ok": true,
+    "level": 2
+   },
+   "wait": 5
+  },
+  {
+   "name": "record-on-2",
+   "tool": "self.game.bench_record",
+   "args": {
+    "on": 1
+   },
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "drop-2-0",
+   "tool": "self.game.bench_tap",
+   "args": {
+    "x": 60,
+    "y": 120
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 3
+  },
+  {
+   "name": "drop-2-1",
+   "tool": "self.game.bench_tap",
+   "args": {
+    "x": 160,
+    "y": 120
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 3
+  },
+  {
+   "name": "drop-2-2",
+   "tool": "self.game.bench_tap",
+   "args": {
+    "x": 260,
+    "y": 120
+   },
+   "expect": {
+    "ok": true
+   },
+   "wait": 3
+  },
+  {
+   "name": "frames-2",
+   "tool": "self.game.bench_frames",
+   "expect": {
+    "ok": true,
+    "gaps_ms": {
+     "max": 120
+    }
+   },
+   "wait": 5
+  },
+  {
+   "name": "heap-in-game-look-2",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "stop-game",
+   "tool": "self.game.stop",
+   "expect": {
+    "ok": true
+   },
+   "post": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ]
+  }
+ ],
+ "person": [
+  "look at the screen while level 0, 1 and 2 are on: the board should be the old one, the gradient board with rimmed discs, and the same with soft shadows; say if any level flickers or tears when a disc falls",
+  "the three results that matter are in result.json: box times (us_per_redraw per technique), frame gaps per look (gaps_ms), and the heap numbers before, in the game, and per look"
+ ]
+}

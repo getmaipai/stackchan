@@ -220,6 +220,18 @@ GRID_SCENARIOS = {
     "game-over-snake-over": ["game mines 3", "over over|Length 12|Best 31|0|en", "snap {out}"],
     "game-over-2048-win-new-best": ["game mines 3", "over won|Score 20480||1|en", "snap {out}"],
     "game-over-2048-over": ["game mines 3", "over over|Score 5184|Best 20480|0|en", "snap {out}"],
+    "game-c4-look-1": ["game c4 3", "look 1", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 4 2", "advance 700", "drop 3 1", "advance 700", "snap {out}"],
+    "game-c4-look-2": ["game c4 3", "look 2", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 4 2", "advance 700", "drop 3 1", "advance 700", "snap {out}"],
+    "game-c4-look-0": ["game c4 3", "look 0", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 4 2", "advance 700", "drop 3 1", "advance 700", "snap {out}"],
+    "game-c4-look-2-win": ["game c4 3", "look 2", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 4 2", "advance 700", "drop 3 1", "advance 2200", "snap {out}"],
+    "game-balance-start": ["game c4 3", "balance 4|0|en", "snap {out}"],
+    "game-balance-rolling": ["game c4 3", "balance 4|90|en", "snap {out}"],
+    "game-balance-hole": ["game c4 3", "balance 4|300|en", "snap {out}"],
+    "game-balance-late-es": ["game c4 3", "balance 4|1500|es", "snap {out}"],
+    "game-maze-start": ["game c4 3", "maze 4|0|en", "snap {out}"],
+    "game-maze-halfway": ["game c4 3", "maze 4|200|en", "snap {out}"],
+    "game-maze-near-goal": ["game c4 3", "maze 4|520|en", "snap {out}"],
+    "game-maze-other-es": ["game c4 3", "maze 9|260|es", "snap {out}"],
 }
 
 # Filmstrips: the frames a scenario collects with ("strip",) steps, half size, three to a row. The flip of a clock style change (patch UX14b) is 240 ms.
@@ -422,6 +434,9 @@ REQUIRES = [
     (r"^game-battleship", "UX23-battleship-lite.patch"),
     (r"^game-pong", "UX24-pong.patch"),
     (r"^game-flyer", "UX25-flyer.patch"),
+    (r"^game-c4-look", "UX26-four-in-a-row-richer-look-bench.patch"),
+    (r"^game-balance", "UX27-balance.patch"),
+    (r"^game-maze", "UX28-maze.patch"),
     (r"^first-run-4c", "UX19-brain-two-equal-routes.patch"),
     (r"^brain-removed", "UX20-hosted-link-removed-notice.patch"),
     (r"^game-over-(colormemory|whack|doit|snake|2048)-", "UX15c-game-over-neutral-end-after-sf82.patch"),

@@ -82,6 +82,47 @@ int main(void)
         CHECK(aimed_wins >= 17);                    /* the unit's paddle can be beaten by aiming */
         CHECK(most * PG_TICK_MS < 5 * 60 * 1000u);  /* and a game does not run past five minutes */
     }
+    { /* the dirty rectangles cover what a step moved: the ball (old and new), a paddle that moved, the score line; and they are small (the whole court is 58,000 pixels) */
+        long worst = 0, total = 0, steps = 0;
+        for (uint32_t seed = 1; seed <= 12; seed++) {
+            pg_t a;
+            pg_init(&a, seed);
+            for (int t = 0; t < 3000 && a.phase == PG_PLAY; t++) {
+                pg_t b = a;
+                pg_drag(&b, pg_ball_cy(&b) + (t & 64 ? 18 : -18));
+                pg_step(&b);
+                pg_rect_t r[5];
+                const int n = pg_dirty(&a, &b, r);
+                CHECK(n >= 2 && n <= 5);
+                int ox[2], oy[2];
+                pg_ball_px(&a, &ox[0], &oy[0]);
+                pg_ball_px(&b, &ox[1], &oy[1]);
+                for (int k = 0; k < 2; k++) {   /* the ball's box, old and new, lies inside one rectangle */
+                    int hit = 0;
+                    for (int i = 0; i < n; i++) hit |= ox[k] >= r[i].x && oy[k] >= r[i].y && ox[k] + PG_BALL <= r[i].x + r[i].w && oy[k] + PG_BALL <= r[i].y + r[i].h;
+                    CHECK(hit);
+                }
+                if (a.py != b.py || a.uy != b.uy) {   /* a paddle that moved: its old and new box inside a rectangle */
+                    const int tops[4] = {a.py, b.py, a.uy, b.uy}, xs[4] = {PG_X0 + PG_PAD_X, PG_X0 + PG_PAD_X, PG_X0 + PG_W - PG_PAD_X - PG_PAD_W, PG_X0 + PG_W - PG_PAD_X - PG_PAD_W};
+                    for (int k = 0; k < 4; k++) {
+                        if ((k < 2) != (a.py != b.py) && (k >= 2) != (a.uy != b.uy)) continue;
+                        if (k < 2 && a.py == b.py) continue;
+                        if (k >= 2 && a.uy == b.uy) continue;
+                        int hit = 0;
+                        for (int i = 0; i < n; i++) hit |= xs[k] >= r[i].x && PG_Y0 + tops[k] >= r[i].y && xs[k] + PG_PAD_W <= r[i].x + r[i].w && PG_Y0 + tops[k] + PG_PAD_H <= r[i].y + r[i].h;
+                        CHECK(hit);
+                    }
+                }
+                long px = 0;
+                for (int i = 0; i < n; i++) px += (long)r[i].w * r[i].h;
+                total += px; steps++;
+                if (px > worst) worst = px;
+                a = b;
+            }
+        }
+        printf("pong: dirty area per tick: mean %ld px, worst %ld px (the court is %d)\n", total / steps, worst, PG_W * PG_H);
+        CHECK(worst < 12000 && total / steps < 3000);
+    }
     puts("pong_core_test: all passed");
     return 0;
 }

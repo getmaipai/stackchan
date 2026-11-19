@@ -54,19 +54,19 @@ Rules that fall out of it:
 
 Frame cost from the run of each game in `games_cost.py` (a disc falling, two cards flipping, a game played by a fixed policy): the pixels that change from one frame to the next, and the pixels of the 16 by 16 tiles that hold a change (the flush of several small dirty rectangles; the one-rectangle column is the flush of a single rectangle round everything). Flush ms uses the measured 30 ms for a full screen; draw time is not in it (see section 2).
 
-| Game | Frames | Pixels changed per frame | Tiles flushed per frame (px) | Flush ms (mean) | Flush ms (worst frame) | One rectangle, ms (mean) |
-|---|---:|---:|---:|---:|---:|---:|
-| Four in a Row (a disc falls) | 48 | 629 | 2,181 | 0.9 | 1.4 | 0.4 |
-| Match (two cards flip) | 58 | 398 | 1,231 | 0.5 | 2.1 | 0.6 |
-| Hangman (a letter) | 20 | 128 | 640 | 0.2 | 1.4 | 0.6 |
-| Mine Finder (a reveal) | 20 | 1,107 | 2,073 | 0.8 | 7.9 | 0.7 |
-| Snake (it moves) | 100 | 54 | 143 | 0.1 | 1.6 | 0.0 |
-| 2048 (two swipes) | 28 | 449 | 1,188 | 0.5 | 3.3 | 0.5 |
-| Higher or Lower (a turn) | 4 | 27,999 | 37,184 | 14.5 | 26.2 | 16.0 |
-| Reversi (a game) | 61 | 3,014 | 11,272 | 4.4 | 26.1 | 16.0 |
-| Battleship-lite (shots) | 13 | 4,916 | 7,345 | 2.9 | 24.6 | 8.9 |
-| Pong (a rally) | 401 | 329 | 2,975 | 1.2 | 28.9 | 6.1 |
-| Flappy-style flyer (flying) | 601 | 1,674 | 13,982 | 5.5 | 28.6 | 18.2 |
+| Game | Frames | Pixels changed per frame | Tiles flushed per frame (px) | Flush ms (mean) | Flush ms (worst frame) | One rectangle, ms (mean) | The game's own dirty rectangles, ms (mean / worst) | Pixels changed outside them |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Four in a Row (a disc falls) | 48 | 629 | 2,181 | 0.9 | 1.4 | 0.4 | none yet | - |
+| Match (two cards flip) | 58 | 398 | 1,231 | 0.5 | 2.1 | 0.6 | none yet | - |
+| Hangman (a letter) | 20 | 128 | 640 | 0.2 | 1.4 | 0.6 | none yet | - |
+| Mine Finder (a reveal) | 20 | 1,107 | 2,073 | 0.8 | 7.9 | 0.7 | none yet | - |
+| Snake (it moves) | 100 | 54 | 143 | 0.1 | 1.6 | 0.0 | none yet | - |
+| 2048 (two swipes) | 28 | 449 | 1,188 | 0.5 | 3.3 | 0.5 | none yet | - |
+| Higher or Lower (a turn) | 4 | 27,999 | 37,184 | 14.5 | 26.2 | 16.0 | none yet | - |
+| Reversi (a game) | 61 | 3,014 | 11,272 | 4.4 | 26.1 | 16.0 | none yet | - |
+| Battleship-lite (shots) | 13 | 4,916 | 7,345 | 2.9 | 24.6 | 8.9 | none yet | - |
+| Pong (a rally) | 401 | 329 | 2,975 | 1.2 | 28.9 | 6.1 | 0.4 / 0.5 | 0 |
+| Flappy-style flyer (flying) | 601 | 1,674 | 13,982 | 5.5 | 28.6 | 18.2 | 4.0 / 8.3 | 0 |
 
 The first frame of a run is the reference, so a game's start screen is not in the means; the worst-frame column shows the largest single change (a whole-board shake, a pop, a first draw).
 
@@ -78,18 +78,26 @@ One table, per game. Flash is the measured size of the code and constants (text 
 | Data-pack games (Tic-Tac-Toe, Whack-a-Mole, Do It, Color Memory, Rock Paper Scissors, Dice and Coin, Magic 8 Ball) | 61.0 (the pack engine and the games unit, `maipai_games.cc`, shared) | 12,288 task (estimate) | per pack 10 to 20 (not counted here) | 2 to 4 (estimate) | not measured in the renderer | fits; measure on the bench |
 | Question games (riddle, trivia, 20 Questions) | 26.1 (`maipai_qa_game.cc`) | | 2,400 B estimated | 2.4 | static screens | fits |
 | Shared game-over screen | 0.6 (estimate) | | 15 (5 labels) | 2.1 | one draw | fits |
-| Dice Poker (UX18) | 2.2 | 16 | 36 (7 labels) | 4.6 | not measured (static turns) | fits with a limit: 36 objects is 30 percent of the worst-case headroom; draw the pips in one callback like the boards (3 objects) |
+| Dice Poker (UX18, then UX18b) | 2.2 (UX18b changes the screen only) | 16 | 36 (7 labels), 2 after UX18b | 4.6, 0.3 after UX18b | not measured (static turns) | fits after UX18b (one draw callback, 2 objects with the root); fits with a limit before it (36 objects is 30 percent of the worst-case headroom) |
 | Higher or Lower (UX21) | 2.5 | 64 | 15 (8 labels) | 2.4 | 14.5 per turn (four frames: a turn is an event, not a stream) | fits |
 | Reversi (UX22) | 2.2 | 76 | 5 (3 labels) | 0.8 | 4.4 | fits (the search is 262 nodes at most per move, measured on the host) |
 | Battleship-lite (UX23) | 1.7 | 92 | 5 (3 labels) | 0.8 | 2.9 | fits |
-| Pong (UX24) | 1.7 | 36 | 6 (4 labels) | 1.0 | 1.2 | fits with a limit: only if the court strip the ball and paddles moved through is invalidated each tick; invalidating the whole court is 30 ms of flush alone |
-| Flappy-style flyer (UX25) | 1.3 | 48 | 3 (1 label) | 0.4 | 5.5 | fits with a limit: invalidate each pipe's strip, not the sky (a full invalidation is 30 ms of flush per tick) |
+| Balance (UX27) | 2.5 | 68 | 2 with the root, 3 with the grabber | 0.4 | 0.2 mean with its own dirty rectangles (worst frame 13.2 ms: the plate's one-pixel shrink, once in two seconds) | fits (0 changed pixels outside its rectangles over 900 frames) |
+| Maze (UX28) | 2.7 | 92 | 2 with the root, 3 with the grabber | 0.4 | 0.1 mean (worst 2.2) | fits (0 outside its rectangles over 700 frames) |
+| Pong (UX24) | 1.7 | 36 | 6 (4 labels) | 1.0 | 1.2 by tiles; 0.4 with its own dirty rectangles | fits with its dirty rectangles (pg_dirty, checked: 0 pixels outside); invalidating the whole court is 30 ms of flush alone |
+| Flappy-style flyer (UX25) | 1.3 | 48 | 3 (1 label) | 0.4 | 5.5 by tiles; 4.0 with its own dirty rectangles | fits with its dirty rectangles (fl_dirty, checked: 0 pixels outside); a full invalidation is 30 ms of flush per tick |
 
 Totals: the six new unproven games add 11.6 KB of flash (0.9 percent of the 1.29 MB the lean images free) and at most 5 KB of internal RAM when one is on screen (never two at once: one game runs at a time on the game task). Flash is not the constraint; **internal RAM and the flush per frame are**.
 
 ## 4. What a richer look can spend
 
 From the rules above, per game screen: at most about 15 LVGL objects (2,000 bytes internal) plus the one draw callback; dirty area per animated frame under 20,000 pixels (about 8 ms of flush, leaving 20 ms or more for drawing at the 30 ms target; the grid games run at 600 to 2,200); shadows, gradients and highlights on static parts only; particles at most 12 pooled objects or one callback for more, each burst under 700 ms; scale and rotation only on small tiles for 200 ms; every picture from the shared bank, none per game. The old Four in a Row and Match use 3 objects and flush 0.5 to 0.9 ms per frame, so a richer look has about 10 times its current flush and 5 times its current object count to spend before it touches the budget, **if** the bench confirms the K calibration.
+
+## 4b. The revisions the budget asked for (done, 2026-11-18)
+
+- **Dice Poker** (patch UX18b): the whole screen in one draw callback: 36 LVGL objects (4.6 KB of internal RAM) became 2 with the root (about 0.3 KB); the frames are the same to the pixel but for a one pixel shift of the button words.
+- **Pong** (UX24) and the **flyer** (UX25): each core has `pg_dirty` and `fl_dirty`, the rectangles that differ between two states, and each screen an `invalidate_dirty` that invalidates only those. The renderer checks the claim pixel by pixel: over 400 and 600 frames **0 changed pixels lay outside the rectangles**. Flush per frame with them (flush only, 30 ms for a full screen): Pong 0.4 ms mean and 0.5 ms worst (about 1,000 pixels a tick, worst 3,900), the flyer 4.0 ms mean and 8.3 ms worst (the pipes' edge columns only: a flat pipe that shifts 2.5 pixels changes only where it starts and ends; 11,300 pixels a tick, worst 21,500). Without them both would flush the whole court or sky, 30 ms a tick.
+- The four-in-a-row richer look (UX26) is the bench prototype: `docs/plan/games-richer-look-bench.md`.
 
 ## 5. What is not measured yet (the bench's list)
 

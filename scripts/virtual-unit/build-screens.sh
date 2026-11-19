@@ -32,9 +32,9 @@ echo "built $OUT/cover/cover_render"
 # the grid games in play (Four in a Row, Memory Match, Hangman, Mine Finder): the unit's own drawing code cut out of maipai_grid.cc (grid_gen.py)
 mkdir -p "$OUT/grid"
 python3 "$(dirname "$0")/grid_gen.py" "$B" "$OUT/grid"
-clang++ -std=gnu++20 -O1 -ffp-contract=off -w -I"$OUT/inc" -I"$OUT/grid" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 $(grep -q MGO_TIMEUP "$B/firmware/main/hal/maipai_game_over_core.h" && echo -DHAVE_MGO_NEUTRAL) "$R/grid_render.cc" "$OUT/lvgl.a" -o "$OUT/grid/grid_render" -lz
+clang++ -std=gnu++20 -O1 -ffp-contract=off -w -I"$OUT/inc" -I"$OUT/grid" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 $(grep -q MGO_TIMEUP "$B/firmware/main/hal/maipai_game_over_core.h" && echo -DHAVE_MGO_NEUTRAL) $(grep -q "int s_look" "$B/firmware/main/hal/maipai_grid.cc" && echo -DHAVE_LOOK) $(grep -q "pg_dirty" "$B/firmware/main/hal/maipai_pong_core.h" 2>/dev/null && echo -DPG_DIRTY_API) $(grep -q "fl_dirty" "$B/firmware/main/hal/maipai_flyer_core.h" 2>/dev/null && echo -DFL_DIRTY_API) "$R/grid_render.cc" "$OUT/lvgl.a" -o "$OUT/grid/grid_render" -lz
 echo "built $OUT/grid/grid_render"
 # the data-pack games' renderer (games_render.cc): used by games_audit.py to list every pack's touch regions
 mkdir -p "$OUT/games"
-clang++ -std=gnu++20 -O1 -ffp-contract=off -w -I"$OUT/inc" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 "$R/games_render.cc" "$OUT/lvgl.a" -o "$OUT/games/games_render" -lz
+clang++ -std=gnu++20 -O1 -ffp-contract=off -w -I"$OUT/inc" -I"$L" -I"$L/src" -I"$R/stub" -I"$B/firmware/main/hal" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1 $(grep -q "struct Scene" "$B/firmware/main/hal/maipai_games_draw.h" && echo -DMGD_SCENE=1) "$R/games_render.cc" "$OUT/lvgl.a" -o "$OUT/games/games_render" -lz
 echo "built $OUT/games/games_render"

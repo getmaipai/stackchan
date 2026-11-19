@@ -24,6 +24,10 @@
 //                                        `cost NAME frames N changed_px M bbox_px B bbox_px_max X`: the pixels that changed per frame, and the area of their bounding box (what a flush of only the changed rectangle costs)
 //   play pong TICKS AIM | play flyer SEED TICKS | play battleship SEED SHOTS | play reversi SEED | play hilo SEED GUESSES    drive a game by itself (a fixed, simple policy) one step per frame, for diffbegin
 //   technique NAME N                     (PERF=1) draw one visual technique in a 100 by 100 pixel box N times and print `technique NAME objects O us_per_refresh U flushed_px F` (see docs/plan/games-visual-budget.md)
+//   timeit N                             (PERF=1) redraw the whole board N times and print `timeit us_per_redraw U` (host microseconds: a relative cost)
+//   look LEVEL                           Four in a Row: 0 plain, 1 gradients and highlights, 2 adds soft shadows (patch UX26, bench only)
+//   balance SEED|STEPS|en or es          the Balance screen (patch UX27): the course of that seed after STEPS ticks of the core's own autopilot (a made-up lean)
+//   maze SEED|STEPS|en or es             the Maze screen (patch UX28): the maze of that seed after STEPS ticks of the core's own autopilot
 //   objcount                             print `objects N labels L`: the LVGL objects on the top layer and how many of them are labels (RAM on the unit)
 //   snap FILE.png
 // Build: see scripts/virtual-unit/build-screens.sh. Placement: host-side development tool; no firmware change. Upstream: none.
@@ -76,6 +80,14 @@
 #if __has_include("maipai_flyer.h")
 #include "maipai_flyer.h"   /* patch UX25: Flappy-style flyer */
 #define HAVE_FLYER 1
+#endif
+#if __has_include("maipai_balance.h")
+#include "maipai_balance.h"   /* patch UX27: Balance */
+#define HAVE_BALANCE 1
+#endif
+#if __has_include("maipai_maze.h")
+#include "maipai_maze.h"   /* patch UX28: Maze */
+#define HAVE_MAZE 1
 #endif
 #if __has_include("maipai_qa.h")
 #include "maipai_qa.h"   /* patch UX17: the question and answer game screens */
@@ -159,6 +171,9 @@ static void c4_land(Grid* g, int owner)
 // ---- frame cost (diffbegin / diffend): how much of the glass changes from one frame to the next ----
 static std::vector<uint16_t> s_prev;
 static bool s_diffing = false, s_have_prev = false;
+struct DRect { int x, y, w, h; };
+static std::vector<DRect> s_dirty;   // when not empty: the rectangles a game says it changed; diff_frame counts the changed pixels outside them
+static long s_d_outside = 0, s_d_dirty = 0, s_d_dirty_max = 0;
 static long s_d_frames = 0, s_d_changed = 0, s_d_bbox = 0, s_d_bbox_max = 0, s_d_tiles = 0, s_d_tiles_max = 0;
 
 static void diff_frame()
@@ -169,12 +184,22 @@ static void diff_frame()
     std::vector<uint16_t> now(320 * 240);
     for (int i = 0; i < 320 * 240; i++) now[i] = (uint16_t)(s_buf[i * 2] | (s_buf[i * 2 + 1] << 8));
     if (s_have_prev) {
+        if (!s_dirty.empty()) {   // the area of the rectangles the game invalidated this frame (columns of the screen counted once: a union by 1 px rows)
+            long area = 0;
+            for (int y = 0; y < 240; y++) for (int x = 0; x < 320; x++) { bool in = false; for (const DRect& r : s_dirty) in |= x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h; area += in; }
+            s_d_dirty += area; if (area > s_d_dirty_max) s_d_dirty_max = area;
+        }
         int x0 = 999, y0 = 999, x1 = -1, y1 = -1;
         long changed = 0;
         bool tile[15][20] = {};   // 16 by 16 pixel tiles that hold a change: the area a flush of several small dirty rectangles costs
         for (int y = 0; y < 240; y++) for (int x = 0; x < 320; x++) if (now[y * 320 + x] != s_prev[y * 320 + x]) {
             changed++;
             tile[y / 16][x / 16] = true;
+            if (!s_dirty.empty()) {
+                bool in = false;
+                for (const DRect& r : s_dirty) in |= x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+                if (!in) { if (s_d_outside < 6 && getenv("DIFFDEBUG")) fprintf(stderr, "outside dirty: frame %ld px %d,%d\n", s_d_frames, x, y); s_d_outside++; }
+            }
             if (x < x0) x0 = x;
             if (x > x1) x1 = x;
             if (y < y0) y0 = y;
@@ -525,6 +550,49 @@ int main()
             printf("technique %s objects %d us_per_refresh %.1f flushed_px %ld\n", name.c_str(), objects, us, s_flushed_px / n);
             fflush(stdout);
             lv_obj_delete(box);
+        } else if (c == "timeit") {
+            int n = 100; in >> n;
+            lv_refr_now(nullptr);
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < n; i++) { redraw(g); lv_refr_now(nullptr); }
+            const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / n;
+            printf("timeit us_per_redraw %.1f\n", us);
+            fflush(stdout);
+        } else if (c == "look") {
+#ifdef HAVE_LOOK
+            int lv = 0; in >> lv; s_look = lv;
+            if (g != nullptr) redraw(g);
+#else
+            printf("this firmware tree has no richer look (patch UX26)\n");
+#endif
+        } else if (c == "balance") {
+#ifdef HAVE_BALANCE
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 3) f.push_back("");
+            static bl_t blm;
+            bl_init(&blm, (uint32_t)atoi(f[0].c_str()));
+            for (int i = 0, n = atoi(f[1].c_str()); i < n && blm.phase == BL_PLAY; i++) { int r, p; bl_autopilot(&blm, &r, &p); bl_step(&blm, r, p); }
+            bls::screen(lv_layer_top(), &blm, f[2] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no Balance (patch UX27)\n");
+#endif
+        } else if (c == "maze") {
+#ifdef HAVE_MAZE
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 3) f.push_back("");
+            static mz_t mzm;
+            mz_init(&mzm, (uint32_t)atoi(f[0].c_str()));
+            for (int i = 0, n = atoi(f[1].c_str()); i < n && mzm.phase == MZ_PLAY; i++) { int r, p; mz_autopilot(&mzm, &r, &p); mz_step(&mzm, r, p); }
+            mzs::screen(lv_layer_top(), &mzm, f[2] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no Maze (patch UX28)\n");
+#endif
         } else if (c == "objcount") {
             int objs = 0, labels = 0;
             std::vector<lv_obj_t*> stack{lv_layer_top()};
@@ -537,11 +605,12 @@ int main()
             fflush(stdout);
         } else if (c == "diffbegin") {
             s_diffing = true; s_have_prev = false; s_d_frames = s_d_changed = s_d_bbox = s_d_bbox_max = s_d_tiles = s_d_tiles_max = 0;
+            s_d_outside = 0; s_d_dirty = s_d_dirty_max = 0;
             diff_frame();   // the first frame is the reference
         } else if (c == "diffend") {
             std::string name; in >> name;
             const long n = s_d_frames ? s_d_frames : 1;
-            printf("cost %s frames %ld changed_px %ld bbox_px %ld bbox_px_max %ld tile_px %ld tile_px_max %ld\n", name.c_str(), s_d_frames, s_d_changed / n, s_d_bbox / n, s_d_bbox_max, s_d_tiles / n, s_d_tiles_max);
+            printf("cost %s frames %ld changed_px %ld bbox_px %ld bbox_px_max %ld tile_px %ld tile_px_max %ld outside_dirty %ld dirty_px %ld dirty_px_max %ld\n", name.c_str(), s_d_frames, s_d_changed / n, s_d_bbox / n, s_d_bbox_max, s_d_tiles / n, s_d_tiles_max, s_d_outside, s_d_dirty / n, s_d_dirty_max);
             fflush(stdout);
             s_diffing = false;
         } else if (c == "play") {
@@ -553,7 +622,18 @@ int main()
                 int ticks, aim; in >> ticks >> aim;
                 static pg_t pgp; pg_init(&pgp, 3);
                 show(pgs::screen(lv_layer_top(), &pgp, false));
+                #ifdef PG_DIRTY_API
+                for (int t = 0; t < ticks && pgp.phase == PG_PLAY; t++) {
+                    const pg_t before = pgp;
+                    pg_drag(&pgp, pg_ball_cy(&pgp) + (pgp.vx < 0 ? aim : 0)); pg_step(&pgp);
+                    pg_rect_t rr[5]; const int nr = pg_dirty(&before, &pgp, rr);
+                    s_dirty.clear(); for (int i = 0; i < nr; i++) s_dirty.push_back({rr[i].x, rr[i].y, rr[i].w, rr[i].h});
+                    show(pgs::screen(lv_layer_top(), &pgp, false));
+                }
+                s_dirty.clear();
+#else
                 for (int t = 0; t < ticks && pgp.phase == PG_PLAY; t++) { pg_drag(&pgp, pg_ball_cy(&pgp) + (pgp.vx < 0 ? aim : 0)); pg_step(&pgp); show(pgs::screen(lv_layer_top(), &pgp, false)); }
+#endif
             }
 #endif
 #ifdef HAVE_FLYER
@@ -566,9 +646,17 @@ int main()
                     for (int i = 0; i < FL_PIPES; i++) if (flp.px[i] + FL_PIPE_W * 16 >= FL_BIRD_X * 16 && (next < 0 || flp.px[i] < flp.px[next])) next = i;
                     const int mid = next >= 0 ? flp.gap[next] + FL_GAP / 2 : (FL_TOP + FL_BOTTOM) / 2;
                     if (fl_bird_top(&flp) + FL_BIRD / 2 > mid + 14 && flp.vy >= 0) fl_tap(&flp);
+#ifdef FL_DIRTY_API
+                    const fl_t before = flp;
                     fl_step(&flp);
+                    fl_rect_t rr[FL_PIPES * 4 + 2]; const int nr = fl_dirty(&before, &flp, rr);
+                    s_dirty.clear(); for (int i = 0; i < nr; i++) s_dirty.push_back({rr[i].x, rr[i].y, rr[i].w, rr[i].h});
+#else
+                    fl_step(&flp);
+#endif
                     show(flys::screen(lv_layer_top(), &flp, false));
                 }
+                s_dirty.clear();
             }
 #endif
 #ifdef HAVE_BATTLESHIP
@@ -606,6 +694,36 @@ int main()
                     show(hlo::screen(lv_layer_top(), hlp, true, false));
                     if (hlp.phase == HL_PLAY) show(hlo::screen(lv_layer_top(), hlp, false, false));
                 }
+            }
+#endif
+#ifdef HAVE_BALANCE
+            if (what == "balance") {
+                int seed, ticks; in >> seed >> ticks;
+                static bl_t blp; bl_init(&blp, (uint32_t)seed);
+                show(bls::screen(lv_layer_top(), &blp, false));
+                for (int t = 0; t < ticks && blp.phase == BL_PLAY; t++) {
+                    const bl_t before = blp;
+                    int r, p; bl_autopilot(&blp, &r, &p); bl_step(&blp, r, p);
+                    bl_rect_t rr[6]; const int nr = bl_dirty(&before, &blp, rr);
+                    s_dirty.clear(); for (int i = 0; i < nr; i++) s_dirty.push_back({rr[i].x, rr[i].y, rr[i].w, rr[i].h});
+                    show(bls::screen(lv_layer_top(), &blp, false));
+                }
+                s_dirty.clear();
+            }
+#endif
+#ifdef HAVE_MAZE
+            if (what == "maze") {
+                int seed, ticks; in >> seed >> ticks;
+                static mz_t mzp; mz_init(&mzp, (uint32_t)seed);
+                show(mzs::screen(lv_layer_top(), &mzp, false));
+                for (int t = 0; t < ticks && mzp.phase == MZ_PLAY; t++) {
+                    const mz_t before = mzp;
+                    int r, p; mz_autopilot(&mzp, &r, &p); mz_step(&mzp, r, p);
+                    mz_rect_t rr[4]; const int nr = mz_dirty(&before, &mzp, rr);
+                    s_dirty.clear(); for (int i = 0; i < nr; i++) s_dirty.push_back({rr[i].x, rr[i].y, rr[i].w, rr[i].h});
+                    show(mzs::screen(lv_layer_top(), &mzp, false));
+                }
+                s_dirty.clear();
             }
 #endif
             if (cur) lv_obj_delete(cur);

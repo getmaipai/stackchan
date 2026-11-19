@@ -1,0 +1,35 @@
+# Four in a Row richer look: the bench
+
+Playground track, 2026-11-18. A bench-only prototype, built only from what `docs/plan/games-visual-budget.md` says fits. It answers one question with measured numbers: can a richer look of a game board stay inside the memory gate and the 30 ms tick? The renderer picture alone proves nothing about fit.
+
+## What the patch is
+
+`firmware/patches/UX26-four-in-a-row-richer-look-bench.patch` changes only the Four in a Row branch of the grid game's one draw callback in `maipai_grid.cc`. No extra LVGL object, no bitmap. Three looks, switched at run time, so one image measures all of them:
+
+| Level | What is drawn | Added draw calls per full board |
+|---|---|---|
+| 0 | the old look, unchanged | 0 |
+| 1 | a vertical gradient backdrop and board (blue, light edge along the top), holes with a light rim and an inner floor, discs with a darker rim, the face and a pale highlight | about 3 per hole and 3 per disc (42 holes) |
+| 2 | level 1 plus a soft shadow under the board (blur 8) and under each disc (blur 5) | the shadows |
+
+Two bench tools in the existing bench tool block (they exist only on bench images): `self.game.bench_look {level}` and `self.game.bench_box {technique, n}`. The second draws and flushes one 100 by 100 pixel box of a technique `n` times and answers the unit's own microseconds per redraw: it replaces the K calibration of the budget (200 to 600, from one point) with a measurement for flat, radius, circle, gradient, shadow-small, shadow, alpha and outline.
+
+## What the unit's compiler says (measured)
+
+The patched `maipai_grid.cc` compiles with the unit's own compiler and flags (the b68 bench build): the grid unit grows from 27,630 to 33,192 bytes of code and constants (+5.6 KB: the look about 3.5 KB, the two bench tools the rest) and from 5,088 to 5,092 bytes of static RAM (+4: the level). No new heap object.
+
+## What the renderer says (host, relative)
+
+A full redraw of the board: level 0 44 microseconds, level 1 151 (3.4 times), level 2 193 (4.4 times) on the host. With the budget's K range that is 9 to 26 ms for level 0, 30 to 91 ms for level 1 and 39 to 116 ms for level 2 per full-board redraw, plus the flush. A falling disc redraws one column (about a seventh of the board), so the per-frame cost of a fall is one seventh of that: level 1 at 4 to 13 ms of drawing and about 1 ms of flush, inside the 30 ms tick **if the K range holds**. A full-board redraw (the start, a win flash of all four at once, a shake) is the case at risk: level 1 may pass 40 ms on one frame. That is what the bench decides. The before and after frames are `host/tests/golden/screens/game-c4-look-0.png`, `-1.png`, `-2.png` and `game-c4-look-2-win.png`.
+
+## Build and run (the bench agent)
+
+1. Replay the series with the patch at the end of `firmware/patches/ORDER` (it is the last line on the branch `ux/unproven-games`; the patch applies on the current main series, nothing else is needed): `bash scripts/fw-rebuild.sh TREE`.
+2. Build the bench image: `bash scripts/fw-build.sh TREE bench`. The tools are in the bench block only, so `plain` and `gate` images do not carry the patch's tools (the draw branch is dead at level 0 and costs nothing).
+3. Flash it and run the train: `python3 scripts/bench-train.py scripts/bench-trains/c4-richer-look.json` after setting `build_dir` in the manifest to the new tree (it says `NEWBUILD`). The train: heap before any game, the eight box times, start Four in a Row (it lifts the bench's quiet state for the game and puts it back), for each of the three looks it records ticks, drops three discs by touch, reads the frame gaps and the heap.
+4. Read `result.json`: `us_per_redraw` per technique (the K calibration), `gaps_ms` per look (the largest gap between two ticks; the target is 30 ms, the baseline with SF78 is 40 ms), `internal_free` and `int_big` in the game against before.
+5. Look at the screen for each level and say if a level flickers or tears when a disc falls (the `person` items of the manifest).
+
+## The gate for the prototype
+
+Level 1 or 2 passes if all of these hold on the unit: the worst tick gap is at most 60 ms and the median gap is at most 40 ms; internal free in the game is within 1,000 bytes of level 0 (the look adds no objects, so it should be equal); the box times show the budget's K within its range or better; no flicker. If level 1 passes and level 2 does not, the rule is: gradients, rims and highlights yes, shadows on the board only. If neither passes, the budget's verdicts are too generous and the art direction waits.

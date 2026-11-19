@@ -44,6 +44,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/accelerometer-games.md` (100): Accelerometer games: the design
 - `docs/design/architecture-layers.md` (341): Architecture layers: kernel, modules, assets, host (design, 2026-11-18)
 - `docs/design/architecture.md` (95): Architecture
+- `docs/design/balance.md` (27): Balance
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
 - `docs/design/battleship-lite.md` (17): Battleship-lite
 - `docs/design/boundary-debt.txt` (40): no header
@@ -86,6 +87,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/game-over-screen.md` (58): The shared game-over screen
 - `docs/design/games-2026-11-16.md` (147): Games: the engine and three games in the core firmware, 2026-11-16
 - `docs/design/games-audit-baseline.json` (9): no header
+- `docs/design/games-look.md` (52): The look of the games: style guide (skeleton)
 - `docs/design/games-v2-2026-11-17.md` (122): Games v2 and a readable dim, 2026-11-17
 - `docs/design/handoff-roaming-tailnet-2026-11-17.md` (16): Handoff from the old bot firmware session: roaming, private network, updates (2026-11-17)
 - `docs/design/hardware-and-declarative-system-2026-11-17.md` (169): Hardware, and a proposed declarative dialog and object system (2026-11-17)
@@ -99,6 +101,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/llm-display-control-2026-11-17.md` (554): One command channel, many sources: how the model shows and feels, 2026-11-17
 - `docs/design/local-vs-home-features-2026-11-17.md` (48): Local mode and Home mode: what you get in each (2026-11-17)
 - `docs/design/lock-and-radio-2026-11-17.md` (53): Two new features: passcode lock and streaming radio (2026-11-17)
+- `docs/design/maze.md` (27): Maze
 - `docs/design/memory-headroom-2026-11-16.md` (66): Memory headroom, 2026-11-16
 - `docs/design/merge-2026-11-16.md` (84): Merge of tracks A and B, the token gate and the anime face, 2026-11-16
 - `docs/design/model-games.md` (145): Model-powered games: jokes, riddles, trivia, 20 Questions, word chain (design, 2026-11-18)
@@ -250,7 +253,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
-- `docs/dev/index.md` (111): MaiPai for StackChan: developer guide
+- `docs/dev/index.md` (112): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/measure-a-game.md` (57): How to measure a game
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
@@ -430,7 +433,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
 - `docs/plan/friend-test-path-2026-11-18.md` (25): The friend-test path: what exists and what is missing (2026-11-18)
 - `docs/plan/funding-and-sponsorship.md` (78): Funding and sponsorship
-- `docs/plan/games-visual-budget.md` (99): Games visual budget: what the unit can afford
+- `docs/plan/games-pack-engine.md` (41): The data-pack games drawn by one draw callback (patch UX29)
+- `docs/plan/games-packs-look.md` (47): The data-pack games: which can take a richer look
+- `docs/plan/games-richer-look-bench.md` (35): Four in a Row richer look: the bench
+- `docs/plan/games-visual-budget.md` (107): Games visual budget: what the unit can afford
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/home-work-brief.md` (48): Brief for a session in the Home repository: the StackChan robot side (2026-11-18)
@@ -2124,6 +2130,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/apps_core_test.c` (344): Host test for the Apps wall, the Timers and Alarms apps and the tabbed Settings layout (patch UI16):
 - `host/tests/firmware/assets_core_test.c` (192): Host test of the asset store core (patch SF89): header checks, install, replace, swap, remove, wear rotation, 
 - `host/tests/firmware/avatar_core_test.c` (58): Host test for the camera frames core (patch SF44). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>
+- `host/tests/firmware/balance_core_test.c` (131): Host test of maipai_balance_core.h (patch UX27, Balance): the lean moves the ball, the plate shrinks, holes op
 - `host/tests/firmware/banner_core_test.c` (337): Host test for the banner row logic (patch N01): the queue, priorities, minimum display time, replace-in-place 
 - `host/tests/firmware/banner_dump.c` (96): Prints the geometry and the pure functions of maipai_banner_core.h as JSON (patch N01), for the settings page 
 - `host/tests/firmware/barge_core_test.c` (53): Host test for the talk-over decisions (patch SF18). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header
@@ -2148,7 +2155,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/filler_core_test.c` (220): Host test for "While it thinks" (patch TB03): the delay rule, the pick, the index reader, mu-law and the tone.
 - `host/tests/firmware/find_core_test.c` (27): Host test for the find-my-robot sound rule (patch Y02): the full sounds core with the find bypass. */
 - `host/tests/firmware/firstrun_core_test.c` (132): include <stdio.h>
-- `host/tests/firmware/flyer_core_test.c` (93): Host test of maipai_flyer_core.h (patch UX25, Flappy-style flyer): gravity, the hop, the pipes and their gaps,
+- `host/tests/firmware/flyer_core_test.c` (136): Host test of maipai_flyer_core.h (patch UX25, Flappy-style flyer): gravity, the hop, the pipes and their gaps,
 - `host/tests/firmware/fx_core_test.c` (347): Host test for the screen effects and the governor (patches TA02, TA05): scanline row math, split invariance, c
 - `host/tests/firmware/fx_cost.c` (94): Host cost model for the overlays and effects (patches TA02, TA03). Runs every overlay for 30 simulated seconds
 - `host/tests/firmware/game_over_core_test.c` (46): Host test of the shared game-over screen's core (patch UX15): the layout meets the screen standard, taps land 
@@ -2176,6 +2183,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/lock_gate_core_test.c` (22): Host test of the lock gate table (patch SF106, review fix): which tools a locked unit refuses. */
 - `host/tests/firmware/look_core_test.c` (583): Host test for the look core (patch X01): styles, the eye and its lid, emotions, the mouth family, the sleep se
 - `host/tests/firmware/look_shapes_dump.c` (165): Prints the face model of maipai_look_core.h as JSON (patch V10), for the preview of the settings page.
+- `host/tests/firmware/maze_core_test.c` (119): Host test of maipai_maze_core.h (patch UX28, Maze): every seed makes a perfect maze, the marble rolls with the
 - `host/tests/firmware/mic3_core_test.c` (73): Host test for the MIC3 bench measurement (patch SF15). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/mood_core_test.c` (129): Host test for the mood core (patch M01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/motion_limit_core_test.c` (310): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
@@ -2201,7 +2209,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/phrasepack_core_test.c` (304): Host test for the offline phrases as a pack (patch K12): the zip of sixteen clips becomes one block and a tabl
 - `host/tests/firmware/picface_core_test.c` (231): Host test for the picture face core (patch H03): limits, refusals in two languages, slot choice, fade, cache, 
 - `host/tests/firmware/pickup_core_test.c` (308): Host test for pickup, carried and set-down (patch TB04), against synthesised accelerometer traces.
-- `host/tests/firmware/pong_core_test.c` (87): Host test of maipai_pong_core.h (patch UX24, Pong): the court, bounces, points, the end, the unit's limited pa
+- `host/tests/firmware/pong_core_test.c` (128): Host test of maipai_pong_core.h (patch UX24, Pong): the court, bounces, points, the end, the unit's limited pa
 - `host/tests/firmware/portal_core_test.c` (178): Host test for the Wi-Fi portal core (patches P01 to P04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the he
 - `host/tests/firmware/power_core_test.c` (48): Host test for the power readings core (patch SF48). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/prefs_core_test.c` (174): Host test for the unit's preferences table (patch TA01): keys match the host, flash keys fit, defaults, all-or
@@ -2322,6 +2330,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/update-header-vectors.json` (104): no header
 - `host/tests/fixtures/update-signature-vectors.json` (79): no header
 - `host/tests/golden/face-known.json` (1): no header
+- `host/tests/golden/pack_games_digests.json` (509): no header
 - `host/tests/golden/tolerance.json` (110): no header
 - `host/tests/kinematic_double.py` (106): A command-driven test double for the state feed.
 - `host/tests/ladder_fakes.py` (38): Shared fakes for the offline-ladder suites: an injected clock and a
@@ -2446,6 +2455,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_game_sounds.py` (33): The synthesized game sounds (scripts/make-game-sounds.py): deterministic, none clipping, all at the same chime
 - `host/tests/test_game_voice.py` (151): no header
 - `host/tests/test_games_audit.py` (31): The screen audit of the data-pack games (scripts/virtual-unit/games_audit.py): the failures of each pack may o
+- `host/tests/test_games_budget_revisions.py` (50): The revisions the games budget asked for (docs/plan/games-visual-budget.md): Dice Poker drawn by one draw call
 - `host/tests/test_games_no_head_motion.py` (40): Owner rule (2026-11-18): a game never moves the head. No line a patch adds to the game player, the game engine
 - `host/tests/test_gate_check.py` (53): scripts/gate-check.py: the gate numbers in the script and in docs/dev/gate-numbers.md agree, and the verdict i
 - `host/tests/test_gaze.py` (156): S-EXPR-04: deterministic gaze trajectories, one test per rule (UNMEASURED defaults)."""
@@ -2517,7 +2527,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_measure_wake_doa.py` (275): M-R3: wake and direction of arrival on this array. The scoring, the bearing maths
 - `host/tests/test_measure_wifi_cycle.py` (101): M-R5 on the unit: the real radio is cycled and the time until the hub answers is read.
 - `host/tests/test_memory_notes.py` (229): The memory notes package: plain per-person files, remember and forget on request, off by default."""
-- `host/tests/test_more_games_cores.py` (62): Patches UX21 to UX25 (Higher or Lower, Reversi, Battleship-lite, Pong, the flyer): each pure core's host test 
+- `host/tests/test_more_games_cores.py` (64): Patches UX21 to UX25, UX27 and UX28 (Higher or Lower, Reversi, Battleship-lite, Pong, the flyer, Balance, Maze
 - `host/tests/test_motion_state.py` (181): MOVE-CARRY-01a: the deterministic motion state from scripted IMU readings.
 - `host/tests/test_motion_state_carry.py` (217): MOVE-CARRY-01c: the held look, the one short line, and the setting.
 - `host/tests/test_motion_state_hold.py` (249): MOVE-CARRY-01b: while held the body commands no motion; after put down it
@@ -2552,6 +2562,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_overlay_preview_parity.py` (188): ruff: noqa: E501
 - `host/tests/test_own_llm.py` (124): no header
 - `host/tests/test_own_model_defaults.py` (69): Own-model mode works with only a model address, and /v1 is never doubled."""
+- `host/tests/test_pack_engine_one_draw.py` (72): The data-pack games drawn by ONE draw callback (patch UX29, docs/plan/games-pack-engine.md): three LVGL object
 - `host/tests/test_pack_unzip_limits.py` (40): A pack that unpacks to far more than its size is refused before it fills memory."""
 - `host/tests/test_packs.py` (308): ruff: noqa: E501
 - `host/tests/test_packs_languages_phrases.py` (689): ruff: noqa: E501, F811
@@ -2598,6 +2609,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_rest_policy.py` (9): no header
 - `host/tests/test_rest_routine.py` (129): BOT-SC-ANIM-01: rest routines (drowsy, asleep, waking) on a manual clock."""
 - `host/tests/test_review_fix_locked_unit_tools.py` (21): Review fix: a locked unit refuses the tools that read or change its network and pairing setup, from one table 
+- `host/tests/test_richer_look_bench.py` (39): Patch UX26 (the Four in a Row richer look, bench only) and its bench manifest: the patch has its header lines 
 - `host/tests/test_robot_object.py` (244): Robot API promises exercised through the configurable recorded fake body."""
 - `host/tests/test_robot_safe_stop_backoff.py` (92): A lost body runs the safe stop once, then at most every 30 s, not on every failing write."""
 - `host/tests/test_roster.py` (246): FOLLOWUP-01 (bot half): the roster poller fills the PeopleDirectory from the
@@ -2848,6 +2860,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/bench-trains/batch3-b77.json` (248): no header
 - `scripts/bench-trains/bench-proof.json` (249): no header
 - `scripts/bench-trains/c4-richer-look-b78.json` (409): no header
+- `scripts/bench-trains/c4-richer-look.json` (409): no header
 - `scripts/bench-trains/leave-hosted.json` (60): no header
 - `scripts/bench-trains/plain-proof.json` (17): no header
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
@@ -2882,9 +2895,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/apps_render.cc` (255): Host renderer for the Apps wall, the Timers and Alarms apps and the tabbed Settings screen (patch UI16): the r
 - `scripts/fw-face-render/apps_render.sh` (20): draw the Apps wall, the games wall, the Timers and Alarms apps and the tabbed Settings screen with the real LV
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
-- `scripts/fw-face-render/games_render.cc` (252): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
+- `scripts/fw-face-render/games_render.cc` (289): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
-- `scripts/fw-face-render/grid_render.cc` (617): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
+- `scripts/fw-face-render/grid_render.cc` (735): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
 - `scripts/fw-face-render/hooks_banner.cc` (335): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
 - `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
@@ -3002,7 +3015,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/fake_host.py` (135): A fake host for the playground's Live mode: the routes of docs/plan/playground-live.md (under /api/playground,
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/games_audit.py` (85): The screen audit for the data-pack games (Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It, Rock Paper Scissors,
-- `scripts/virtual-unit/games_cost.py` (66): Frame cost of every game from the host renderer (docs/plan/games-visual-budget.md): for a run of each game, ho
+- `scripts/virtual-unit/games_cost.py` (70): Frame cost of every game from the host renderer (docs/plan/games-visual-budget.md): for a run of each game, ho
+- `scripts/virtual-unit/games_pack_sheet.py` (51): A sheet of the seven data-pack games as the unit draws them today, and each pack's LVGL object count (docs/pla
 - `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
 - `scripts/virtual-unit/grid_gen.py` (36): Cut the unit's own grid-game drawing out of maipai_grid.cc (the Grid struct, the draw callbacks, build and red
 - `scripts/virtual-unit/host_away.py` (128): What the unit does while its host is away (firmware patches 143 and SF49): the Offline label after 45 s withou
@@ -3037,6 +3051,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/offline_lines.py` (77): Offline lines by situation (owner decision 24 extension; docs/design/content-pantry.md, "Lines by situation"):
 - `scripts/virtual-unit/overlay-skip.txt` (1): no header
 - `scripts/virtual-unit/overlay_patches.py` (78): Brings the face overlay tree (.runs/fixtree, made by build-face.sh from a replayed firmware tree) up to the wh
+- `scripts/virtual-unit/packs_pixel_proof.py` (127): Pixel proof for the data-pack games' drawing (patch UX29): runs two builds of the pack renderer (games_render)
 - `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (14): no header
 - `scripts/virtual-unit/physics/calibrate.py` (246): Fit the assumed servo parameters of a robot description from a bench recording of real head moves.
 - `scripts/virtual-unit/physics/compare_recording.py` (128): Draw the recorded head curve against the simulated one for the same steps, both axes, as an SVG (no libraries)
@@ -3051,7 +3066,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
 - `scripts/virtual-unit/restart-preview.sh` (27): bring this checkout to origin/main and restart the virtual unit view on one port, then prove the page serves t
-- `scripts/virtual-unit/scenarios.py` (481): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (496): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la
