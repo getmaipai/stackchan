@@ -55,3 +55,39 @@ Also done (2026-11-18, later): `assets` in the state (your `slots()`) with an In
 ## Where the new screens are, and what to list (playground track, 2026-11-18)
 
 Not on `main` yet: the game-over screen (UX15, UX15b), clock styles (UX14, UX14b), the games page and walls (UX13e), the control sheet (UX13c), Timers and Alarms (UX13f), first run (UX13d), the Q and A games (UX17), Dice Poker (UX18) and the mumble (UX16) are on `origin/ux/unproven-games`; the firmware track lands the patches on `main`. In `scripts/virtual-unit/scenarios.py` on that branch: `SCREENS` (screens renderer: `clock-*`, `screen-control-sheet-tiles`, `screen-alarms-app`, `screen-page-timers-*`, first-run, and the filmstrips `FILMSTRIPS`, which are merged into `SCREENS` and compose frames with `strip` steps), and `GRID_SCENARIOS` (a separate program, `.runs/vu-screens/grid/grid_render`, run like `LOCK_SCENARIOS` with `run_lock(name)`): `game-*`, `game-over-*`, `game-riddle-*`, `game-trivia-*`, `game-twenty-*`, `game-dicepoker-*`, `game-slide-*`, `game-snake-*`. The viewer lists `SCREENS`, `LOCK_SCENARIOS`, `COVER_SCENARIOS` and `GRID_SCENARIOS` the same way `main()` there does. Renderer commands: `pset cstyle N` and `pset asleep 1` (clock), `snapnow FILE` (a picture with no frame run); the grid program takes `game`, `drop`, `tap`, `swipe`, `tiles`, `over RESULT|SCORE|BEST|NEWBEST|LANG`, `qa riddle|trivia|twenty ...`, `poker ...`, `stripadd` and `stripwrite`.
+## Answers from the view session (2026-11-18, later still)
+
+- **Live picker: done** against your `backends.py` and `fake_host.py`. `view.py` builds `BackendManager(Simulation(UNIT), host, token, "the virtual unit view")` from the environment (`MAIPAI_PLAYGROUND_HOST`, `MAIPAI_PLAYGROUND_TOKEN`; never printed), serves `GET /backends` and `POST /backend`, puts `backend` in `/state`, renews the lease from its own loop and sends `/call` to the robot while live. The page has a Robot section (list, Connect with a confirmation for a real robot, Disconnect), a red LIVE banner, `LIVE:` in the tab title, and it dims and locks the Simulation's own panels. The Simulation's body controls answer with a plain refusal while live. With no `backends.py` or no host set, only the Simulation is offered.
+- **Not done in Live:** the drawn head, lights and screen still show the Simulation. `Live.state()` and `Live.snapshot()` are fetched or available, but the page does not draw from them yet; the banner says so.
+- **Drain: done.** A "Drain the battery" checkbox beside Clock speed (`POST /hw` key `drain`), and the Draw and hours-left rows carry the basis and the words "a placeholder until measured". They appear when `hw.py` has the power model.
+- **Your three lines in `view.py`** (`utilization()`): the same fields are now set there behind `hasattr(HW, "draw_ma")`. When your branch merges, take the view's version of that function.
+- **Sounds:** the action picker lists the twelve sound names for `self.audio.play_sound`. The virtual unit plays nothing aloud.
+- **Tests:** `host/tests/test_vu_view_live.py` drives the picker and the drain switch with a real pointer against the fake host; it skips where `backends.py`, `fake_host.py` or the power model are absent.
+
+## Spot check of the owner's feedback list against the viewer (view session, 2026-11-18, main at 51c44164)
+
+Checked by screenshot and by the real-pointer tests (`host/tests/test_vu_view_pointer.py`, 15 passing).
+
+| Item | State | How it was checked |
+|---|---|---|
+| Reset button | there: a flush pill-shaped key under the controller with its mark, the red light and the two slots; a click restarts the unit | close render and the reset test |
+| Side USB-C | there: an open socket on the controller, a click target with its own cable | screenshot with the cable in; the two-socket click test |
+| Top touch sensors | there, under the shell: the top is plain as on the real unit; the pads glow under the pointer and on a touch | top screenshot; the touch pad test |
+| Rear cables | there: the folded black flat cable, its run into the holder, two white flat cables with blue print, the battery lead and the servo leads | lit open-back screenshot |
+| Glowing lights | there: bars lit along their length, halos, light on the inside, the windows in the top connectors; nothing on the controller | dim-room screenshots; the lights test |
+| Drag head pan and tilt | there, through the unit's limiter, with the arrow keys | the head drag test |
+| Click to plug | there on both sockets | the two-socket click test |
+
+Still missing or weaker than the real unit:
+
+1. The small print on the rating label and on the label under the base is stand-in bars (the name, the two-character mark and two large marks are drawn).
+2. The round finger recess behind the card slot is only marked by its rim; the side labels sit on the surface, not in their shallow recess.
+3. The two small dots beside the camera are drawn brighter than the real pale ones.
+4. The inside of the base (`base_board`) is a guess: no photo of the open base exists.
+5. In Live mode the picture still shows the Simulation; drawing from the robot's own state and screen is not done.
+6. The Talk panel is off until a voice bridge exists.
+7. The game-over screen and the clock styles are not on main, so the viewer has nothing new to show for them; the games page (`screen-page-games`, `more-games`) is in the scenario list where the renderer build has it. Asked the playground track for the names to add.
+
+## Still screens in the viewer (view session, 2026-11-18)
+
+Answer to the playground's note that the game-over screens and the other grid screens are a separate program. The Scenarios list now also offers `still:<name>` for every name in `COVER_SCENARIOS`, `GRID_SCENARIOS` and `LOCK_SCENARIOS` whose program is built under `.runs/vu-screens/`. Play draws it with `scenarios.run_lock(name)` and puts it on the robot's screen for 10 seconds, then the running screen returns; `still` in `/state` names it meanwhile. So `game-over-*`, `game-riddle-*` and the rest show in the viewer as soon as they are in `GRID_SCENARIOS` on main with a built `grid/grid_render`; the clock styles and the new pages show through `SCREENS` as any other scenario. Nothing more is needed from the view for them.

@@ -24,7 +24,7 @@ You do not need a language model yet. The host can install a small one for you.
 
 4. **Pair.** On the host computer run `stackchan pair`. It prints a 6 digit code that works for 10 minutes. Type the code on the robot's setup page. You will know it worked when the robot shows its face and the host page "On my robot" lists it.
 
-   ![The robot screen with the 6 digit code, and the host terminal asking for it.](../images/pairing-code.svg)
+   ![The host terminal with the 6 digit code, and the robot's setup page asking for it.](../images/pairing-code.svg)
 
    *The robot screen with the 6 digit code, and the host terminal asking for it. A placeholder drawing, not a real screenshot.*
 

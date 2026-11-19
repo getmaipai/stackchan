@@ -25,6 +25,14 @@ class FakeBehavior:
         self.touched.extend(self.event_poll())
         return False
 
+    def extra_unit_tick(self, now: float) -> None:
+        self.wake_on_touch(now)
+        self.reaction_tick()
+        self.orientation_tick()
+
+    def unit_connected(self) -> None:
+        self.warnings.append("rest reset")
+
     def _reaction_tick(self) -> None:
         self.ticked += 1
 
@@ -113,4 +121,39 @@ def test_the_orientation_timer_runs_per_unit_and_a_connect_reasserts_the_pose():
     assert made["b2"].orientation_ticks == 2
     units.on_connect("b2")
     units.on_connect("a1")   # the first unit's own wiring does this
-    assert made["b2"].warnings == ["reasserted"] and "a1" not in made
+    assert made["b2"].warnings == ["rest reset", "reasserted"] and "a1" not in made
+
+
+def test_a_turn_on_an_extra_unit_is_rendered_by_that_units_behavior():
+    units, made = _rig(["a1", "b2"])
+    units.feed("b2", [])
+    assert units.behavior_for("b2") is made["b2"]
+    assert units.behavior_for("a1") is None and units.behavior_for(None) is None and units.behavior_for("zz") is None
+
+
+def test_two_real_behaviors_keep_their_turn_and_rest_state_apart():
+    """Step 4: a turn on one unit's behavior leaves the other unit's behavior idle and awake; the extra-unit tick runs every step without raising."""
+    from maipai_body.app import StackChanBehavior
+    from maipai_body.bodies.stackchan.adapter import StackChanRobotAdapter
+    from maipai_body.bodies.stackchan.fake import FakeStackChanDeviceClient
+
+    first = StackChanBehavior(StackChanRobotAdapter(FakeStackChanDeviceClient()).robot)
+    second = StackChanBehavior(StackChanRobotAdapter(FakeStackChanDeviceClient()).robot)
+    try:
+        second.event_poll = lambda: []
+        first.render_turn_state("listening")
+        assert first._active.is_set() and not second._active.is_set()
+        first.render_turn_state("settle")
+        second.render_turn_state("thinking")
+        assert second._active.is_set() and not first._active.is_set()
+        second.render_turn_state("settle")
+        second.extra_unit_tick(1000.0)   # idle look, touch, reactions, rest, watchdog: none of them raises on a real behavior
+        assert second._rest.stage == "awake"
+        # 6 minutes with nothing happening on the second unit only: its own rest policy sleeps, the first unit stays awake
+        import time
+
+        second.rest_step(time.monotonic() + 400.0)
+        assert second._rest.stage != "awake" and first._rest.stage == "awake"
+    finally:
+        first.close()
+        second.close()

@@ -1,0 +1,122 @@
+# Intent: The grid games end on the shared game-over screen (UX15, docs/design/game-over-screen.md) instead of a banner and a three second hold: a face (amber and smiling for a win, blue and sad for a loss, gray and level for a draw) that pops for 160 ms, the result, the game's score line ("Score 38", "Cleared in 82 s", "Length 31", "The word was robot"), the best line or the amber "New best!" mark, and Play again and Quit buttons of 148 by 56 px. Play again starts the same game fresh, Quit returns to the games page; the screen waits for a tap (a minute with none ends the game). The result sounds stay (the fanfare, the soft fall, the neutral draw) and a new best adds the ting. The data-pack games (Color Memory, Whack-a-mole, Tic-Tac-Toe, Do It, Rock Paper Scissors, the eight ball, dice) keep their own ending until their result table is wired.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: finish a Four in a Row game: the game-over screen shows with the right face and the score and best lines; tapping Play again starts a fresh board, Quit shows the games page; a new best shows the New best! mark and rings; the swipe down from the grabber still ends the game from the screen.
+# Kconfig: CONFIG_MAIPAI_GAMES (existing)
+# Memory cost: about 15 LVGL objects while the screen shows (freed with the game); no PSRAM; a few hundred bytes of flash.
+
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -15,6 +15,9 @@
+ #include "maipai_grid_mines_core.h"
+ #include "maipai_grid_anim_core.h"
+ #include "maipai_grid_input_core.h"
++#include "maipai_game_over.h"
++#include "maipai_pages_core.h"
++#include "maipai_pages.h"
+ #include "maipai_grid_slide_core.h"
+ #include "maipai_grid_snake_core.h"
+ #include "maipai_games_sfx_core.h"
+@@ -50,7 +53,7 @@ const char* const kTag = "MAIPAI-GRID";
+ constexpr uint32_t kTickMs       = 30;
+ constexpr uint32_t kIdleMs       = 10u * 60u * 1000u;  // as the other games: no input for 10 minutes ends it
+ constexpr uint32_t kUnitDelayMs  = 450;                // the unit never answers faster than this (it should look like thinking)
+-constexpr uint32_t kOverHoldMs   = 3000;               // the result stays on screen this long, then the game ends
++constexpr uint32_t kOverHoldMs   = 60000;              // patch SF82: the game-over screen waits for a tap; a minute with none ends the game
+ enum { kC4 = 0, kMatch = 1, kHangman = 2, kMines = 3, kSlide = 4, kSnake = 5, kKinds = 6 };
+ 
+ struct Info {
+@@ -92,6 +95,8 @@ struct Grid {
+     gsn_t snake;          // Snake
+     uint32_t next_step_ms; // Snake: when the snake moves next
+     uint8_t spawn_cell;   // 2048: where the last new tile appeared (255 none)
++    mgo::Screen over;     // patch SF82: the shared game-over screen (root null until the game ends)
++    uint8_t over_shown;
+     gan_t anim;           // patch SF72: the falling discs, the pulses and the shake
+     uint8_t result_pending;  // Four in a Row: the game is decided, the picture is catching up (GR_PERSON_WON, GR_UNIT_WON, GR_DRAW)
+     uint8_t flash_left;   // pulses still running
+@@ -474,32 +479,36 @@ void finish(Grid* g, int result)
+     const int best = load_best(g->kind);
+     const bool record = g->score > 0 && better(g->kind, g->score, best);
+     if (record) save_best(g->kind, g->score);
+-    char en[40], es[40];
++    // Patch SF82: the shared game-over screen (UX15, docs/design/game-over-screen.md) replaces the banner and the three second hold: the face, the result, the score line, the best
++    // line or the New best mark, and Play again / Quit. It stays until a tap (or a minute with none).
++    int mgo_result = result == GR_PERSON_WON ? MGO_WON : (result == GR_DRAW ? MGO_DRAW : MGO_LOST);
++    char score_text[40] = "", best_text[40] = "";
++    const char* score_fmt_en = "";
++    (void)score_fmt_en;
+     if (g->kind == kC4) {
+-        snprintf(en, sizeof(en), result == GR_PERSON_WON ? (record ? "You win! New best %d" : "You win!") : (result == GR_UNIT_WON ? "I win!" : "A draw"), g->score);
+-        snprintf(es, sizeof(es), result == GR_PERSON_WON ? (record ? "Ganas! Nuevo record %d" : "Ganas!") : (result == GR_UNIT_WON ? "Gano yo!" : "Empate"), g->score);
++        snprintf(score_text, sizeof(score_text), g->won ? (g->es ? "Puntos %d" : "Score %d") : "", g->score);
+     } else if (g->kind == kHangman) {
+-        if (g->won) {
+-            snprintf(en, sizeof(en), record ? "Got it! New best %d" : "Got it! %d", g->score);
+-            snprintf(es, sizeof(es), record ? "Lo tienes! Record %d" : "Lo tienes! %d", g->score);
+-        } else {
+-            snprintf(en, sizeof(en), "It was %s", g->hang.word);
+-            snprintf(es, sizeof(es), "Era %s", g->hang.word);
+-        }
++        if (g->won) snprintf(score_text, sizeof(score_text), g->es ? "Puntos %d" : "Score %d", g->score);
++        else snprintf(score_text, sizeof(score_text), g->es ? "Era %s" : "The word was %s", g->hang.word);
+     } else if (g->kind == kSlide) {
+-        snprintf(en, sizeof(en), record ? "Game over: %d! New best" : "Game over: %d", g->score);
+-        snprintf(es, sizeof(es), record ? "Fin: %d! Nuevo record" : "Fin: %d", g->score);
++        snprintf(score_text, sizeof(score_text), g->es ? "Puntos %d" : "Score %d", g->score);
++        mgo_result = (result == GR_PERSON_WON || record) ? MGO_WON : MGO_LOST;
+     } else if (g->kind == kSnake) {
+-        snprintf(en, sizeof(en), record ? "%d eaten! New best" : "%d eaten", g->score);
+-        snprintf(es, sizeof(es), record ? "%d comidas! Record" : "%d comidas", g->score);
++        snprintf(score_text, sizeof(score_text), g->es ? "Largo %d" : "Length %d", g->score + GSN_START_LEN);
++        mgo_result = record ? MGO_WON : MGO_LOST;
+     } else if (g->kind == kMines) {
+-        snprintf(en, sizeof(en), g->won ? (record ? "Cleared in %d s! Best" : "Cleared in %d s") : "Boom!", g->score);
+-        snprintf(es, sizeof(es), g->won ? (record ? "Limpio en %d s! Record" : "Limpio en %d s") : "Boom!", g->score);
++        if (g->won) snprintf(score_text, sizeof(score_text), g->es ? "Limpio en %d s" : "Cleared in %d s", g->score);
++        else snprintf(score_text, sizeof(score_text), "Boom!");
+     } else {
+-        snprintf(en, sizeof(en), record ? "All pairs! New best %d" : "All pairs in %d turns", g->score);
+-        snprintf(es, sizeof(es), record ? "Todas! Nuevo record %d" : "Todas en %d turnos", g->score);
++        snprintf(score_text, sizeof(score_text), g->es ? "%d turnos" : "%d turns", g->score);
++    }
++    if (best > 0) snprintf(best_text, sizeof(best_text), g->kind == kMines ? (g->es ? "Mejor %d s" : "Best %d s") : (g->es ? "Mejor %d" : "Best %d"), best);
++    if (g->root != nullptr) {
++        g->over = mgo::build(g->root, mgo_result, score_text, best_text, record, g->es);
++        g->over_shown = 1;
++        mgo::set_pop(g->over, 0);
+     }
+-    banner(g, en, es, 3000);
++    if (record) play_clip(g, MGS_C_TING);  // the new-best ring after the result sound
+     if (g->kind == kC4) {  // the result sound: the win is the rising fanfare, the loss a soft fall, a draw neutral
+         play_clip(g, result == GR_PERSON_WON ? MGS_C_FANFARE : (result == GR_UNIT_WON ? MGS_C_GRID_LOSE : MGS_C_GRID_DRAW));
+         if (result == GR_PERSON_WON) {
+@@ -650,7 +659,8 @@ void tick_cb(lv_timer_t*)
+         hal_bridge::power_keep_awake();
+     }
+     if (g->result != GR_PLAYING) {
+-        if (now - g->over_at >= kOverHoldMs) end_locked("finished");
++        if (g->over_shown && now - g->over_at <= MGO_POP_MS + 40u) mgo::set_pop(g->over, now - g->over_at);  // the face pops when the screen appears
++        if (now - g->over_at >= kOverHoldMs) end_locked("finished");  // a minute with no tap
+         return;
+     }
+     if (g->kind != kC4) {  // patch SF74: the flips and pops of the other grid games (events are not needed: the pictures end by themselves)
+@@ -803,6 +813,17 @@ bool maipai_grid_request_stop(const char* how)
+ void maipai_grid_touch(int x, int y)
+ {
+     Grid* g = s_grid;
++    if (g != nullptr && g->over_shown) {  // patch SF82: the game-over screen takes the taps: Play again starts the same game fresh, Quit goes back to the games page
++        const int b = mgo_hit(x, y);
++        if (b == MGO_BTN_NONE) return;
++        char id[12], src[8];
++        snprintf(id, sizeof(id), "%s", kInfo[g->kind].id);
++        snprintf(src, sizeof(src), "%s", g->source);
++        end_locked(b == MGO_BTN_AGAIN ? "again" : "quit");
++        if (b == MGO_BTN_AGAIN) (void)maipai_grid_start_locked(id, src);
++        else (void)maipai_pages_show(MPG_P_GAMES);
++        return;
++    }
+     if (g == nullptr || mg_drag_press_dead(y) || g->result != GR_PLAYING) return;
+     const uint32_t now = now_ms();
+     g->last_input_ms = now;

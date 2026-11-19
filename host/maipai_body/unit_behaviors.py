@@ -90,13 +90,15 @@ class UnitBehaviors:
         """A unit (re)connected: an extra unit reapplies its known pose controls, as the first unit does."""
         if not device_id or device_id == self._primary_id():
             return
-        orientation = getattr(self._slot(device_id).behavior, "orientation", None)
-        if orientation is not None:
-            try:
-                with self._scope(device_id):
+        behavior = self._slot(device_id).behavior
+        try:
+            with self._scope(device_id):
+                behavior.unit_connected()  # it boots awake: the rest clock must not count its time off
+                orientation = getattr(behavior, "orientation", None)
+                if orientation is not None:
                     orientation.reassert()
-            except Exception:
-                LOG.warning("a unit's pose could not be reapplied", exc_info=True)
+        except Exception:
+            LOG.warning("a unit's connect handling failed", exc_info=True)
 
     def tick(self) -> None:
         """One pass over the extra units: touch, then the reaction timer. A raise in one unit is logged and the next unit still runs."""
@@ -104,20 +106,27 @@ class UnitBehaviors:
         live = set(self._connected())
         with self._lock:
             gone = [d for d in self._slots if d not in live or d == self._primary_id()]
+            released = [self._slots[d] for d in gone]
             for device_id in gone:
                 del self._slots[device_id]  # a unit that left, or became the first unit, is rebuilt when it comes back
+        for slot in released:
+            self._release(slot)
+        with self._lock:
             slots = list(self._slots.items())
         for device_id, slot in slots:
             behavior = slot.behavior
             try:
                 with self._scope(device_id):
-                    behavior.wake_on_touch(now)
-                    for name in ("reaction_tick", "orientation_tick"):
-                        tick = getattr(behavior, name, None)
-                        if tick is not None:
-                            tick()
+                    behavior.extra_unit_tick(now)
             except Exception:
                 behavior._warn_limited("unit-loop", f"the touch loop of unit {device_id[-5:]} failed")
+
+    @staticmethod
+    def _release(slot: _Slot) -> None:
+        """End what a unit's behavior started (its light threads): a unit that comes back builds fresh ones."""
+        stop = getattr(slot.behavior, "unit_stop", None)
+        if stop is not None:
+            stop.set()
 
     def run(self, stop_event: threading.Event) -> None:
         while not stop_event.wait(TICK_S):
@@ -125,11 +134,28 @@ class UnitBehaviors:
                 self.tick()
             except Exception:
                 LOG.warning("the per-unit behavior loop failed", exc_info=True)
+        with self._lock:
+            slots = list(self._slots.values())
+        for slot in slots:
+            self._release(slot)
+
+    def light_for(self, device_id: str | None) -> Any | None:
+        """The ring light service of an extra unit, or None (the first unit's light is the host's own)."""
+        behavior = self.behavior_for(device_id)
+        return getattr(behavior, "unit_light", None) if behavior is not None else None
 
     def start(self, stop_event: threading.Event) -> threading.Thread:
         thread = threading.Thread(target=self.run, args=(stop_event,), name="stackchan-unit-behaviors", daemon=True)
         thread.start()
         return thread
+
+    def behavior_for(self, device_id: str | None) -> Any | None:
+        """The extra unit's own behavior object, or None for the first unit and for a unit not seen yet."""
+        if not device_id or device_id == self._primary_id():
+            return None
+        with self._lock:
+            slot = self._slots.get(device_id)
+        return slot.behavior if slot else None
 
     def units(self) -> list[str]:
         with self._lock:

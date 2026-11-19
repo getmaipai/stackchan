@@ -30,6 +30,7 @@ input[type=range]{width:100%;padding:0;accent-color:var(--accent)}
 .meter{height:6px;background:#262d37;border-radius:3px;overflow:hidden;margin-top:4px}.meter i{display:block;height:100%;background:var(--accent)}
 button.on{background:#1f4a32;border-color:#2f7a52}button.off{background:#4a2326;border-color:#7a2f35}
 button[disabled]{opacity:.45;cursor:not-allowed}
+body.live [data-sim]{opacity:.35;pointer-events:none}body.live #legend{bottom:44px}#backend{min-width:0}
 .ports{display:grid;grid-template-columns:118px 1fr;gap:4px 8px;align-items:center;margin-top:6px;font-size:12px}.ports select{width:100%;box-sizing:border-box;font-size:12px}.ports .name{grid-column:1 / -1;margin-top:6px}
 .num{display:inline-block;min-width:3.4ch;text-align:right;font-variant-numeric:tabular-nums}
 .line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -41,11 +42,14 @@ button[disabled]{opacity:.45;cursor:not-allowed}
 @media (max-width:760px){#msg{display:none}#legend{display:none}#toolbar{top:auto;bottom:8px;right:8px;left:8px;justify-content:center}#hud{padding:4px 8px}#app{flex-direction:column;overflow-y:auto}#stage{flex:none;height:46vh}#side{width:auto;overflow-y:visible;flex:none;border-left:0;border-top:1px solid var(--line)}html,body{height:auto;min-height:100%}}
 </style></head><body>
 <div id="app">
- <div id="stage"><canvas id="c"></canvas><div id="hud"><span id="hd">head: yaw 0, pitch 0</span><br><span id="msg">Drag the head to move it (arrow keys too). Drag elsewhere to turn the view. Tap or swipe the screen. Click a port or button when it glows.</span><br><span class="t" style="font-size:11px">Alt-drag always turns the view. Shift-drag slides it, the wheel zooms, a double click resets.</span></div>
+ <div id="stage"><canvas id="c"></canvas><div id="livebar" style="display:none;position:absolute;left:0;right:0;bottom:0;background:#e64646;color:#fff;font-weight:700;font-size:13px;padding:6px 12px;text-align:center;z-index:6"></div><div id="hud"><span id="hd">head: yaw 0, pitch 0</span><br><span id="msg">Drag the head to move it (arrow keys too). Drag elsewhere to turn the view. Tap or swipe the screen. Click a port or button when it glows.</span><br><span class="t" style="font-size:11px">Alt-drag always turns the view. Shift-drag slides it, the wheel zooms, a double click resets.</span></div>
   <div id="toolbar"><button id="vreset">Reset view</button><button id="vfront">Front</button><button id="vside">Side</button><button id="vback">Back (USB-C)</button><button id="vtop">Top</button><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="axes" type="checkbox" checked> Axes</label><label class="row" title="Rich: the lights glow, spread along their bars and light what is near them. Off: plain colors, for a slow graphics card." style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="rich" type="checkbox" checked> Rich lights</label><label class="row" title="Turns the room light down so the unit's own lights show" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="dim" type="checkbox"> Dim room</label><label class="row" title="On: a drag that starts on the head moves the head. Off: every drag turns the view." style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="draghead" type="checkbox" checked> Drag moves the head</label><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="inside" type="checkbox"> Show inside</label><label class="row" style="margin:0;background:#0009;padding:4px 8px;border-radius:6px;font-size:12px"><input id="motion" type="checkbox"> Show motion</label><button id="vdemo">Demo sweep</button><button id="vunder" title="Look under the head">Under</button><span id="varrows" style="display:flex;gap:3px"><button id="vleft" title="Turn the view left">&#9664;</button><button id="vright" title="Turn the view right">&#9654;</button><button id="vup" title="Tilt the view up">&#9650;</button><button id="vdown" title="Tilt the view down">&#9660;</button><button id="vzin" title="Zoom in">+</button><button id="vzout" title="Zoom out">&minus;</button></span></div>
   <div id="legend"><span class="sw" style="background:#3ddc84"></span>yaw axis (turns the head left and right) <span class="sw" style="background:#ff6b6b;margin-left:8px"></span>pitch axis (nods up and down)</div></div>
  <div id="side">
-  <section><h2>Power and ports</h2>
+  <section id="backendsec"><h2>Robot</h2>
+   <div class="row" style="margin-top:0"><select id="backend" style="flex:1;width:auto" title="The Simulation on this computer, or one of your registered robots through its host"></select><button id="bconnect">Connect</button><button id="bdisconnect" class="off" style="display:none">Disconnect</button></div>
+   <div id="backendmsg" class="t" style="margin-top:6px;font-size:12px;min-height:1.3em"></div></section>
+  <section data-sim><h2>Power and ports</h2>
    <div class="row" style="margin-top:0"><button id="bpower">Power</button><button id="bwifi">Wi-Fi</button></div>
    <div class="t" style="font-size:12px;margin-top:8px">The robot has two USB-C sockets on one USB path: a cable in either one gives power and data. Click a socket in the picture, or use these.</div>
    <div class="ports">
@@ -72,10 +76,10 @@ button[disabled]{opacity:.45;cursor:not-allowed}
    <div class="kv" id="utilv"></div>
    <div style="margin-top:6px;font-size:12px" class="t">Servo supply with both servos moving (assumed model)</div><div class="meter" title="Left edge 4.0 V, right edge 5.0 V; the mark is where a reset is expected"><i id="sagbar" style="width:0"></i></div>
    <div id="installed" style="margin-top:6px;font-size:12px"></div>
-   <div class="row"><label class="t" style="font-size:12px" for="tscale">Clock speed</label><select id="tscale" style="width:auto" title="Time-lapse: the unit's clock runs this many times faster than real time, to watch a battery drain or a long timer"><option value="1">real time</option><option value="2">2 times</option><option value="5">5 times</option><option value="10">10 times</option><option value="20">20 times</option></select><span id="tscalemsg" class="t" style="font-size:12px"></span></div>
+   <div class="row"><label class="t" style="font-size:12px" for="tscale">Clock speed</label><select id="tscale" style="width:auto" title="Time-lapse: the unit's clock runs this many times faster than real time, to watch a battery drain or a long timer"><option value="1">real time</option><option value="2">2 times</option><option value="5">5 times</option><option value="10">10 times</option><option value="20">20 times</option></select><label title="Off: the battery stays where you put it. On: it drains on the battery and charges on a cable as the clock runs."><input id="drain" type="checkbox"> Drain the battery</label><span id="tscalemsg" class="t" style="font-size:12px;flex-basis:100%"></span></div>
    <div id="utilnote" class="t" style="margin-top:6px;font-size:12px"></div></section>
   <section><h2>Talk</h2><div id="talk"></div></section>
-  <section><h2>Physics (optional)</h2>
+  <section data-sim><h2>Physics (optional)</h2>
    <label class="row" style="margin-top:0"><input id="phys" type="checkbox"> Physics mode (loads the engine, about 11 MB, only when on)</label>
    <div id="physmsg" class="t" style="margin-top:6px;font-size:12px">Off: the flat unit and the kinematic model run as before.</div>
    <div class="row"><button id="pnudge" disabled>Nudge the head</button><button id="pshake" disabled>Shake the table</button><button id="plift" disabled>Lift</button><button id="pdown" disabled>Put down</button><button id="preset" disabled>Reset pose</button><button id="pscen" disabled>Run the carried and dance-stop check</button></div><div id="pscenout" class="t" style="margin-top:6px;font-size:12px"></div>
@@ -99,10 +103,10 @@ button[disabled]{opacity:.45;cursor:not-allowed}
   <section><h2>Gestures (the unit's own)</h2>
    <div class="row" style="margin-top:0"><button data-g="up">Open sheet (swipe up from bottom)</button><button data-g="down">Close sheet (swipe down)</button></div>
    <div class="row"><button data-g="left">Next page (swipe left)</button><button data-g="right">Back to face (swipe right)</button><button data-g="stop">Stop (swipe down from top)</button></div></section>
-  <section><h2>Record what you do</h2>
+  <section data-sim><h2>Record what you do</h2>
    <div class="row" style="margin-top:0"><button id="recgo">Record</button><button id="recstop" disabled>Stop</button><input id="recname" placeholder="name" style="width:110px"><button id="recsave" disabled>Save</button></div>
    <div id="recmsg" class="t" style="margin-top:6px;font-size:12px">Taps, swipes and tool calls are kept with their waits. Saved files play from the list below ("rec:...").</div></section>
-  <section><h2>Scenarios</h2>
+  <section data-sim><h2>Scenarios</h2>
    <div class="row" style="margin-top:0"><select id="scen" style="flex:1;width:auto"></select><button id="play">Play</button></div>
    <div id="pl" class="t" style="margin-top:6px;font-size:12px"></div></section>
   <section style="border-bottom:0"><h2>Log (fake clock)</h2></section>
@@ -126,7 +130,7 @@ const FIRST=['robot','face','audio','timer','overlay','game','battery','motion']
 const HINT={yaw:{min:-128,max:128,v:0,unit:'degrees'},pitch:{min:3,max:87,v:10,unit:'degrees'},speed:{min:50,max:1000,v:300},level:{min:0,max:100,v:50,unit:'percent'},
  seconds:{min:1,max:120,v:5,unit:'s'},duration_seconds:{min:1,max:3600,v:60,unit:'s'},hour:{min:0,max:23,v:7},minute:{min:0,max:59,v:0},x:{min:0,max:319,v:160},y:{min:0,max:239,v:120},
  emotion:{choices:['neutral','happy','sad','angry','doubtful','surprised','sleepy','sleeping','love','content','thinking']},tired_level:{min:0,max:3,v:0}};
-const CHOICE={'self.robot.dance':{name:['happy','robot','panic','look_around','bob']},'self.remote.action':{kind:['say','move','dance','find','photo','game','listen']}};
+const CHOICE={'self.robot.dance':{name:['happy','robot','panic','look_around','bob']},'self.audio.play_sound':{name:['success','popup','needs_you','plug_in','charged','unplug','offline','goodbye','shutter','vibration','exclamation','low_battery']},'self.remote.action':{kind:['say','move','dance','find','photo','game','listen']}};
 function fillAreas(){const have=[...new Set(TOOLS.map(area))].sort((a,b)=>((FIRST.indexOf(a)+99)%99)-((FIRST.indexOf(b)+99)%99)||a.localeCompare(b));
  $('dom').innerHTML='';have.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=words(a)+' ('+TOOLS.filter(t=>area(t)===a).length+')';$('dom').appendChild(o);});fillTools();}
 function fillTools(){const f=$('flt').value.toLowerCase().trim();$('tool').innerHTML='';
@@ -172,7 +176,8 @@ $('flt').oninput=fillTools;$('dom').onchange=()=>{$('flt').value='';fillTools();
 $('go').onclick=async()=>{let a={};const o=$('out');try{a=JSON.parse($('args').value||'{}');}catch(e){o.className='bad';o.textContent='The values are not valid JSON: '+e.message+'. Fix the text and press Do it again.';return;}
  const r=await call($('tool').value,a),bad=r.ok===false||r.isError;o.className=bad?'bad':'good';
  o.textContent=bad?'Refused: '+whyText(r)+'.':'Done. '+JSON.stringify(r);};
-$('play').onclick=async()=>{const r=await post('/scenario',{name:$('scen').value});if(r.isError)$('pl').textContent=r.text;};
+$('play').onclick=async()=>{const r=await post('/scenario',{name:$('scen').value});if(r.isError)$('pl').textContent=r.text;
+ else if(r.still)msg.textContent='Showing the still screen '+r.still+' for '+r.seconds+' seconds. It is drawn by the unit\'s own code in a separate program, so it cannot be touched.';};
 fetch('/tools').then(r=>r.json()).then(d=>{TOOLS=d.tools;TOUCH=d.touch;fillAreas();if(!TOUCH)msg.textContent='Touch needs the screens renderer (build-screens.sh). The bare face is shown.';});
 function loadScenarios(){fetch('/scenarios').then(r=>r.json()).then(d=>{$('scen').innerHTML='';d.scenarios.forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$('scen').appendChild(o);});});}
 loadScenarios();
@@ -232,6 +237,21 @@ document.querySelectorAll('[data-dance]').forEach(b=>b.onclick=async()=>{const r
 $('dstop').onclick=()=>call('self.robot.stop_dance',{});
 $('mstart').onclick=async()=>{const r=await call('sim.music',{action:'start',song:$('song').value,mode:$('mmode').value});$('limmsg').textContent=r.ok?'':'The music dance did not start: '+whyText(r)+'.';};
 $('mstop').onclick=()=>call('sim.music',{action:'stop'});
+$('drain').onchange=e=>hw('drain',e.target.checked);
+// Simulation or Live: one connection at a time. A refusal comes back as a sentence and is shown as it is.
+async function loadBackends(){try{const d=await (await fetch('/backends')).json(),sel=$('backend'),keep=sel.value;sel.innerHTML='';
+  d.backends.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=b.name+(b.kind==='robot'?(b.online===false?' (offline)':b.busy_by?' (in use by '+b.busy_by+')':' (real robot)'):'');sel.appendChild(o);});
+  if([...sel.options].some(o=>o.value===keep))sel.value=keep;
+  if(!d.host_set&&d.backends.length===1)$('backendmsg').textContent='Only the Simulation is set up. To reach a real robot, start the view with your host address and a playground token.';}catch(e){}}
+$('bconnect').onclick=async()=>{const id=$('backend').value;
+ if(id!=='sim'&&!confirm('Connect to the real robot? Everything you do in this page will then happen on it.'))return;
+ const r=await post('/backend',{id});$('backendmsg').textContent=r.isError?r.text:(r.active.notice||'');loadBackends();};
+$('bdisconnect').onclick=async()=>{await post('/backend',{disconnect:true});$('backendmsg').textContent='Disconnected. This is the Simulation again.';loadBackends();};
+loadBackends();setInterval(loadBackends,5000);
+function paintBackend(b){if(!b)return;const live=!!b.live;document.body.classList.toggle('live',live);   // the Simulation's own panels are dimmed and locked while a real robot is connected
+ $('livebar').style.display=live?'block':'none';$('livebar').textContent=live?b.message+' The picture and the dimmed panels still show the Simulation.':'';
+ $('bdisconnect').style.display=live?'':'none';$('bconnect').style.display=live?'none':'';$('backend').disabled=live;
+ if(b.notice&&!live)$('backendmsg').textContent=b.notice;document.title=(live?'LIVE: ':'')+'MaiPai for StackChan: virtual unit';}
 $('tscale').onchange=async e=>{const r=await post('/hw',{key:'time_scale',value:+e.target.value});$('tscalemsg').textContent=r.isError?r.text:'';};
 let polls=[];   // when the last state updates arrived, to show how fast the page follows the unit
 function setBtn(id,label,on,off){const b=$(id);b.textContent=label;b.className=on===undefined?'':(on?'on':'off');}
@@ -254,13 +274,14 @@ function paintBody(st){ST=st;const h=st.hw,m=st.motion;
  const lc=h.limiter_cable;
  $('whylim').innerHTML=`<b>What limits the head now:</b> ${m.state==='free'?'nothing':(m.reasons||m.state)} <span class="t">(${m.scale} percent of the full swing, speed ${m.speed_cap} of 1000)</span><br><span class="t">Cable seen by the limiter: ${lc.present?'yes, from the '+lc.from.map(n=>pn[n]).join(' and the '):'no'}. Rule: ${lc.rule}.</span>`;
  const u=st.util||{},now=performance.now();polls.push(now);polls=polls.filter(t=>now-t<2000);
- const rows=[['Battery',u.battery_percent+' percent'+(u.hours_left!==undefined?', about '+u.hours_left.toFixed(1)+' hours left':'')],['Power from',{battery:'the battery',side:'USB, side socket',back:'USB, back socket',both:'USB, both sockets'}[u.powered_by]||u.powered_by],
-  ['Draw',u.draw_ma!==undefined?u.draw_ma+' mA':null],['Servo supply',u.supply?u.supply.idle_v.toFixed(2)+' V still, '+u.supply.load_v.toFixed(2)+' V under load ('+u.supply.basis+')':null],
+ const rows=[['Battery',u.battery_percent+' percent'+(u.hours_left!==undefined?', about '+u.hours_left.toFixed(1)+' hours left ('+(u.power_basis||'assumed')+')':'')],['Power from',{battery:'the battery',side:'USB, side socket',back:'USB, back socket',both:'USB, both sockets'}[u.powered_by]||u.powered_by],
+  ['Draw',u.draw_ma!==undefined?Math.round(u.draw_ma)+' mA ('+(u.power_basis||'assumed')+', a placeholder until measured)':null],['Servo supply',u.supply?u.supply.idle_v.toFixed(2)+' V still, '+u.supply.load_v.toFixed(2)+' V under load ('+u.supply.basis+')':null],
   ['Unit CPU',u.cpu_percent!==undefined?u.cpu_percent+' percent':null],['State updates',(polls.length/2).toFixed(0)+' a second'],['One picture drawn in',window.ROBOT?ROBOT.perf.ms.toFixed(2)+' ms':null]];
  if(u.memory)for(const [k,v] of Object.entries(u.memory))if(typeof v==='number')rows.push(['Memory: '+words(k),v.toLocaleString()+' bytes']);
  if(u.memory_error)rows.push(['Memory','over budget: '+u.memory_error]);
  $('utilv').innerHTML=rows.filter(r=>r[1]!==null&&r[1]!==undefined).map(r=>`<span>${r[0]}</span><span>${r[1]}</span>`).join('');
  if(u.supply){$('sagbar').style.width=Math.max(0,Math.min(100,(u.supply.load_v-4)*100))+'%';$('sagbar').style.background=u.supply.brownout?'var(--bad)':'var(--accent)';}
+ paintBackend(st.backend);$('drain').parentElement.style.display=u.drain===undefined?'none':'';if(u.drain!==undefined)$('drain').checked=!!u.drain;
  if(document.activeElement!==$('tscale')&&u.time_scale)$('tscale').value=String(u.time_scale);
  $('tscalemsg').textContent=u.time_scale>1?'The clock runs '+u.time_scale+' times faster than real time.':'';
  const as=st.assets;$('installed').innerHTML=as?'<div class="t">Installed</div>'+Object.entries(as.kinds).map(([k,v])=>`<div>${words(k)}: ${v.used} of ${v.slots}${v.active?', active '+v.active:''}</div><div class="meter"><i style="width:${v.slots?100*v.used/v.slots:0}%"></i></div>`).join('')+`<div>Free space: ${as.pool_free_bytes.toLocaleString()} of ${as.pool_bytes.toLocaleString()} bytes</div><div class="meter"><i style="width:${as.pool_bytes?100*(1-as.pool_free_bytes/as.pool_bytes):0}%"></i></div>`:'';

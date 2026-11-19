@@ -1,6 +1,6 @@
 # Find the robot and control it remotely
 
-Remote controls are built and flashed and work without MaiPai Home: beep, flash, find my robot (it works even when muted), say something, pan and tilt, head pad, nod, shake, dance, start a game and take a photo, from the settings page on your host. They are off until you turn on remote access, and every action shows a violet cue on the robot that cannot be turned off. Live view is planned. Not yet checked on a robot.
+Remote controls are built and flashed and work without MaiPai Home: beep, flash, find my robot (it works even when muted), say something, pan and tilt, head pad, nod, shake, dance, start a game and take a photo, from the settings page on your host. They are off until you turn on remote access, and every action shows a violet cue on the robot that cannot be turned off. Live view and the web app screens below are planned. Last seen and where it is are not built. Not yet checked on a robot.
 
 
 
@@ -12,11 +12,13 @@ Remote control is off until you turn it on, and the robot always shows when some
 
 Press **Find** in the web app. The robot answers in three ways:
 
-- **Last seen.** The app shows when the robot was last online, which Wi-Fi network it was on, and its battery. This comes from the regular check-in the robot already sends.
+- **Last seen.** <span class="planned-tag">Planned</span> The app will show when the robot was last online, which Wi-Fi network it was on, and its battery. Today `stackchan units` lists each robot with its name and whether it is online.
 - **Beep and flash.** Press **Make it beep** and the robot plays a loud, repeating tone and flashes its light bars, even in quiet hours and when it is muted. Tap the robot to stop it.
-- **Warmer or colder.** If Bluetooth is on, the app shows a signal meter you can follow as you walk toward the robot. This depends on whether we keep Bluetooth, which is still under review, so it may not ship.
+- **Warmer or colder.** Not included. Bluetooth is off, so there is no signal meter.
 
 ## Where is it
+
+<span class="planned-tag">Planned</span> None of this is built yet.
 
 The robot has no GPS chip, but it can still tell you roughly where it is, by the Wi-Fi network it is on.
 
@@ -32,7 +34,7 @@ There is no ultra-wideband chip, so there is no arrow like the one on a lost pho
 
 ## Remote control
 
-Turn on `remote_control` in the settings. Then, from the web app, you can:
+Turn on remote access: set `enabled = true` under `[remote]` in `robot.toml`. Then, from the settings page on your host, you can:
 
 | You can | What the robot does |
 |---|---|
@@ -70,7 +72,7 @@ If you lose the token, set a new one from the robot's own settings. The web app 
 
 ## Turn it off
 
-Set `remote_control` to false, or tap the robot's face to mute it. Remote talk is blocked while the robot is muted or in full quiet, but Find still works, because finding it is your call.
+Set `enabled = false` under `[remote]` in `robot.toml`, or tap the robot's face to mute it. Remote talk is blocked while the robot is muted or in full quiet, but Find still works, because finding it is your call.
 
 ## Still need help?
 

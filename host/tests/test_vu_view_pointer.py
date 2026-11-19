@@ -408,6 +408,20 @@ def test_the_talk_panel_is_off_without_a_bridge_and_follows_a_fake_one(page):
     page.js("(() => { TALK.stop(); window.TALK = initTalk(document.getElementById('talk')); })()")
 
 
+def test_a_still_screen_is_put_on_the_robots_screen_and_goes_away(page):
+    names = page.js("[...document.getElementById('scen').options].map(o => o.value)")
+    stills = [n for n in names if n.startswith("still:")]
+    if not stills:
+        pytest.skip("no still-screen renderer is built here: bash scripts/virtual-unit/build-screens.sh")
+    live = page.js("fetch('/frame.png').then(r => r.arrayBuffer()).then(b => b.byteLength)")
+    page.js(f"(() => {{ const s = document.getElementById('scen'); s.value = '{stills[0]}'; s.scrollIntoView({{block: 'center'}}); }})()")
+    page.click(*spot_of(page, "play"))
+    assert page.until(f"ST.still === '{stills[0][6:]}' && /still screen/.test(document.getElementById('msg').textContent)"), page.js("document.getElementById('pl').textContent")
+    shown = page.js("fetch('/frame.png').then(r => r.arrayBuffer()).then(b => b.byteLength)")
+    assert shown > 100 and shown != live, "the robot's screen shows the still picture, not the running face"
+    assert page.until("ST.still === ''", 14), "and the running screen comes back by itself"
+
+
 def test_the_small_web_copy_of_the_model_loads_and_works_the_same(page):
     if not page.js("!!(window.ROBOT && ROBOT.model && ROBOT.model.ready)"):
         pytest.skip("the 3D drawing did not start here (it needs the pinned three.js from the network and a graphics context)")

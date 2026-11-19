@@ -372,15 +372,40 @@ async def fleet_orientation(rig, check) -> None:
             u.vu.call("self.robot.get_events", {})
             u.vu.state["motion"]["events"].append({"kind": "orientation", "at_ms": u.vu.now_ms, "axis": "-x"})
 
+    def spoke(u) -> int:
+        return len([e for e in u.fw.events_seen if e.startswith("tts:")])
+
     base = lines()
+    said = {u.index: spoke(u) for u in units}
     await tip(units[1])
     check("unit 1's tip was handled", await wait_for(lambda: lines() > base, 20.0), f"lines {lines() - base}")
+    check("unit 1 said its own pose line aloud (spoken reactions on an extra unit)", await wait_for(lambda: spoke(units[1]) > said[1], 20.0), str({u.index: spoke(u) for u in units}))
+    check("no other unit spoke", spoke(units[0]) == said[0] and spoke(units[2]) == said[2], str({u.index: spoke(u) for u in units}))
     await asyncio.sleep(3.0)
     check("it was handled once, not by every unit", lines() == base + 1, f"lines {lines() - base}")
     await tip(units[2])
     check("unit 2's tip was handled by its own object", await wait_for(lambda: lines() > base + 1, 20.0), f"lines {lines() - base}")
     await asyncio.sleep(2.0)
     check("and once", lines() == base + 2, f"lines {lines() - base}")
+    await close_fleet(rig)
+
+
+async def fleet_light(rig, check) -> None:
+    """A turn on unit 1 lights unit 1's own ring and no other unit's ring (the green "your voice is being sent" cue belongs to the unit that listens;
+    docs/plan/per-unit-behavior.md step 5, light). Before this a turn on any unit lit the first unit's ring."""
+    units = await make_fleet(rig, 3)
+    await calibrate(rig, units)
+
+    def ring_calls(u) -> int:
+        return len([1 for n_, _a in u.fw.tool_calls if n_ in ("self.robot.set_led_colors", "self.robot.set_led_color")])
+
+    await asyncio.sleep(20.0)   # the calibration turns' own cues (held for a while after they are raised) have ended
+    base = {u.index: ring_calls(u) for u in units}
+    await ask(rig, units[1], wait=30.0)
+    await asyncio.sleep(1.0)
+    after = {u.index: ring_calls(u) for u in units}
+    check("the unit that listened lit its own ring", after[1] > base[1], str((base, after)))
+    check("no other unit's ring was written", after[0] == base[0] and after[2] == base[2], str((base, after)))
     await close_fleet(rig)
 
 
@@ -518,6 +543,7 @@ async def chaos_internal_workers(rig, check) -> None:
     """The host is started with MAIPAI_CHAOS="kill=settings page@25": the settings server's loop is killed 25 seconds in, and the supervisor must bring it back with nobody acting."""
     res = health(rig)
     check("the status page lists the host's parts", bool(res) and bool(res.get("parts")), str(res)[:200])
+    check("the voice and avatar servers report a heartbeat on the status page", bool(res) and any(p.get("part") == "voice server" and p.get("state") == "ok" for p in res.get("parts", [])), str((res or {}).get("parts"))[:300])
     check("the hook was armed for this run", rig.host_said(r"MAIPAI_CHAOS is set"), "the rig must start the host with MAIPAI_CHAOS")
     killed = await wait_for(lambda: rig.host_said(r"chaos: worker 'settings page' killed"), 60.0)
     check("the settings server was killed on schedule", killed)
@@ -695,7 +721,7 @@ def make_service_rig(base):
 
 
 EXTRA_FLEET = {
-    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch, "fleet_orientation": fleet_orientation,
+    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch, "fleet_orientation": fleet_orientation, "fleet_light": fleet_light,
     "chaos_cut_connection": chaos_cut_connection, "chaos_packets": chaos_packets, "chaos_worker_down": chaos_worker_down, "chaos_internal_workers": chaos_internal_workers,
     "chaos_host_kill_2": _host_kill_2, "chaos_host_kill_10": _host_kill_10, "service_kill9": service_kill9,
 }

@@ -20,8 +20,8 @@ Org standards (writing style, privacy, PII) apply; see `getmaipai/.github`.
 
 ## Who does the work (owner rule, 2026-11-15; binds every session here, parent and child)
 
-Order, no exceptions: (1) Claude cloud; (2) Codex, launched in an owned tmux session Jesse can attach to; (3) our local coder (`local-lane dispatch`, small decided tasks); (4) Claude agents on this machine.
-A Claude agent here (Sonnet, Haiku or Opus) is never the first choice for edits, test fixing, builds or flashing. Using one needs a reason, written before launch, why steps 1 to 3 could not do it. A parent never reports local Claude agents as "running" for work that belonged to steps 1 to 3.
+Order, no exceptions (owner, 2026-11-18: "cloud" means the Claude API, billed to the organization credits on platform.claude.com, not the Claude Code web sessions and not the subscription): (1) Claude API sessions, run with `~/.local/bin/api-worker start <slug> <worktree> <brief.md>`: OpenCode on the owner's Anthropic API key, one tmux session per worktree, key saved by the owner and never typed or printed by a session; API use bills per token with no low-credit warning, so keep briefs small; (2) Codex, launched in an owned tmux session Jesse can attach to; (3) our local coder (`local-lane dispatch`, small decided tasks); (4) Claude subscription sessions (the plan, which has weekly limits).
+A Claude agent here (Sonnet, Haiku or Opus) is never the first choice for edits, test fixing, builds or flashing. Using one needs a reason, written before launch, why steps 1 to 3 could not do it. When a subscription session finishes a turn, the next piece of its work moves to step 1. A parent never reports local Claude agents as "running" for work that belonged to steps 1 to 3.
 This rule binds the session that dispatches work. A Codex run started by the dispatcher in an owned tmux session (`stackchan-<slug>-codex`) already is step 2: it does its brief and must not refuse, re-route or hand work back.
 If this repo has no launcher for a step, fix the launcher first instead of falling back to a local agent.
 

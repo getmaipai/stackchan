@@ -6,10 +6,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `.claude/commands/status.md` (5): no header
 - `.claude/skills/lane-brief/SKILL.md` (11): no header
 - `.claude/skills/sim-check/SKILL.md` (9): no header
-- `.claude/skills/train/SKILL.md` (14): no header
+- `.claude/skills/train/SKILL.md` (16): no header
 - `.githooks/commit-msg` (2): no header
 - `.githooks/pre-commit` (2): no header
-- `.github/FUNDING.yml` (1): no header
+- `.github/FUNDING.yml` (20): Staged, not live. GitHub reads this file only from the default branch of the public repo, and the public
 - `.gitignore` (13): model beside the maker's pictures: third-party images, made locally by render_previews.py
 - `.gitleaks.toml` (19): Source-level secret rules for this repo. The image-level check is scripts/check-no-keys.py (patch 156).
 - `AGENTS.md` (56): MaiPai StackChan
@@ -27,6 +27,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs-site/assets/theme-button.js` (12): The Light/dark button: switches the page and remembers the choice on this device only.
 - `docs-site/assets/theme.js` (7): Sets the saved light or dark choice before the page paints. Storage can be blocked: the page then follows the 
 - `docs-site/home-intro.html` (13): no header
+- `docs-site/playground/.gitignore` (4): Everything in this folder is build output (bash scripts/virtual-unit/wasm/site-build.sh): the WebAssembly modu
+- `docs-site/vendor/mujoco/LICENSE-Apache-2.0.txt` (202): no header
 - `docs-site/vendor/three-r128/LICENSE` (21): no header
 - `docs-site/vendor/three-r128/three.min.js` (6): Copyright 2010-2021 Three.js Authors
 - `docs-site/viewer-stub.js` (96): View-only 3D viewer. It loads view3d.js unedited and stands in for the unit: the state object, the hooks and t
@@ -39,8 +41,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/brain-seam.md` (16): Brain seam call map
 - `docs/design/character-pack-format.md` (17): Illustrated character packs
 - `docs/design/clock-styles.md` (66): Clock styles, the tap and the sleep sign
+- `docs/design/clock-styles.md` (66): Clock styles, the tap and the sleep sign
 - `docs/design/config.md` (24): Host configuration
 - `docs/design/consolidation-2026-11-16.md` (79): One consolidated image, 2026-11-16
+- `docs/design/content-pantry.md` (151): Content pantry: jokes, riddles, trivia and stories the unit keeps (design, 2026-11-18)
 - `docs/design/core-extras-modules.md` (35): Host modules: core or extras
 - `docs/design/dance-ladder-2026-11-17.md` (53): Music dance ladder and the movement limiter, 2026-11-17
 - `docs/design/decisions.md` (112): Owner decisions and corrections
@@ -70,7 +74,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/first-run-flow.md` (55): First run on the robot (plan step 7)
 - `docs/design/game-engine-note.md` (43): Game engine note (Train 3 item 15, design only, 2026-11-16)
 - `docs/design/game-over-screen.md` (58): The shared game-over screen
+- `docs/design/game-over-screen.md` (58): The shared game-over screen
 - `docs/design/games-2026-11-16.md` (147): Games: the engine and three games in the core firmware, 2026-11-16
+- `docs/design/games-audit-baseline.json` (9): no header
 - `docs/design/games-v2-2026-11-17.md` (122): Games v2 and a readable dim, 2026-11-17
 - `docs/design/handoff-roaming-tailnet-2026-11-17.md` (16): Handoff from the old bot firmware session: roaming, private network, updates (2026-11-17)
 - `docs/design/hardware-and-declarative-system-2026-11-17.md` (169): Hardware, and a proposed declarative dialog and object system (2026-11-17)
@@ -85,6 +91,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/lock-and-radio-2026-11-17.md` (53): Two new features: passcode lock and streaming radio (2026-11-17)
 - `docs/design/memory-headroom-2026-11-16.md` (66): Memory headroom, 2026-11-16
 - `docs/design/merge-2026-11-16.md` (84): Merge of tracks A and B, the token gate and the anime face, 2026-11-16
+- `docs/design/model-games.md` (145): Model-powered games: jokes, riddles, trivia, 20 Questions, word chain (design, 2026-11-18)
 - `docs/design/monitoring.md` (48): Monitoring modes and cues
 - `docs/design/next-games-2026-11-17.md` (15): Next games (2026-11-17)
 - `docs/design/next-network-tools-2026-11-17.md` (23): Next: network and security tools on the robot (owner idea, 2026-11-17)
@@ -125,7 +132,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/upstream-review.md` (71): Upstream firmware review
 - `docs/design/voice-path-architecture-2026-11-16.md` (115): Voice path: connections, model options, measurements and the low-latency design (2026-11-16)
 - `docs/design/wake-word-licensing-2026-11-17.md` (47): Wake word models and redistribution: position after review (2026-11-17)
-- `docs/dev/battery-and-power.md` (65): Battery and power: what the unit can measure, how to log a drain and a charge, and the tables to fill
+- `docs/dev/battery-and-power.md` (67): Battery and power: what the unit can measure, how to log a drain and a charge, and the tables to fill
 - `docs/dev/bench-benchmark.md` (21): Running a voice benchmark
 - `docs/dev/bench-dry-run-2026-11-17.md` (23): Bench checks: virtual dry run
 - `docs/dev/bench-evidence/bench-b15.md` (24): Bench b15 window (2026-11-18)
@@ -155,7 +162,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1118): Feature ledger
+- `docs/dev/feature-ledger.html` (84): no header
+- `docs/dev/feature-ledger.html` (84): no header
+- `docs/dev/feature-ledger.md` (1120): Feature ledger
+- `docs/dev/feature-ledger.md` (1120): Feature ledger
+- `docs/dev/feature-ledger.md` (1120): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -218,14 +229,17 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/game-sounds/tap_tick.wav` (4): no header
 - `docs/dev/game-sounds/win_fanfare.ulaw` (0): no header
 - `docs/dev/game-sounds/win_fanfare.wav` (76): no header
+- `docs/dev/games-audit.json` (85): no header
+- `docs/dev/games-audit.md` (13): Screen audit of the data-pack games
 - `docs/dev/gate-numbers.md` (29): Gate numbers (2026-11-18)
+- `docs/dev/hardware-reference.md` (238): Hardware reference (what we know about the StackChan unit, and how we know it)
 - `docs/dev/head-fit-before-servo-fix.svg` (91): no header
 - `docs/dev/head-recording.md` (33): Recording head moves on the unit (for the physics calibration)
 - `docs/dev/head-speed-real-time-clock.md` (7): Head moves are about twice as fast as before (2026-11-18)
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
-- `docs/dev/index.md` (105): MaiPai for StackChan: developer guide
+- `docs/dev/index.md` (107): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1486): Binary file docs/dev/model-previews/joints.gif matches
@@ -297,7 +311,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/version-page-fit.md` (18): Does the version page fit with the affiliation notice (patch SF69)? Measured 2026-11-18
-- `docs/dev/virtual-unit-3d.md` (73): The 3D virtual unit: body, power, axes
+- `docs/dev/virtual-unit-3d.md` (75): The 3D virtual unit: body, power, axes
 - `docs/dev/virtual-unit-assets.md` (15): The installed set in the virtual unit
 - `docs/dev/virtual-unit-dance.md` (44): The dance in the virtual unit
 - `docs/dev/virtual-unit-fidelity.md` (35): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
@@ -392,6 +406,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/first-run-brain-choice.md` (25): The brain choice at first run: what the robot sends and what the host does (2026-11-18)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
 - `docs/plan/friend-test-path-2026-11-18.md` (25): The friend-test path: what exists and what is missing (2026-11-18)
+- `docs/plan/funding-and-sponsorship.md` (78): Funding and sponsorship
 - `docs/plan/history-scan-2026-11-18.md` (15): Secret scan, 2026-11-18
 - `docs/plan/home-contract.md` (34): What Home must send or accept for StackChan (spec-first record, 2026-11-18)
 - `docs/plan/home-work-brief.md` (48): Brief for a session in the Home repository: the StackChan robot side (2026-11-18)
@@ -399,18 +414,21 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/installed-set.md` (401): The installed set: slots, signed assets, language and font packs (design, 2026-11-18)
 - `docs/plan/ir-and-nfc.md` (127): Infrared and NFC for the StackChan: what is verified, what we could build, how to probe safely
 - `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
+- `docs/plan/m5stack-cloud-research.md` (139): M5Stack cloud and Xiaozhi service: research paper
 - `docs/plan/memory-budget-model.md` (36): The memory budget as data (decision 15): the agreement between the firmware track and the playground track
 - `docs/plan/minimal-stack.md` (65): The minimal local stack and the three ways to get a brain
+- `docs/plan/monetization-options.md` (46): Monetization options
 - `docs/plan/more-games-engine.md` (205): More games: what the unit's engine can and cannot do (firmware track)
 - `docs/plan/more-games.md` (58): More games: a ranked list (playground track)
 - `docs/plan/mouth-cues-append.md` (16): Mouth cues for replies of more than one sentence
 - `docs/plan/offline-audit-unit.md` (42): Offline audit, the unit half (firmware track, 2026-11-18)
-- `docs/plan/offline-mumble-firmware.md` (49): Offline mumble voice: feasibility on the unit (firmware track, 2026-11-18)
+- `docs/plan/offline-audit.md` (97): Offline audit: what the unit does with no host and with no internet (2026-11-18)
+- `docs/plan/offline-mumble-firmware.md` (53): Offline mumble voice: feasibility on the unit (firmware track, 2026-11-18)
 - `docs/plan/offload-to-host.md` (50): Offload to the host: what the unit does that the host could serve or compute
 - `docs/plan/optimization.md` (122): Optimization: the image diet, the patch series cleanup, and the host side
 - `docs/plan/pantry-reader-firmware.md` (38): Content pantry on the unit: the reader, the size budget and the heard list (firmware track, 2026-11-18)
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
-- `docs/plan/per-unit-behavior.md` (29): Per-unit behavior (decision 16, many robots)
+- `docs/plan/per-unit-behavior.md` (32): Per-unit behavior (decision 16, many robots)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/playground-live.md` (33): The host API for a live playground (owner decision 21)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
@@ -420,7 +438,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/release-readiness.md` (43): First release readiness: the friend test
 - `docs/plan/screen-standards-audit.md` (45): Every unit screen against the UX13 standard (audit and fix list)
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
-- `docs/plan/service-and-supervision.md` (113): The host as a managed service, with supervised parts
+- `docs/plan/service-and-supervision.md` (115): The host as a managed service, with supervised parts
 - `docs/plan/signed-update-anti-rollback.md` (20): Signed update with a build number (proposal for the app track, 2026-11-18)
 - `docs/plan/signed-update-header.md` (32): Signed update header with a build number (agreed with the firmware track, 2026-11-18)
 - `docs/plan/spec-proposals/README.md` (14): Shared-spec proposals (step 4, 2026-11-18)
@@ -453,7 +471,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/undefined-host-calls-2026-11-18.md` (24): Host calls with no firmware definition (2026-11-18)
 - `docs/plan/ux13-batches.md` (14): UX13: the screens at finger size, in batches (playground track)
 - `docs/plan/ux13c-control-sheet-brief.md` (20): UX13c brief: the control sheet at finger size (for a Codex lane, read by the playground track before it lands)
-- `docs/plan/view-requests.md` (57): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
+- `docs/plan/view-requests.md` (93): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
+- `docs/plan/view-requests.md` (93): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
+- `docs/plan/view-requests.md` (93): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
+- `docs/plan/wasm-port-report.md` (105): WebAssembly port: the virtual robot in a browser, no server
 - `docs/plan/wasm-spike-report.md` (95): WebAssembly spike: the virtual robot in a browser, no server
 - `docs/playground/dances-and-lights.md` (15): Dances and the light show
 - `docs/playground/dev-architecture.md` (17): Architecture of the virtual unit
@@ -483,18 +504,18 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/choose-a-brain.md` (27): Choose a brain
 - `docs/user/coding-companion.md` (37): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
-- `docs/user/face-and-look.md` (129): Change how the robot looks
+- `docs/user/face-and-look.md` (128): Change how the robot looks
 - `docs/user/faq.md` (50): Questions people ask
 - `docs/user/features.md` (166): What the robot can do
-- `docs/user/find-and-remote.md` (77): Find the robot and control it remotely
+- `docs/user/find-and-remote.md` (79): Find the robot and control it remotely
 - `docs/user/games-and-pet.md` (117): Play games and care for your pet
 - `docs/user/getting-started.md` (82): Getting started with MaiPai for StackChan
 - `docs/user/glossary.md` (21): Glossary
 - `docs/user/hardware-and-models.md` (58): Pick hardware and a model
 - `docs/user/home-assistant.md` (22): Home Assistant (optional package)
-- `docs/user/home-tools.md` (37): Connect the robot to your own tools
+- `docs/user/home-tools.md` (36): Connect the robot to your own tools
 - `docs/user/index.md` (61): MaiPai for StackChan: user guide
-- `docs/user/install-the-host.md` (50): Install, update and remove the host
+- `docs/user/install-the-host.md` (49): Install, update and remove the host
 - `docs/user/languages.md` (26): Switch the language
 - `docs/user/lights-and-sounds.md` (62): Lights and sounds
 - `docs/user/local-stack.md` (30): Install the small stack
@@ -506,18 +527,18 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/mute-and-camera-off.md` (68): Mute, turn off the camera, or go fully quiet
 - `docs/user/no-stealth.md` (18): The robot never monitors in secret
 - `docs/user/parent-view.md` (39): Check on the robot from your phone
-- `docs/user/privacy.md` (64): What stays private
+- `docs/user/privacy.md` (63): What stays private
 - `docs/user/release-notes.md` (45): Release notes
 - `docs/user/run-as-a-service.md` (36): Keep the host running
 - `docs/user/security.md` (65): Keep the robot secure
-- `docs/user/settings.md` (101): Change a setting
+- `docs/user/settings.md` (120): Change a setting
 - `docs/user/status-and-health.md` (30): See what is running
 - `docs/user/swipe-pages.md` (97): Swipe pages and the control sheet
 - `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
 - `docs/user/timers-and-alarms.md` (57): Set a timer or alarm
 - `docs/user/troubleshooting.md` (41): Troubleshooting
 - `docs/user/try-the-virtual-robot.md` (30): Try the virtual robot
-- `docs/user/updates.md` (66): Update the robot
+- `docs/user/updates.md` (60): Update the robot
 - `docs/user/use-it-anywhere.md` (34): Use the robot away from home
 - `docs/user/use-your-own-stack.md` (13): Use your own stack
 - `docs/user/voice.md` (87): Talk to the robot
@@ -537,7 +558,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/configs/sdkconfig.gate.defaults` (2): Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
 - `firmware/configs/sdkconfig.heaptrace.defaults` (3): Build kind "heap" (bench plus a live-allocation trace from boot: self.bench.heap_trace). Costs about 40 KB of 
 - `firmware/configs/sdkconfig.irnfc.defaults` (2): Build kind "irnfc": the bench image with the read-only I2C scan, NFC identity and infrared receive probes. Not
+- `firmware/configs/sdkconfig.lean.defaults` (3): The leanest assets image (patches SF80 and SF85): no stock text font (1,287,460 bytes) and none of the stock a
 - `firmware/configs/sdkconfig.linkpsk.defaults` (3): Encrypted link, step 1 (patch SF21): the curve calls and key storage with the bench check self.bench.link_self
+- `firmware/configs/sdkconfig.nofont.defaults` (2): The assets image without the stock common text font (patch SF80): the display keeps the compiled-in basic font
 - `firmware/configs/sdkconfig.talkover.defaults` (3): Talk-over step 0 (patch SF15): MIC3 is the second input channel and the bench tool self.bench.mic3_check exist
 - `firmware/games/bopit.json` (945): no header
 - `firmware/games/bopit.mpk` (5): no header
@@ -694,7 +717,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (346): no header
+- `firmware/patches/ORDER` (352): no header
+- `firmware/patches/ORDER` (352): no header
+- `firmware/patches/ORDER` (352): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -798,6 +823,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF77-2048-and-snake-on-the-unit.patch` (261): 2048 (id slide: swipe up, down, left or right to slide and merge the tiles, a new tile pops, over when nothing
 - `firmware/patches/SF78-redraw-only-what-moves.patch` (64): The grid games redraw only the part of the board that moves. The b57 bench recorded 70 to 95 ms between ticks 
 - `firmware/patches/SF79-bench-asset-use-probe.patch` (117): A bench probe for the assets partition: self.bench.asset_use lists which assets the firmware asked the assets 
+- `firmware/patches/SF80-option-to-leave-the-stock-text-font-out-of-the-assets.patch` (39): A build option, MAIPAI_PARTITION_TEXT_FONT (default on: the image is unchanged), that leaves the stock Noto "c
+- `firmware/patches/SF81-clock-style-three-values-saved-and-asleep.patch` (172): The unit half of the clock styles (docs/design/clock-styles.md, UX14): the clock style 2, date and time, is a 
+- `firmware/patches/SF82-grid-games-end-on-the-shared-game-over-screen.patch` (122): The grid games end on the shared game-over screen (UX15, docs/design/game-over-screen.md) instead of a banner 
+- `firmware/patches/SF83-core-guards-from-static-analysis.patch` (83): Defensive guards in three pure cores after a static analysis run: the head history lookup returns the current 
+- `firmware/patches/SF84-snake-start-grace-and-bench-events-for-grid-games.patch` (57): Two fixes from the b59 bench run. Snake reached the right wall in about two seconds with no input: it now wait
+- `firmware/patches/SF85-option-to-leave-the-stock-pictures-out-of-the-assets.patch` (38): A build option, MAIPAI_PARTITION_EXTRA_ASSETS (default on: the image is unchanged), that leaves the stock apps
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -871,10 +902,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX13d-first-run-at-finger-size.patch` (131): The first-run screens at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-sty
 - `firmware/patches/UX13e-games-page-at-finger-size.patch` (165): The games page and the Apps and Games walls at finger size (owner review 2026-11-18, the physical standard in 
 - `firmware/patches/UX13f-timers-and-alarms-at-finger-size.patch` (164): Timers and Alarms at finger size (owner review 2026-11-18, the physical standard in docs/design/screen-style.m
+- `firmware/patches/UX13g-lock-keypad-at-finger-size.patch` (55): The lock keypad meets the finger-size standard (owner decision 2026-11-18, superseding the earlier exception; 
 - `firmware/patches/UX14-clock-styles-tap-and-sleep-sign.patch` (190): The clock page gets three styles that a tap cycles, and shows when the unit sleeps (owner idea 2026-11-18, spe
 - `firmware/patches/UX14b-clock-flip-on-the-card-tween.patch` (133): The clock style change plays a card flip (owner idea 2026-11-18, spec docs/design/clock-styles.md "The flip").
 - `firmware/patches/UX15-shared-game-over-screen.patch` (225): One game-over screen for every game (owner idea 2026-11-18, spec docs/design/game-over-screen.md). A face for 
-- `firmware/patches/UX15b-game-over-neutral-end.patch` (64): A game that only counts a score never says "You won!" or "You lost" (owner decision 31, 2026-11-18). The share
+- `firmware/patches/UX15c-game-over-neutral-end-after-sf82.patch` (64): A game that only counts a score never says "You won!" or "You lost" (owner decision 31, 2026-11-18). The share
 - `firmware/patches/UX16-offline-mumble-core.patch` (197): The offline mumble (owner decision 24, 2026-11-18; spec docs/design/offline-mumble.md). When the unit has word
 - `firmware/patches/UX17-question-and-answer-game-screens.patch` (285): The screens of the question-and-answer games (owner decisions 25 to 27, 2026-11-18; spec docs/design/qa-game-s
 - `firmware/patches/UX18-dice-poker.patch` (249): Dice Poker (the first of the new games of docs/plan/more-games.md, ranked 2; spec docs/design/dice-poker.md). 
@@ -915,7 +947,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5245): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5359): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -1147,7 +1179,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/head_search.py` (266): A short, quiet look around: a few head poses in turn, for one reason, with a cap and a back-off.
 - `host/maipai_body/bodies/stackchan/head_touch_filter.py` (73): Ignore the head sensor's phantom touches (owner report 2026-10-21).
 - `host/maipai_body/bodies/stackchan/idle_faces.py` (65): Occasional, gentle expression changes while a StackChan is otherwise idle."""
-- `host/maipai_body/bodies/stackchan/light_service.py` (238): The StackChan light service: facts in, one ring look out.
+- `host/maipai_body/bodies/stackchan/light_service.py` (241): The StackChan light service: facts in, one ring look out.
 - `host/maipai_body/bodies/stackchan/light_wiring.py` (233): The StackChan light wiring: poll the link, the device and the battery.
 - `host/maipai_body/bodies/stackchan/lock_voice.py` (104): ruff: noqa: E501
 - `host/maipai_body/bodies/stackchan/measure/__init__.py` (5): StackChan unit-arrival measurement kit."""
@@ -1182,7 +1214,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/talk_games.py` (429): ruff: noqa: E501
 - `host/maipai_body/bodies/stackchan/timers.py` (332): On-unit timers and alarms, the host side (firmware patches 090 to 094).
 - `host/maipai_body/bodies/stackchan/tool_parity.py` (30): The unit tool names the host sends that no firmware patch defines, each with a stated status.
-- `host/maipai_body/bodies/stackchan/turn.py` (2333): StackChan audio turn bridge to the existing hub speech clients."""
+- `host/maipai_body/bodies/stackchan/turn.py` (2397): StackChan audio turn bridge to the existing hub speech clients."""
 - `host/maipai_body/bodies/stackchan/updater.py` (297): Flasher and updater: check a signed release, then flash it or push it over the air.
 - `host/maipai_body/bodies/stackchan/uplink_stats.py` (108): Uplink statistics the self-test can read: hearing (frames, bytes, peak)
 - `host/maipai_body/bodies/stackchan/vision_bridge.py` (423): Host-side StackChan camera tracking and consent-gated face recognition."""
@@ -1195,7 +1227,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/xiaozhi/link_security.py` (224): Encrypted robot link: TLS 1.2 with a pre-shared key (PSK), no certificates.
 - `host/maipai_body/bodies/stackchan/xiaozhi/pairing.py` (633): Local administrator approval and per-device bearer tokens."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/provision.py` (389): Generate and optionally write the StackChan Wi-Fi NVS partition."""
-- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1813): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
+- `host/maipai_body/bodies/stackchan/xiaozhi/server.py` (1829): Small xiaozhi WebSocket endpoint for the StackChan voice and tool channel."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/tls.py` (132): Local TLS certificate helpers for the StackChan xiaozhi service."""
 - `host/maipai_body/bodies/stackchan/xiaozhi/watchdog.py` (126): A cheap watch on a StackChan that is connected but does not answer.
 - `host/maipai_body/brain/__init__.py` (7): Brain adapters used by the host."""
@@ -1465,7 +1497,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/static/index.html` (94): The offline ladder: the text is built on the robot from real
 - `host/maipai_body/supervisor.py` (211): Workers under a watchdog: a dead or silent worker is restarted alone, with back-off, and a worker that keeps f
 - `host/maipai_body/swipe_pages.py` (352): ruff: noqa: E501
-- `host/maipai_body/unit_behaviors.py` (136): ruff: noqa: E501
+- `host/maipai_body/unit_behaviors.py` (162): ruff: noqa: E501
 - `host/maipai_body/unit_device.py` (138): ruff: noqa: E501
 - `host/maipai_body/unit_extras.py` (930): ruff: noqa: E501
 - `host/maipai_body/unit_lock.py` (266): ruff: noqa: E501
@@ -1937,6 +1969,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/beat_test.c` (64): include <stdio.h>
 - `host/tests/firmware/boottone_core_test.c` (35): Host test for the start-up sound rules (patch SF46). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the heade
 - `host/tests/firmware/campro_core_test.c` (67): Host test for the camera probe core (patch SF45). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>.
+- `host/tests/firmware/core_guards_test.c` (81): Host test for the guards added after the static analysis run (patch SF83): the cases the analysis flagged must
 - `host/tests/firmware/dance_cap_core_test.c` (51): Host test for the offline dance cap (patch SF14). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the headers>
 - `host/tests/firmware/dance_ladder_test.c` (259): Host test for the dance ladder (patch MD01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> dance_l
 - `host/tests/firmware/dance_synth_test.c` (129): Host test for the dance session of patch SF51: a dance chosen by hand runs the whole ladder on a synthetic bea
@@ -1944,7 +1977,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/decor_core_test.c` (170): Host test for the face decorator core (patch U01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/dicepoker_core_test.c` (62): Host test of Dice Poker's core (patch UX18): every hand ranks as the poker-dice counts say, the rolls and hold
 - `host/tests/firmware/dirty_core_test.c` (151): Host test for the dirty rectangles and the gaze spring (patch V20).
-- `host/tests/firmware/face_cores_test.c` (416): Host test for the face cores (patches F01 to F06): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>.
+- `host/tests/firmware/face_cores_test.c` (432): Host test for the face cores (patches F01 to F06): cc -std=c99 -Wall -Wextra -Werror -I<dir with the headers>.
 - `host/tests/firmware/face_track_core_test.c` (749): Host test for the face tracker's control loop (patch FD04): the real ft_tick, driven with scripted detections 
 - `host/tests/firmware/face_zone_core_test.c` (112): Host test for the fixed zones of the screen (patches N01, N04): the banner zone (y 0 to 28), the face zone (y 
 - `host/tests/firmware/facedet_core_test.c` (153): Host test for the face detector's pure part (patch FD02): the real fd_convert_rgb888, fd_crop_origin, fd_pick,
@@ -1954,6 +1987,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/firstrun_core_test.c` (162): include <stdio.h>
 - `host/tests/firmware/fx_core_test.c` (347): Host test for the screen effects and the governor (patches TA02, TA05): scanline row math, split invariance, c
 - `host/tests/firmware/fx_cost.c` (94): Host cost model for the overlays and effects (patches TA02, TA03). Runs every overlay for 30 simulated seconds
+- `host/tests/firmware/game_over_core_test.c` (48): Host test of the shared game-over screen's core (patch UX15): the layout meets the screen standard, taps land 
 - `host/tests/firmware/game_over_core_test.c` (48): Host test of the shared game-over screen's core (patch UX15): the layout meets the screen standard, taps land 
 - `host/tests/firmware/games_core_test.c` (572): Host test for the game engine core (patch G01):
 - `host/tests/firmware/games_drag_test.c` (65): Host test for the game drag bar (patch GM02) and the widened safe area (patches GM01 and GM03). */
@@ -2117,6 +2151,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/update-header-vectors.json` (104): no header
 - `host/tests/fixtures/update-signature-vectors.json` (79): no header
 - `host/tests/golden/face-known.json` (1): no header
+- `host/tests/golden/tolerance.json` (4): no header
 - `host/tests/kinematic_double.py` (106): A command-driven test double for the state feed.
 - `host/tests/ladder_fakes.py` (38): Shared fakes for the offline-ladder suites: an injected clock and a
 - `host/tests/motor_fakes.py` (88): A scripted motor bus for the MOTOR-RECOVER-01 suite: the daemon's motor mode,
@@ -2144,6 +2179,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_bench_chat.py` (63): no header
 - `host/tests/test_bench_listen_setting.py` (26): MAIPAI_BENCH_MIN_LISTEN_S (developer only, unset by default) makes the host wait at least that long for speech
 - `host/tests/test_bench_measure.py` (84): no header
+- `host/tests/test_bench_train.py` (109): scripts/bench-train.py: the pure parts and a whole train run against a fake unit (no hardware)."""
 - `host/tests/test_body_registry.py` (17): no header
 - `host/tests/test_brain_fake.py` (8): no header
 - `host/tests/test_brain_home.py` (43): no header
@@ -2194,7 +2230,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (66): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (67): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2221,12 +2257,15 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_flasher_release_parity.py` (52): ruff: noqa: E501
 - `host/tests/test_fleet_isolation.py` (75): A turn's face goes only to the unit that asked; many turns at once are not starved by the default thread pool.
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
+- `host/tests/test_funding_check.py` (72): scripts/funding-check.py fails on a funding link that .github/FUNDING.yml does not list."""
 - `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
+- `host/tests/test_fw_power_run.py` (107): scripts/fw-power-run.py: the chain of power_log calls, the safety stops and the numbers it prints (a fake unit
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
-- `host/tests/test_game_over_screen.py` (57): Patch UX15, the shared game-over screen: its pure core is plain C and its host test runs here against the patc
+- `host/tests/test_game_over_screen.py` (61): Patch UX15, the shared game-over screen: its pure core is plain C and its host test runs here against the patc
 - `host/tests/test_game_scores.py` (48): Best scores per person: a finished game is filed under the named player or Someone; an early stop saves nothin
 - `host/tests/test_game_sounds.py` (33): The synthesized game sounds (scripts/make-game-sounds.py): deterministic, none clipping, all at the same chime
 - `host/tests/test_game_voice.py` (151): no header
+- `host/tests/test_games_audit.py` (31): The screen audit of the data-pack games (scripts/virtual-unit/games_audit.py): the failures of each pack may o
 - `host/tests/test_games_no_head_motion.py` (40): Owner rule (2026-11-18): a game never moves the head. No line a patch adds to the game player, the game engine
 - `host/tests/test_gate_check.py` (53): scripts/gate-check.py: the gate numbers in the script and in docs/dev/gate-numbers.md agree, and the verdict i
 - `host/tests/test_gaze.py` (156): S-EXPR-04: deterministic gaze trajectories, one test per rule (UNMEASURED defaults)."""
@@ -2314,6 +2353,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_moves_teach.py` (339): MOVES-02: teach it a move by hand, record it, name it, replay it.
 - `host/tests/test_moves_teach_unit.py` (48): MOVES-02 on a physical unit. Skipped unless ``MAIPAI_BODY_UNIT=1``.
 - `host/tests/test_mumble.py` (119): Patch UX16, the offline mumble: the pure C core and the Python reference give the same notes for the same text
+- `host/tests/test_mumble_host.py` (69): Host half of the mumble voice (decision 24): a text-only line with "mumble": true, sent only to a unit whose h
 - `host/tests/test_music_dance.py` (237): BOT-SC-DANCE-01 (host half): music detection and the dance policy.
 - `host/tests/test_mute_local.py` (112): MUTE-LOCAL-01: an on-robot unmute, so a hub mute can never strand the robot."""
 - `host/tests/test_night.py` (626): The camera may watch but neither the sensor nor the camera gives a reading.
@@ -2548,7 +2588,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_tts_playback.py` (273): G7's own acceptance (the gap-audit's exact words): "A stand-in
 - `host/tests/test_turn_client.py` (368): G6 (receive side)'s own acceptance: a real local HTTP server
 - `host/tests/test_unit_affiliation_notice.py` (31): The unit's version page carries the project name and the short affiliation notice (owner policy 2026-11-18). T
-- `host/tests/test_unit_behaviors.py` (116): Per-unit touch handling (docs/plan/per-unit-behavior.md, step 2): a tap on the second unit reaches only the se
+- `host/tests/test_unit_behaviors.py` (159): Per-unit touch handling (docs/plan/per-unit-behavior.md, step 2): a tap on the second unit reaches only the se
 - `host/tests/test_unit_hardware.py` (160): The measurement rows' unit-ready checks: what has to hold on the physical Reachy Mini
 - `host/tests/test_unit_lock.py` (470): ruff: noqa: E501
 - `host/tests/test_unit_lock_voice.py` (200): ruff: noqa: E501
@@ -2591,7 +2631,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vu_tools_page_overlay.py` (74): no header
 - `host/tests/test_vu_tools_pages_filler_mood.py` (57): no header
 - `host/tests/test_vu_tools_user_only.py` (30): Behavior checks for the virtual unit user-only tools."""
-- `host/tests/test_vu_view_pointer.py` (427): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
+- `host/tests/test_vu_view_live.py` (146): The virtual unit view's Simulation or Live picker (owner decision 21) and the battery drain switch, under a re
+- `host/tests/test_vu_view_pointer.py` (441): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
 - `host/tests/test_wake.py` (104): G2's own acceptance: the wake state machine, driven by a fake engine."""
 - `host/tests/test_wake_engine_real_model.py` (128): G2's real-model acceptance: `OpenWakeWordEngine` against the actual
 - `host/tests/test_wake_models.py` (91): Wake-word asset pins resolve through the paired hub cache."""
@@ -2609,13 +2650,15 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/power-model.json` (34): no header
 - `schema/tools.json` (652): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
+- `scripts/bench-train.py` (421): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
+- `scripts/bench-trains/plain-proof.json` (17): no header
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
 - `scripts/camera-sweep-table.py` (64): turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the o
 - `scripts/captions-check.py` (25): every image in README.md, docs/user, docs/playground and docs/dev has a visible caption: a standalone image is
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (39): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (40): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/choices-check.py` (44): Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices
 - `scripts/dev-dashboard.sh` (37): run the host settings dashboard against seeded demo data (two stand-in units, no hardware, no real data) so it
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
@@ -2629,17 +2672,18 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/exposure-test.py` (297): the exposure suite. One run measures what the host contacts, what it exposes and what protects it, and prints 
 - `scripts/exposure-test.sh` (5): run the exposure suite (see scripts/exposure-test.py). Usage: bash scripts/exposure-test.sh [--write]
 - `scripts/feature-ledger.py` (513): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
+- `scripts/funding-check.py` (98): fail when the README or the docs point to a funding page that .github/FUNDING.yml does not list.
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
 - `scripts/fuzz/core_fuzz.c` (333): Fuzz harness for the unit's own parsers (the firmware's *_core.h headers, compiled on the host with the addres
 - `scripts/fw-bench-clips.py` (32): make the bench speech clips (patch L06) and embed them as firmware/main/hal/maipai_bench_clips.c.
-- `scripts/fw-build.sh` (52): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
+- `scripts/fw-build.sh` (56): build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|l
 - `scripts/fw-coredump.py` (138): Read the flash core dump of a StackChan unit and decode it with the ELF of the build (patch FM02).
 - `scripts/fw-detect-bench.py` (357): Measurement script for the on-unit face detector experiment (firmware patches FD01 to FD04, bench image only).
 - `scripts/fw-env.sh` (29): one place that sets up ESP-IDF 6.1 for firmware builds. Usage: `source scripts/fw-env.sh`, then `idf.py ...`.
 - `scripts/fw-face-render/apps_render.cc` (255): Host renderer for the Apps wall, the Timers and Alarms apps and the tabbed Settings screen (patch UI16): the r
 - `scripts/fw-face-render/apps_render.sh` (20): draw the Apps wall, the games wall, the Timers and Alarms apps and the tabbed Settings screen with the real LV
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
-- `scripts/fw-face-render/games_render.cc` (244): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
+- `scripts/fw-face-render/games_render.cc` (252): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
 - `scripts/fw-face-render/grid_render.cc` (317): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
 - `scripts/fw-face-render/hooks_banner.cc` (324): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
@@ -2669,6 +2713,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-head-record.py` (261): Record head moves on the unit for the physics calibration: send scripted steps through the tool path, sample t
 - `scripts/fw-lane.sh` (12): run the firmware batch brief repeatedly (one Codex run per batch) until a run writes ALL DONE or MAX runs pass
 - `scripts/fw-pictures.py` (204): Bench: send made-up pictures to the unit over the USB cable and look at what its face draws (bench builds only
+- `scripts/fw-power-run.py` (127): Chain self.bench.power_log calls into one battery run and write a CSV (bench images only; owner steps in docs/
 - `scripts/fw-rebuild.sh` (74): rebuild the firmware tree from this repo alone: the pinned upstream bases (firmware/BASE), then every patch of
 - `scripts/fw-serial.py` (289): Bench helper for the unit on the USB cable (bench builds only; see patch V01 and H01).
 - `scripts/fw-stress.py` (191): Memory gate stress run for the unit on the USB cable, with the memory line on.
@@ -2734,7 +2779,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/backends.py` (163): The playground's backends: the Simulation (a virtual unit on this computer) or one registered robot through it
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/build-face.sh` (20): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
-- `scripts/virtual-unit/build-screens.sh` (36): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
+- `scripts/virtual-unit/build-screens.sh` (40): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
@@ -2745,12 +2790,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/dance_sim.py` (605): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
 - `scripts/virtual-unit/e2e.py` (704): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
-- `scripts/virtual-unit/e2e_fleet.py` (701): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
+- `scripts/virtual-unit/e2e_fleet.py` (727): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
 - `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
 - `scripts/virtual-unit/fake_host.py` (135): A fake host for the playground's Live mode: the routes of docs/plan/playground-live.md (under /api/playground,
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
+- `scripts/virtual-unit/games_audit.py` (85): The screen audit for the data-pack games (Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It, Rock Paper Scissors,
 - `scripts/virtual-unit/gitify.py` (28): Turn a plain `diff -u` patch into the git style the repo's replay and tests read: a `diff --git` line before e
 - `scripts/virtual-unit/grid_gen.py` (36): Cut the unit's own grid-game drawing out of maipai_grid.cc (the Grid struct, the draw callbacks, build and red
 - `scripts/virtual-unit/host_away.py` (128): What the unit does while its host is away (firmware patches 143 and SF49): the Offline label after 45 s withou
@@ -2823,16 +2869,36 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/ui_style_check.py` (30): Count the font sizes and color literals the app screen sources use, on the overlay tree built by build-face.sh
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
 - `scripts/virtual-unit/version_page_fit.cc` (69): Measures the version page of the More screen (patches U05, NX02, SF69) with the real LVGL layout: the same roo
-- `scripts/virtual-unit/view.html` (308): app{display:flex;height:100%}
-- `scripts/virtual-unit/view.py` (404): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/view.html` (329): app{display:flex;height:100%}
+- `scripts/virtual-unit/view.py` (498): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/view.py` (498): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
+- `scripts/virtual-unit/view.py` (498): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
 - `scripts/virtual-unit/view3d.js` (497): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
 - `scripts/virtual-unit/vunit.py` (361): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/virtual-unit/wasm/build.sh` (96): build the virtual robot's browser pieces with Emscripten: the face (Spike A: the unit's real LVGL face code) a
+- `scripts/virtual-unit/wasm/bundle.py` (63): pack the virtual unit's Python, unchanged, with the data files it reads and the adapter layer into one zip the
 - `scripts/virtual-unit/wasm/check.js` (34): Headless check: serves this folder, opens index.html in Chromium (Playwright), taps the face, runs the cores, 
+- `scripts/virtual-unit/wasm/cores_all.c` (19): The hand-written wrappers of the virtual unit's cores in one translation unit: the spike's lock, limiter and d
 - `scripts/virtual-unit/wasm/cores_api.c` (37): Spike B: three of the unit's pure C cores behind one small C API for WebAssembly: the lock core (maipai_lock_c
 - `scripts/virtual-unit/wasm/face_api.cc` (124): Spike A: the unit's real face (LVGL plus the default avatar classes) behind a small C API for WebAssembly.
+- `scripts/virtual-unit/wasm/gen_cores.py` (94): write a C wrapper and a signature table for the unit's own core headers (the plain C rules in firmware main/ha
+- `scripts/virtual-unit/wasm/gen_sdkconfig.py` (40): write the sdkconfig.h a host or WebAssembly build of the unit's screens needs, without ESP-IDF: the firmware's
 - `scripts/virtual-unit/wasm/index.html` (46): no header
+- `scripts/virtual-unit/wasm/make_page.py` (70): make the playground page from the native viewer page (scripts/virtual-unit/view.html) without editing it: the 
 - `scripts/virtual-unit/wasm/page.js` (68): The page: loads the two wasm modules, drives the face with requestAnimationFrame, shows measured numbers. Self
+- `scripts/virtual-unit/wasm/page/app.js` (110): The playground's loader and router. It loads the WebAssembly modules and Pyodide from this site's own folders 
+- `scripts/virtual-unit/wasm/page/boot.js` (39): Starts the virtual unit in the page (or in Node for the tests): the renderer pool, the cores, Pyodide with the
+- `scripts/virtual-unit/wasm/page/bridge.js` (63): The bridge between the Python virtual unit (Pyodide) and the WebAssembly modules: renderer instances (screens,
+- `scripts/virtual-unit/wasm/page/engine.js` (36): The renderer bridge: one native renderer program built as WebAssembly (screens, lock or cover), driven by comm
+- `scripts/virtual-unit/wasm/page/py/api.py` (187): The playground's API: what the native viewer server (view.py) answers over HTTP, answered in the page. The rea
+- `scripts/virtual-unit/wasm/page/py/parity_cases.py` (300): Parity cases: the same Python runs in two places, natively (the real ctypes libraries, the native renderer pro
+- `scripts/virtual-unit/wasm/page/py/wasm_shim.py` (194): The adapter layer between the virtual unit's Python (copied unchanged into the browser) and the WebAssembly mo
+- `scripts/virtual-unit/wasm/page/test.html` (2): no header
+- `scripts/virtual-unit/wasm/page/test.js` (17): The test harness page (test.html): the same modules and the same Python as the playground, without the viewer 
+- `scripts/virtual-unit/wasm/parity.js` (108): Parity check of the browser build, in headless Chromium (Playwright): starts the page from docs-site/playgroun
+- `scripts/virtual-unit/wasm/run_native.py` (45): run the parity cases (page/py/parity_cases.py) natively: the real ctypes libraries (the core wrappers compiled
+- `scripts/virtual-unit/wasm/shim_main.py` (71): turn one of the native renderer programs (a main() that reads command lines from stdin until the end) into a m
+- `scripts/virtual-unit/wasm/site-build.sh` (161): build the static playground (docs-site/playground/): the unit's screens renderer, the lock keypad and the link
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
 - `scripts/wakeword/features.py` (77): Small, dependency-light audio helpers for local wake-word experiments."""

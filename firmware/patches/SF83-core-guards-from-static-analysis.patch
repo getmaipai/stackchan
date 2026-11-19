@@ -1,0 +1,83 @@
+# Intent: Defensive guards in three pure cores after a static analysis run: the head history lookup returns the current angles when its reading count is zero or damaged, the filler clip pick and the board bot refuse a modulo by zero and an uninitialized candidate list, and the game player checks the counter and board-cell numbers of a shape's condition where it reads them, not only when the pack loads. No behavior changes for valid input.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: nothing visible; host/tests/firmware/core_guards_test.c is the check.
+# Kconfig: none
+# Memory cost: none.
+
+diff --git a/firmware/main/hal/maipai_face_track_core.h b/firmware/main/hal/maipai_face_track_core.h
+--- a/firmware/main/hal/maipai_face_track_core.h
++++ b/firmware/main/hal/maipai_face_track_core.h
+@@ -217,6 +217,11 @@ static inline void ft_hist_at(const ft_t* t, uint32_t at, float cur_pan, float c
+         }
+         prev = s;
+     }
++    if (prev == NULL) { /* patch SF83: cannot happen (hist_n is above zero here), but a damaged count must not read through a null pointer */
++        *pan = cur_pan;
++        *tilt = cur_tilt;
++        return;
++    }
+     *pan = prev->pan; /* the picture is newer than every reading */
+     *tilt = prev->tilt;
+ }
+diff --git a/firmware/main/hal/maipai_filler_core.h b/firmware/main/hal/maipai_filler_core.h
+--- a/firmware/main/hal/maipai_filler_core.h
++++ b/firmware/main/hal/maipai_filler_core.h
+@@ -277,11 +277,13 @@ static inline int tf_pick(const tf_index_t* x, int last, uint32_t rnd)
+         for (int j = 0; j < nn; j++) seen |= strcmp(x->clip[names[j]].name, x->clip[cand[k]].name) == 0;
+         if (!seen) names[nn++] = cand[k];
+     }
++    if (nn == 0) return -1;  /* patch SF83: n is above zero here, so nn is too; a guard keeps the modulo safe */
+     const int sound = names[(rnd >> 8) % (uint32_t)nn];
+     int takes[TF_MAX_CLIPS], m = 0;
+     for (int k = 0; k < n; k++) {
+         if (strcmp(x->clip[cand[k]].name, x->clip[sound].name) == 0) takes[m++] = cand[k];
+     }
++    if (m == 0) return -1;  /* patch SF83: the chosen sound is one of the candidates, so m is above zero; a guard keeps the modulo safe */
+     return takes[(rnd >> 16) % (uint32_t)m];
+ }
+ 
+diff --git a/firmware/main/hal/maipai_games_core.h b/firmware/main/hal/maipai_games_core.h
+--- a/firmware/main/hal/maipai_games_core.h
++++ b/firmware/main/hal/maipai_games_core.h
+@@ -779,7 +779,7 @@ static inline int mg_board_bot(mg_run_t* r, int level)
+         }
+     }
+     if (level >= 2) {
+-        int best = -100, n_best = 0, best_c[MG_BOARD_CELLS];
++        int best = -100, n_best = 0, best_c[MG_BOARD_CELLS] = {0};  /* patch SF83: initialized */
+         for (int k = 0; k < free_n; k++) {
+             b[free_c[k]] = 2;
+             const int v  = -mg_board_search(b, 1, 1, -100, 100);
+@@ -792,6 +792,7 @@ static inline int mg_board_bot(mg_run_t* r, int level)
+                 best_c[n_best++] = free_c[k];
+             }
+         }
++        if (n_best == 0) return free_c[0];  /* patch SF83: cannot happen (the first cell always ties the best), a guard keeps the modulo safe */
+         return best_c[mg_rand(r) % (uint32_t)n_best];
+     }
+     return free_c[mg_rand(r) % (uint32_t)free_n];
+@@ -1003,17 +1004,21 @@ static inline int mg_shape_visible(const mg_run_t* r, int i)
+         return mg_mole_region(r, &s) != MG_NO_REGION;
+     }
+     if (s.type == MG_SH_DIE || s.type == MG_SH_COIN) { /* the value counter is read when drawing; here only the mode condition */
+-        return s.cond_val == -128 || r->ctr[s.aux] == s.cond_val;
++        return s.aux < MG_COUNTERS && (s.cond_val == -128 || r->ctr[s.aux] == s.cond_val);  /* patch SF83: the counter number is checked here too */
+     }
+     if (s.type == MG_SH_ICON) { /* patch GM04: the mode condition, and the number has to be a real icon (a hand that has not been shown yet is -1) */
+         const int id = s.cond_ctr == 0xFF ? (int)s.text : (int)r->ctr[s.cond_ctr] + (int)s.text;
++        if ((s.cond_ctr != 0xFF && s.cond_ctr >= MG_COUNTERS) || s.aux >= MG_COUNTERS) return 0;  /* patch SF83: bounds checked here too */
+         return (s.cond_ctr == 0xFF || r->ctr[s.cond_ctr] >= 0) && id >= 0 && id < MG_ICONS && (s.cond_val == -128 || r->ctr[s.aux] == s.cond_val);
+     }
+     if (s.cond_ctr == 0xFF) {
+         return 1;
+     }
+     if (s.cond_ctr >= MG_BOARD_CTR0) {
+-        return r->board[s.cond_ctr - MG_BOARD_CTR0] == (uint8_t)s.cond_val;
++        return s.cond_ctr - MG_BOARD_CTR0 < MG_BOARD_CELLS && r->board[s.cond_ctr - MG_BOARD_CTR0] == (uint8_t)s.cond_val;  /* patch SF83: bounds checked here too, not only at load */
++    }
++    if (s.cond_ctr >= MG_COUNTERS) {
++        return 0;  /* patch SF83: a counter number between the counters and the board cells names nothing */
+     }
+     return r->ctr[s.cond_ctr] == s.cond_val;
+ }

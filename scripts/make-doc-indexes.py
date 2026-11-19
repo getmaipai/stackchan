@@ -31,7 +31,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - *How is memory spent?* [Memory budget](memory-budget.md), [Internal RAM](internal-ram-tasks.md), [Cost of features that are off](off-cost.md)
 - *What keeps the host alive?* [Service](stackchan-service.md), [Watchdog inventory](watchdog-inventory.md), [Updater](updater.md)
 - *What leaves my home?* [Egress table](egress-table.md), [Software-only protection](software-only-protection.md)
-- *Which numbers did we measure?* [Gate numbers](gate-numbers.md), [Unit measurements](stackchan-unit-measurements.md), [Voice measurements](stackchan-voice-measurements-2026-10-20.md), [Battery](battery-and-power.md)
+- *Which numbers did we measure?* [Hardware reference](hardware-reference.md), [Gate numbers](gate-numbers.md), [Unit measurements](stackchan-unit-measurements.md), [Voice measurements](stackchan-voice-measurements-2026-10-20.md), [Battery](battery-and-power.md)
 - *What is the robot's screen, face or head doing?* [Screens](screens-contact-sheets.md), [Faces](stackchan-faces-2026-11-14.md), [Head recording](head-recording.md), [Dance](dance-entry-points.md)
 - *What is wrong or open?* [Cross-review bugs](cross-review-status.md), [Fuzzing](fuzzing-and-hostile-peer.md), [Choices audits](host-choices-audit.md)
 

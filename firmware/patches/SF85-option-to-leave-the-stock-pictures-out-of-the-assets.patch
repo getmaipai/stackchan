@@ -1,0 +1,38 @@
+# Intent: A build option, MAIPAI_PARTITION_EXTRA_ASSETS (default on: the image is unchanged), that leaves the stock apps' pictures (18 files, about 708,000 bytes: the Setup and App Center icons, the backgrounds and the wifi, battery and indicator glyphs) out of the assets partition. The bench probe (SF79) found that after boot and a walk of every screen of this firmware none of them is loaded. Image kinds: lean (no stock text font and no stock pictures), leanbench and nofontbench (the bench images of the options, so snapshots and captions can be checked). With both options off the assets image is 2,469,983 bytes instead of 4,463,226 (measured), freeing 1,993,243 bytes of the 6,225,920 byte partition. The options become the default only after the stock Setup app and App Center (reached by holding the hardware button for 3 seconds) are checked for missing pictures.
+# Placement: unit
+# Upstream: firmware/main/CMakeLists.txt and Kconfig.projbuild (ours)
+# Check after a flash: the lean image boots; every screen looks as before; holding the hardware button for 3 seconds still opens the stock setup menu (icons may be missing there: that decides whether the default can change); self.bench.asset_use lists only the index, the models and (with the font) the font.
+# Kconfig: MAIPAI_PARTITION_EXTRA_ASSETS (default y)
+# Memory cost: none in RAM; assets image 4,463,226 to 2,469,983 bytes with both options off (measured: nofont 3,175,543, lean 2,469,983).
+
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -458,7 +458,8 @@ function(build_default_assets_bin)
+     # MaiPai strip (patch 096): the avatar draws its faces and uses the compiled-in text font.
+     
+     # Add default assets extra files if defined
+-    if(DEFAULT_ASSETS_EXTRA_FILES)
++    # Patch SF85: with MAIPAI_PARTITION_EXTRA_ASSETS off the image carries none of the stock apps' pictures (18 files, about 700 KB); the probe showed no screen loads them.
++    if(DEFAULT_ASSETS_EXTRA_FILES AND CONFIG_MAIPAI_PARTITION_EXTRA_ASSETS)
+         list(APPEND BUILD_ARGS "--extra_files" "${DEFAULT_ASSETS_EXTRA_FILES}")
+     endif()
+     
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -215,6 +215,14 @@ config MAIPAI_PARTITION_TEXT_FONT
+         (a caption in another script, the French oe ligature, the euro sign) through the glyph-push capability the unit advertises. Off frees 1,287,460 bytes of the
+         assets partition.
+ 
++config MAIPAI_PARTITION_EXTRA_ASSETS
++    bool "Ship the stock apps' pictures (about 700 KB) in the assets partition"
++    default y
++    help
++        On: the assets image carries the stock Setup and App Center apps' icons, backgrounds and the wifi, battery and indicator glyphs (18 files, 708,000 bytes). Off: it
++        carries none of them. The bench probe self.bench.asset_use (SF79) showed that after boot and a walk of every screen of this firmware none of the 18 was loaded; only
++        the stock apps themselves (reached by holding the hardware button for 3 seconds) are not yet checked. Off frees about 708,000 bytes of the assets partition.
++
+ config MAIPAI_FW_BUILD
+     int "Build number of this image (signed updates)"
+     default 0

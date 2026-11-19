@@ -15,20 +15,19 @@ Private, local AI that is yours. Nothing leaves your home.
 |---|---|---|---|
 | Robot | Your host | Always, over your Wi-Fi | Audio while you talk, button and sensor events, and snapshots when the camera is on |
 | Robot | A public coordination service, over an encrypted connection | Only when it joins your private network away from home | What it needs to find your devices. No voice, snapshots or settings |
-| Host | The addresses you set in `llm_url`, `stt_url` and `tts_url` | Each turn | Your words, to the model and speech tools you chose |
-| Host | Your update source | Each update check, off if you choose | The firmware version only |
+| Host | The addresses you set under `[llm]` as `url`, `stt_url` and `tts_url` | Each turn | Your words, to the model and speech tools you chose |
+| Host | Your release folder | Each update check | Nothing. The host reads the folder and fetches nothing |
 | Host | MaiPai Home | Only if `brain = "home"` | Your turns and records, to your own hub |
 
 That is the full list. If you see anything else on your network, it is a bug: tell us on the Issues tab. We have not yet published a network capture that proves this list, so we treat it as our design, and we will publish the capture before release.
 
 ## The update check
 
-If you leave checking on, the host makes one small request to your chosen update source. It sends only the firmware version.
-You can set the source to your own server or folder, or turn checking off. Nothing installs until you turn that on.
+The host does not look for new versions online. It reads the release folder you set under `[update]` in `robot.toml`, and sends nothing. Nothing installs until you run the update.
 
 ## What the core robot streams
 
-The core robot never streams a camera or a microphone to anything except your paired host, and only for a voice turn. The extras, such as the camera features, watching and remote control, need the MaiPai Home firmware build, and each shows its cue on the screen. See [The robot never monitors in secret](no-stealth.md).
+The core robot never streams a camera or a microphone to anything except your paired host, and only for a voice turn. The extras, such as the camera features, watching and remote control, are opt-in, and each shows its cue on the screen. See [The robot never monitors in secret](no-stealth.md).
 
 ## No stealth
 

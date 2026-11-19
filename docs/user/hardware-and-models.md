@@ -8,7 +8,7 @@ How well the robot answers depends on the computer and the model behind it. The 
 |---|---|
 | How soon the first word comes after you stop talking | The wake cue and the listening light |
 | How good, correct and natural the answers are | "Stop", mute, volume and brightness |
-| Whether it follows a request like "set a timer" the right way | Timers and alarms once set, and the clock |
+| Whether it follows a request that needs the model to pick an action, such as a scene | Timers and alarms, which you set and cancel by voice with no model, and the clock |
 | How steady it is over a long talk | Faces and reactions |
 | Speech in Spanish, and how it handles other languages | The camera switch and the mute switch |
 
@@ -48,7 +48,7 @@ If you use a model that cannot call actions, the voice commands still work. See 
 |---|---|---|
 | A long wait before the first word | The model is too big for the computer, or it was not loaded yet | Pick a smaller model, or ask the first question again after it warms up |
 | Wrong or odd answers | The model is too small for the job | Try a larger one |
-| It ignores "set a timer" | The model does not call actions well | Use the voice commands, or try a model that supports tools |
+| It ignores a request to do something, such as show a scene | The model does not call actions well | Use the voice commands, or try a model that supports tools |
 | Answers cut off or repeat | The computer ran short of memory | Close other programs, or use a smaller model |
 
 Run `stackchan check` after you change the model.

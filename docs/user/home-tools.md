@@ -2,20 +2,20 @@
 
 <span class="home-tag">Needs MaiPai Home</span>
 
-This is a MaiPai Home feature. MaiPai for StackChan on its own stays a simple, private voice robot, and extras like this run with MaiPai Home. See [Use MaiPai Home as the brain](with-maipai-home.md).
+<span class="planned-tag">Planned</span> These are MaiPai Home features, and none of them is built in this repository. The host's `robot.toml` has no keys for them. See [Use MaiPai Home as the brain](with-maipai-home.md).
 
 
 Everything here runs in MaiPai Home. All of it is off by default, and every one needs a token. None of it calls an outside service.
 
-| Tool | What it is for | Turn on |
+| Tool | What it is for | Where you turn it on |
 |---|---|---|
-| Local API | Start a timer, show a face or speak, over REST and WebSocket. | `api = true` |
-| Event stream | Get a message when the robot hears you, is picked up or finishes a timer. | `events = true` |
-| MQTT | Send the same events to your own MQTT broker. | `mqtt_url = "..."` |
-| Home-automation bridge | Show the robot as a device in your home-automation system. | `ha_bridge = true` |
-| Metrics | A page with counts and timings for your own dashboard. | `metrics = true` |
+| Local API | Start a timer, show a face or speak, over REST and WebSocket. | MaiPai Home settings |
+| Event stream | Get a message when the robot hears you, is picked up or finishes a timer. | MaiPai Home settings |
+| MQTT | Send the same events to your own MQTT broker. | MaiPai Home settings |
+| Home-automation bridge | Show the robot as a device in your home-automation system. | MaiPai Home settings |
+| Metrics | A page with counts and timings for your own dashboard. | MaiPai Home settings |
 
-Run `stackchan token` to create a token. Run `stackchan check` to test each address.
+MaiPai Home creates the token. Run `stackchan check` to test your host's addresses.
 
 ![The web page with the API, MQTT and metrics switches.](../images/api-settings.svg)
 
@@ -23,9 +23,8 @@ Run `stackchan token` to create a token. Run `stackchan check` to test each addr
 
 ## Ideas
 
-- A status light for your server: the light bars turn red when a job fails.
-- A busy light: the light bars show red while you are on a call.
-- A dimmer: slide the head strip to dim a lamp through the bridge.
+- A status light for your server: the light bars change color when a job fails.
+- A busy light: the light bars show a color while you are on a call.
 
 ## Safety
 

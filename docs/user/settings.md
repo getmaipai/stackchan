@@ -1,6 +1,6 @@
 # Change a setting
 
-You will find the same settings in three places: the `robot.toml` file, the settings page on your host and the robot itself. Wi-Fi is set on the robot's own setup screen, not on the host's page.
+Settings live in three places: the `robot.toml` file, the settings page on your host and the robot itself. Wi-Fi is set on the robot's own setup screen, not on the host's page.
 Changing a setting never needs a reflash.
 
 ![The on-robot settings, General page, with Volume and Brightness sliders.](../images/vu-settings-general.png)
@@ -79,7 +79,26 @@ The page is for the host computer only until you turn this on. In `robot.toml` a
 
 The settings page on your host has a Remote controls section: beep, flash, find my robot (it works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. Camera, watching and home tools are opt-in packages with their own pages; some also need MaiPai Home. See [Compare](local-vs-home.md).
 
-Run `stackchan check` after any change to your addresses.
+## What goes on the settings page
+
+Open the settings page your host serves. It has a page for each group. Changes apply to the robot at once, or the next time it connects.
+
+- **Face** (see [Change how the robot looks](face-and-look.md)): face style, face color, captions, the clock style and the night schedule. The same changes work from a terminal: `stackchan face set UNIT --style big_eyes --color mint --captions on`.
+- **Voice**: the voice, speech speed and pitch, the volume cap and the "While it thinks" sound.
+- **Time**: the time zone and the 24 hour clock.
+- **Pictures**, **Reactions**, **People**, **Games**, **Privacy**, **System** and **Units** pages.
+- **Language**: one of six. See [Switch the language](languages.md).
+- **Remote controls**: beep, flash, find my robot (it works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo.
+
+Night mode dims the screen and the lights and softens the clock. Quiet hours are a separate window in which the robot stays quiet.
+
+## What goes on the robot
+
+Swipe up from the bottom of the screen for the control sheet: volume, brightness, Mute, Quiet, Lock, Apps, Games and Settings. The Settings screen has General, Network, Faces and Info tabs. See [Swipe pages and the control sheet](swipe-pages.md).
+
+![The settings page on the host with robot status, settings, the pairing code, mute and update.](../images/web-settings.svg)
+
+*The host's settings page: robot status, the settings tabs, the pairing code, mute and update in one place. This is a drawn picture, not a screenshot.*
 
 ## Reset the robot
 

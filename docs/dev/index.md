@@ -9,7 +9,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - *How is memory spent?* [Memory budget](memory-budget.md), [Internal RAM](internal-ram-tasks.md), [Cost of features that are off](off-cost.md)
 - *What keeps the host alive?* [Service](stackchan-service.md), [Watchdog inventory](watchdog-inventory.md), [Updater](updater.md)
 - *What leaves my home?* [Egress table](egress-table.md), [Software-only protection](software-only-protection.md)
-- *Which numbers did we measure?* [Gate numbers](gate-numbers.md), [Unit measurements](stackchan-unit-measurements.md), [Voice measurements](stackchan-voice-measurements-2026-10-20.md), [Battery](battery-and-power.md)
+- *Which numbers did we measure?* [Hardware reference](hardware-reference.md), [Gate numbers](gate-numbers.md), [Unit measurements](stackchan-unit-measurements.md), [Voice measurements](stackchan-voice-measurements-2026-10-20.md), [Battery](battery-and-power.md)
 - *What is the robot's screen, face or head doing?* [Screens](screens-contact-sheets.md), [Faces](stackchan-faces-2026-11-14.md), [Head recording](head-recording.md), [Dance](dance-entry-points.md)
 - *What is wrong or open?* [Cross-review bugs](cross-review-status.md), [Fuzzing](fuzzing-and-hostile-peer.md), [Choices audits](host-choices-audit.md)
 
@@ -41,6 +41,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - [Fuzzing the unit's parsers, and a hostile peer against the host](fuzzing-and-hostile-peer.md)
 - [Screen audit of the data-pack games](games-audit.md)
 - [Gate numbers (2026-11-18)](gate-numbers.md)
+- [Hardware reference (what we know about the StackChan unit, and how we know it)](hardware-reference.md)
 - [Recording head moves on the unit (for the physics calibration)](head-recording.md)
 - [Head moves are about twice as fast as before (2026-11-18)](head-speed-real-time-clock.md)
 - [The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 KB](heap-map-b47.md)

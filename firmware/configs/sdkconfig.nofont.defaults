@@ -1,0 +1,2 @@
+# The assets image without the stock common text font (patch SF80): the display keeps the compiled-in basic font; 1,287,460 bytes of the assets partition are free.
+# CONFIG_MAIPAI_PARTITION_TEXT_FONT is not set

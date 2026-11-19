@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Intent: write a C wrapper and a signature table for the unit's own core headers (the plain C rules in firmware main/hal/*_core.h) so a page can call them in WebAssembly.
+For each listed header it finds every `static inline` function whose parameters are plain numbers, `const char*`, or a pointer to a struct that the same headers typedef, and writes
+`c_<function>` wrappers. A struct pointer is filled from one global instance per struct type (zero it with `c_zero_<type>`), so a caller keeps state in the module as the unit keeps it
+in a static. A function with any other pointer parameter (a byte buffer, an out value) is left out and listed in the table's "skipped" so the gap is visible.
+Usage: gen_cores.py HAL_DIR OUT_C OUT_JSON header_name ...      (header_name like lock, motion_limit: maipai_<name>_core.h)
+Placement: host-side development tool. Upstream: none."""
+import json
+import re
+import sys
+from pathlib import Path
+
+SCALARS = {"int": "i", "unsigned": "u", "unsigned int": "u", "uint8_t": "u", "uint16_t": "u", "uint32_t": "u", "int8_t": "i", "int16_t": "i", "int32_t": "i", "bool": "i", "char": "i",
+           "size_t": "u", "float": "f", "double": "f", "int64_t": "i", "uint64_t": "u"}
+
+
+def main() -> int:
+    if len(sys.argv) < 5:
+        print("Usage: gen_cores.py HAL_DIR OUT_C OUT_JSON header_name ... Give the hal folder, the files to write and the core names (lock, motion_limit).")
+        return 2
+    hal, out_c, out_json, names = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4:]
+    texts = {n: (hal / f"maipai_{n}_core.h").read_text() for n in names}
+    structs, enums = set(), set()
+    for t in texts.values():
+        structs |= set(re.findall(r"typedef\s+struct\s*\w*\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\s*(\w+)\s*;", t))
+        enums |= set(re.findall(r"typedef\s+enum\s*\w*\s*\{[^{}]*\}\s*(\w+)\s*;", t))
+    sigs: dict[str, dict] = {}
+    skipped: dict[str, str] = {}
+    wrappers: list[str] = []
+    used_structs: set[str] = set()
+    pat = re.compile(r"^static inline\s+([\w\s\*]+?)\s*(\b\w+)\(([^)]*)\)\s*(?:\{|$)", re.M)
+    for n, t in texts.items():
+        for m in pat.finditer(t):
+            ret, fn, params = m.group(1).strip(), m.group(2), m.group(3).strip()
+            r = ret.replace("const ", "").strip()
+            if ret in ("const char *", "const char*"):
+                rk = "s"
+            elif r == "void":
+                rk = "v"
+            elif r in SCALARS:
+                rk = SCALARS[r]
+            elif r in enums:
+                rk = "i"
+            else:
+                skipped[fn] = f"returns {ret}"
+                continue
+            decl, call, kinds, bad, pre, post = [], [], [], None, [], []
+            plist = [] if params in ("", "void") else [p.strip() for p in params.split(",")]
+            for i, p in enumerate(plist):
+                p = re.sub(r"\[\w*\]", "*", p)
+                mm = re.match(r"(const\s+)?([\w\s]+?)\s*(\*?)\s*(\w+)$", p)
+                if not mm:
+                    bad = f"parameter {p}"
+                    break
+                const, ty, star, pn = mm.group(1) or "", mm.group(2).strip(), mm.group(3), f"a{i}"
+                if star and not const and ty in SCALARS and ty != "char":   # an out value (bool*, int*, uint32_t*): the caller gives its start value, reads the result with c_out(k)
+                    k = len(post)
+                    decl.append(f"uint32_t {pn}"); pre.append(f"{ty} l{i} = ({ty}){pn};"); call.append(f"&l{i}"); post.append(f"g_outs[{k}] = (uint32_t)l{i};"); kinds.append("o")
+                elif star and ty == "char" and const:
+                    decl.append(f"const char* {pn}"); call.append(pn); kinds.append("s")
+                elif star and ty in structs:
+                    used_structs.add(ty); call.append(f"&g_inst_{ty}")
+                elif not star and (ty in SCALARS or ty in enums):
+                    decl.append(f"{'float' if ty in ('float', 'double') else ('uint32_t' if SCALARS.get(ty) == 'u' else 'int')} {pn}")
+                    call.append(f"({ty}){pn}" if ty in enums else pn)
+                    kinds.append(SCALARS.get(ty, "i"))
+                else:
+                    bad = f"parameter {p}"
+                    break
+            if bad:
+                skipped[fn] = bad
+                continue
+            if fn in sigs:
+                continue
+            cret = {"s": "const char*", "v": "void", "f": "float", "u": "uint32_t", "i": "int"}[rk]
+            body = f"{fn}({', '.join(call)})"
+            lead = " ".join(pre)
+            if rk == "v":
+                wrappers.append(f"{cret} c_{fn}({', '.join(decl) or 'void'}) {{ {lead} {body}; {' '.join(post)} }}")
+            else:
+                wrappers.append(f"{cret} c_{fn}({', '.join(decl) or 'void'}) {{ {lead} {cret} r = ({cret}){body}; {' '.join(post)} return r; }}")
+            sigs[fn] = {"ret": rk, "args": kinds, "header": n}
+    head = ["/* Generated by scripts/virtual-unit/wasm/gen_cores.py from the unit's own core headers. Do not edit. */",
+            "#include <stdint.h>", "#include <stddef.h>", "#include <stdbool.h>", "#include <string.h>", "#include <stdio.h>", "#include <stdlib.h>"]
+    head += [f'#include "maipai_{n}_core.h"' for n in names]
+    inst = ["static uint32_t g_outs[8];", "uint32_t c_out(int k) { return g_outs[k & 7]; }"] + [f"static {s} g_inst_{s};" for s in sorted(used_structs)] + [f"void c_zero_{s}(void) {{ memset(&g_inst_{s}, 0, sizeof(g_inst_{s})); }}" for s in sorted(used_structs)]
+    out_c.write_text("\n".join(head + inst + wrappers) + "\n")
+    out_json.write_text(json.dumps({"functions": sigs, "structs": sorted(used_structs), "skipped": skipped}, indent=1, sort_keys=True) + "\n")
+    print(f"gen_cores: {len(sigs)} functions wrapped, {len(skipped)} skipped, {len(used_structs)} instances: {', '.join(sorted(used_structs))}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,57 @@
+# Intent: Two fixes from the b59 bench run. Snake reached the right wall in about two seconds with no input: it now waits 1.6 s before the first step and starts at 420 ms a step (was 300), speeding up to 100 ms (was 80). self.game.bench_event and bench_swipe reach the grid games (bench_event answered posted false and bench_swipe answered no game for Snake and 2048, so the tilt and swipe input could not be tried over serial).
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: self.game.start snake: the board sits still for 1.6 s, then the snake moves about two cells a second; self.game.bench_event 7 to 10 turns it (posted true); self.game.bench_swipe turns it or slides 2048.
+# Kconfig: none
+# Memory cost: none.
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -1361,7 +1361,7 @@ void maipai_games_register_tools()
+                 "8 tilt right, 9 tilt forward, 10 tilt back, 11 too-hard shake. Answers {ok, posted}.",
+                 PropertyList({Property("event", kPropertyTypeInteger, 5, 3, 11)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+-                    const bool on = s_active.load();
++                    const bool on = s_active.load() || maipai_grid_active();  // patch SF84: the grid games take sensor events too
+                     maipai_games_post_input(properties["event"].value<int>());
+                     return std::string("{\"ok\":true,\"posted\":") + (on ? "true" : "false") + "}";
+                 });
+@@ -1372,7 +1372,7 @@ void maipai_games_register_tools()
+                               Property("ms", kPropertyTypeInteger, 200, 1, 2000)}),
+                 [](const PropertyList& properties) -> ReturnValue {
+                     LvglLockGuard lock;
+-                    if (s_game == nullptr) {
++                    if (s_game == nullptr && !maipai_grid_active()) {  // patch SF84: a swipe reaches a grid game too
+                         return error_json("No game is running.");
+                     }
+                     maipai_games_release(properties["x0"].value<int>(), properties["y0"].value<int>(), properties["x1"].value<int>(),
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -764,7 +764,7 @@ const char* maipai_grid_start_locked(const char* name, const char* source)
+     } else if (kind == kSnake) {
+         gsn_init(&g->snake, g->seed);
+         gr_layout(&g->lay, GSN_COLS, GSN_ROWS, 0);
+-        g->next_step_ms = now_ms() + 600;
++        g->next_step_ms = now_ms() + 1600;  // patch SF84: a moment to see the board before the snake moves
+         s_vertical.store(true);
+     } else if (kind == kMines) {
+         gmn_init(&g->mines, g->seed);
+diff --git a/firmware/main/hal/maipai_grid_snake_core.h b/firmware/main/hal/maipai_grid_snake_core.h
+--- a/firmware/main/hal/maipai_grid_snake_core.h
++++ b/firmware/main/hal/maipai_grid_snake_core.h
+@@ -118,11 +118,11 @@ static inline int gsn_step(gsn_t* s)
+     return GSN_MOVED;
+ }
+ 
+-/* The step interval in ms: 300 ms at the start, 80 ms at the fastest (the engine tick is 30 ms), shortening with every food eaten. */
++/* The step interval in ms: 420 ms at the start (patch SF84: it was 300, which reached the wall in about two seconds), 100 ms at the fastest (the engine tick is 30 ms), shortening with every food eaten. */
+ static inline uint32_t gsn_interval_ms(const gsn_t* s)
+ {
+     const uint32_t cut = (uint32_t)s->score * 12u;
+-    return cut >= 220u ? 80u : 300u - cut;
++    return cut >= 320u ? 100u : 420u - cut;
+ }
+ 
+ #endif /* MAIPAI_GRID_SNAKE_CORE_H */

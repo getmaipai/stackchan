@@ -1,6 +1,6 @@
 # Intent: A game that only counts a score never says "You won!" or "You lost" (owner decision 31, 2026-11-18). The shared game-over screen gets two neutral results: MGO_OVER ("Game over", Fin del juego) and MGO_TIMEUP ("Time's up", Se acabo el tiempo, for a timed game), each with a calm sand-colored level face, the score line and the new-best mark as before. Won, Lost and Draw stay for games with a real winner. A neutral end plays the draw clip. Display only: no safety, lock, cue, limiter or head-motion code.
 # Placement: unit
-# Upstream: firmware/main/hal/maipai_game_over_core.h, maipai_game_over.h (ours, patch UX15)
+# Upstream: firmware/main/hal/maipai_game_over_core.h, maipai_game_over.h (ours, patches UX15 and SF82). The old UX15b change redone on the SF82 header so it applies after it.
 # Check after a flash: Whack-a-Mole, Color Memory, Do It, Snake and a stuck 2048 end on Game over or Time's up with their score; Four in a Row, Match, Hangman, Mine Finder, Tic-Tac-Toe and Rock Paper Scissors still say won, lost or draw.
 # Kconfig: none
 

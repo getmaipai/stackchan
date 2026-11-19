@@ -845,6 +845,7 @@ class StackChanTurnBridge:
         self._reaction_speaking = False
         self._reaction_ended_at = float("-inf")
         self._reaction_lock = threading.Lock()
+        self._reaction_units: set[str] = set()
         # The expression and light sinks make blocking device calls that wait on this very event
         # loop; run inline they froze it until each 5 s timeout (live log 2026-10-20: 5 s to start
         # a turn, 12 s to the first audio frame). One worker keeps their order.
@@ -1204,14 +1205,26 @@ class StackChanTurnBridge:
         except Exception:  # a counter must never break the voice path
             LOG.warning("StackChan uplink counter failed", exc_info=True)
 
+    live_sink_for = None  # optional: (active, unit) -> None, the live cue of the unit that is listening (set by the host for several units)
+
     def _set_live(self, active: bool) -> None:
         if self.live_sink is None:
             return
-        self._light_side.submit(self._run_live_sink, active)
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
 
-    def _run_live_sink(self, active: bool) -> None:
+        unit = ACTIVE_UNIT.get()
+        if active:
+            self._live_unit = unit
+        elif unit is None:
+            unit = getattr(self, "_live_unit", None)  # the end of a turn can run outside its unit's scope: end the cue on the unit that raised it
+        self._light_side.submit(self._run_live_sink, active, unit)
+
+    def _run_live_sink(self, active: bool, unit: str | None = None) -> None:
         try:
-            self.live_sink(active)
+            if self.live_sink_for is not None:
+                self.live_sink_for(active, unit)
+            else:
+                self.live_sink(active)
         except Exception:  # a light must never break the voice path
             LOG.warning("StackChan live cue failed", exc_info=True)
 
@@ -2184,19 +2197,37 @@ class StackChanTurnBridge:
         except Exception:
             LOG.warning("StackChan voice hook failed", exc_info=True)
 
-    def speak_reaction(self, text: str) -> bool:
+    def speak_reaction(self, text: str, device_id: str | None = None) -> bool:
         """Say one short line on the robot's own initiative (not an answer). False if it cannot.
 
         It speaks through the same text-to-speech path as a reply, and never while a turn is on or
-        a reply is playing: the line is dropped, not queued. Never while muted or in full quiet."""
-        if self.muted_reason() is not None:
-            return False
-        if self._tasks or any(state == "speaking" for state in self._states.values()):
-            return False
+        a reply is playing: the line is dropped, not queued. Never while muted or in full quiet.
+        With ``device_id`` (a unit after the first, docs/plan/per-unit-behavior.md) the line goes to that unit and only that
+        unit's own turn, speech and mute decide: another unit mid-turn does not silence it. Without it, one connected unit is needed."""
         sessions = getattr(self.server, "_sessions", None)
-        if not sessions or len(sessions) != 1:
-            return False
-        device_id = next(iter(sessions))
+        if device_id is not None:
+            from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+            if not sessions or device_id not in sessions:
+                return False
+            token = ACTIVE_UNIT.set(device_id)  # the unit's own mute and full quiet decide
+            try:
+                if self.muted_reason() is not None:
+                    return False
+            finally:
+                ACTIVE_UNIT.reset(token)
+            if device_id in self._tasks or self._states.get(device_id) == "speaking":
+                return False
+            unit_reaction = True
+        else:
+            if self.muted_reason() is not None:
+                return False
+            if self._tasks or any(state == "speaking" for state in self._states.values()):
+                return False
+            if not sessions or len(sessions) != 1:
+                return False
+            device_id = next(iter(sessions))
+            unit_reaction = False
         try:
             cookie = self.link.hub_client.session_cookie
             pairing = self.link.pairing_store.load()
@@ -2221,12 +2252,17 @@ class StackChanTurnBridge:
             LOG.warning("StackChan reaction line could not start", exc_info=True)
             return False
         with self._reaction_lock:
-            if self._reaction_speaking:
-                return False
-            self._reaction_speaking = True
+            if unit_reaction:
+                if device_id in self._reaction_units:
+                    return False
+                self._reaction_units.add(device_id)
+            else:
+                if self._reaction_speaking:
+                    return False
+                self._reaction_speaking = True
         threading.Thread(
-            target=self._say_reaction,
-            args=(playback, base, cookie, text),
+            target=self._say_unit_reaction if unit_reaction else self._say_reaction,
+            args=(playback, base, cookie, text) + ((device_id,) if unit_reaction else ()),
             name="stackchan-reaction-speech",
             daemon=True,
         ).start()
@@ -2242,6 +2278,18 @@ class StackChanTurnBridge:
             mark(text)
         except Exception:
             LOG.debug("StackChan caption skipped", exc_info=True)
+
+    def _say_unit_reaction(self, playback, base: str, cookie: str, text: str, device_id: str) -> None:
+        """A reaction line on a unit after the first: only that unit's flag is held, and no turn-end hook runs (that hook is the first unit's)."""
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        token = ACTIVE_UNIT.set(device_id)
+        try:
+            self._say(playback, base, cookie, text)
+        finally:
+            ACTIVE_UNIT.reset(token)
+            with self._reaction_lock:
+                self._reaction_units.discard(device_id)
 
     def _say_reaction(self, playback, base: str, cookie: str, text: str) -> None:
         try:
@@ -2309,6 +2357,22 @@ class StackChanTurnBridge:
             playback.end()
         except Exception:
             LOG.warning("StackChan voice: could not speak %r", text, exc_info=True)
+            self._mumble(text)
+
+    def _mumble(self, text: str) -> bool:
+        """No voice answered: if the unit announced the mumble voice, send it the words as a text-only line (decision 24). False when it cannot."""
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
+
+        loop = getattr(self.server, "_loop", None)
+        device_id = ACTIVE_UNIT.get() or next(iter(getattr(self.server, "_sessions", {}) or {}), None)
+        send = getattr(self.server, "send_mumble", None)
+        if loop is None or send is None or device_id is None:
+            return False
+        try:
+            return bool(asyncio.run_coroutine_threadsafe(send(device_id, text), loop).result(timeout=5))
+        except Exception:
+            LOG.debug("StackChan voice: the mumble line could not be sent", exc_info=True)
+            return False
 
     def _speak_plain_error(self, playback, base: str, cookie: str) -> None:
         if not self._breaker.allow():

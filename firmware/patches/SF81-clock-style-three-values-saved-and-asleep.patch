@@ -1,0 +1,172 @@
+# Intent: The unit half of the clock styles (docs/design/clock-styles.md, UX14): the clock style 2, date and time, is a valid saved value (self.face.set_config clock_style takes digits, ring or date_time; the saved byte keeps its place, so an older 0 or 1 reads the same), and the clock page's three host calls work on the unit. clock_style() reads the face configuration, clock_set_style() changes it in memory at once and writes the flash once, 700 ms after the last tap, on the application task and only when the style differs from what flash holds, and asleep() is true while the screen is dimmed below the level the person saved (the unit has no other sleep state: a host that puts it to sleep dims the screen, and a person's touch restores it).
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: a tap on the clock page cycles the three styles and wraps; three quick taps cause one write; after a restart the clock page opens in the last style; with the screen dimmed by the host the page shows the sleep sign and a tap only wakes it; self.face.get_config shows clock_style.
+# Kconfig: none
+# Memory cost: none (one esp timer, created on the first tap).
+
+diff --git a/firmware/main/hal/maipai_face_core.h b/firmware/main/hal/maipai_face_core.h
+--- a/firmware/main/hal/maipai_face_core.h
++++ b/firmware/main/hal/maipai_face_core.h
+@@ -65,7 +65,7 @@ typedef struct {
+     uint8_t thinking_tone;/* 1: a quiet tone with the thinking dots (default on, decision 23) */
+     uint8_t lang;         /* MF_LANG_*: weekday names on the clock face */
+     uint8_t clock24;      /* 1: 24 hour clock, 0: 12 hour */
+-    uint8_t clock_style;  /* 0 big digits, 1 ring */
++    uint8_t clock_style;  /* 0 big digits, 1 ring, 2 date and time (patch SF81) */
+     uint16_t clock_idle_s;/* 0: the clock face never shows by itself; otherwise after this many idle seconds */
+     uint8_t caption_size; /* 0 small, 1 medium (default), 2 large: the size of the words on the face (patch U06) */
+     uint8_t emotion_tint; /* 1 (default): the eyes lean a little toward a colour per emotion (patch X02) */
+@@ -319,7 +319,7 @@ static inline int mf_valid(const mf_config_t* c)
+     if (c->colour_mode == MF_COLOUR_CUSTOM && mf_luma(c->r, c->g, c->b) < MF_MIN_LUMA) {
+         return 0;
+     }
+-    if (c->captions > 1 || c->tod > 1 || c->thinking_tone > 1 || c->clock24 > 1 || c->clock_style > 1) {
++    if (c->captions > 1 || c->tod > 1 || c->thinking_tone > 1 || c->clock24 > 1 || c->clock_style > 2)  /* patch SF81: 0 digits, 1 ring, 2 date and time */ {
+         return 0;
+     }
+     if (c->lang >= MF_LANG_COUNT || c->caption_size > 2) {
+diff --git a/firmware/main/hal/maipai_face.cc b/firmware/main/hal/maipai_face.cc
+--- a/firmware/main/hal/maipai_face.cc
++++ b/firmware/main/hal/maipai_face.cc
+@@ -207,6 +207,7 @@ int update_from_json(mf_config_t* c, const cJSON* root, const char** bad)
+         if (!cJSON_IsString(it)) return MF_ERR_RANGE;
+         if (strcmp(it->valuestring, "digits") == 0) c->clock_style = 0;
+         else if (strcmp(it->valuestring, "ring") == 0) c->clock_style = 1;
++        else if (strcmp(it->valuestring, "date_time") == 0) c->clock_style = 2;  // patch SF81
+         else return MF_ERR_RANGE;
+     }
+     if ((it = cJSON_GetObjectItemCaseSensitive(root, "caption_size")) != nullptr) {
+@@ -282,7 +283,7 @@ std::string config_json(const mf_config_t& c)
+              MF_STYLE_NAMES[c.style], colour, c.captions ? "true" : "false", c.tod ? "true" : "false", c.tod_from[0],
+              c.tod_from[1], c.tod_from[2], c.tod_from[3], c.thinking_tone ? "true" : "false",
+              MF_LANG_CODES[c.lang < MF_LANG_COUNT ? c.lang : 0], c.clock24 ? "true" : "false",
+-             c.clock_style ? "ring" : "digits", static_cast<unsigned>(c.clock_idle_s), MF_CAPTION_NAMES[c.caption_size < 3 ? c.caption_size : 1], background,
++             c.clock_style == 2 ? "date_time" : (c.clock_style == 1 ? "ring" : "digits"), static_cast<unsigned>(c.clock_idle_s), MF_CAPTION_NAMES[c.caption_size < 3 ? c.caption_size : 1], background,
+              c.emotion_tint ? "true" : "false");
+     return out;
+ }
+@@ -462,7 +463,7 @@ lv_color_t clock_colour(const mf_config_t& c, int band, int pct_extra)
+ 
+ void clock_build(lv_obj_t* panel, const mf_config_t& c, int band)
+ {
+-    const mf_clock_layout_t l = mf_clock_layout(c.clock_style);
++    const mf_clock_layout_t l = mf_clock_layout(c.clock_style == 1);
+     const lv_color_t fg       = clock_colour(c, band, 100);
+     s_ui                      = ClockUi();
+     s_ui.ring                 = l.ring;
+@@ -782,6 +783,21 @@ bool maipai_face_set_style(int style)
+     return true;
+ }
+ 
++// Patch SF81: the clock style chosen by a tap on the clock page. Memory only (the page redraws itself); the caller arms the debounced save.
++void maipai_face_set_clock_style(int style)
++{
++    if (style < 0 || style > 2) return;
++    std::lock_guard<std::mutex> lock(s_mutex);
++    s_cfg.clock_style = static_cast<uint8_t>(style);
++}
++
++// Writes the settings as they are now, from the main task (never the screen task or a task with its stack in PSRAM). The page calls it 700 ms after the last tap.
++void maipai_face_save_config()
++{
++    const mf_config_t now = maipai_face_config();
++    Application::GetInstance().Schedule([now]() { save(now); });
++}
++
+ bool maipai_face_set_lang(int lang)
+ {
+     if (lang < 0 || lang >= MF_LANG_COUNT) {
+@@ -810,7 +826,7 @@ void maipai_face_register_tools()
+                 "colour (the eye colour: none is white, or mint, sky, amber, rose, lilac, lime, coral or #rrggbb), background (the screen colour: none, "
+                 "a name or a dark #rrggbb), emotion_tint (true: the eyes lean a little toward a colour per emotion), captions (true shows the words on the face), tod (time-of-day looks), tod_hours "
+                 "([morning, day, evening, night] start hours), thinking_tone, lang (en, es, fr, de, pt or it), caption_size (small, medium or large), clock24, "
+-                "clock_style (digits or ring), clock_idle_s (0 to 3600, 0 never shows the clock by itself). "
++                "clock_style (digits, ring or date_time), clock_idle_s (0 to 3600, 0 never shows the clock by itself). "
+                 "Nothing changes unless every field is valid. Answers the new settings or {ok:false,error}.",
+                 PropertyList({Property("config", kPropertyTypeString, std::string("{}"))}),
+                 [](const PropertyList& properties) -> ReturnValue {
+diff --git a/firmware/main/hal/maipai_face.h b/firmware/main/hal/maipai_face.h
+--- a/firmware/main/hal/maipai_face.h
++++ b/firmware/main/hal/maipai_face.h
+@@ -27,10 +27,15 @@ mf_config_t maipai_face_config();
+ bool maipai_face_set_style(int style);
+ // Patch SF09: the screen language (0 en, 1 es, 2 fr, 3 de, 4 pt, 5 it), saved. The caller holds the LVGL lock.
+ bool maipai_face_set_lang(int lang);
++// Patch SF81: the clock style (0 digits, 1 ring, 2 date and time) in memory, and the save (from the main task) the clock page arms 700 ms after the last tap.
++void maipai_face_set_clock_style(int style);
++void maipai_face_save_config();
+ #else
+ inline void maipai_face_register_tools() {}
+ inline bool maipai_face_set_style(int) { return false; }
+ inline bool maipai_face_set_lang(int) { return false; }
++inline void maipai_face_set_clock_style(int) {}
++inline void maipai_face_save_config() {}
+ #endif
+ 
+ // Whether the words the unit says may be drawn on the face (patch F02): off unless a person turned captions on.
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -89,6 +89,33 @@ void save_pending_sliders()
+     });
+ }
+ 
++esp_timer_handle_t s_clock_timer = nullptr;
++int s_clock_saved = -1;  // the clock style last written to flash (-1: not known yet)
++
++void arm_clock_save()
++{
++    if (s_clock_timer == nullptr) {
++        esp_timer_create_args_t args = {};
++        args.callback = [](void*) {
++            Application::GetInstance().Schedule([]() {
++                const int now = maipai_face_config().clock_style;
++                if (now != s_clock_saved) {
++                    s_clock_saved = now;
++                    maipai_face_save_config();
++                }
++            });
++        };
++        args.name = "clock_save";
++        if (esp_timer_create(&args, &s_clock_timer) != ESP_OK) {
++            s_clock_timer = nullptr;
++            maipai_face_save_config();
++            return;
++        }
++    }
++    esp_timer_stop(s_clock_timer);
++    esp_timer_start_once(s_clock_timer, 700ULL * 1000);
++}
++
+ void arm_slider_save()
+ {
+     if (s_slider_timer == nullptr) {
+@@ -230,7 +257,26 @@ public:
+     }
+     bool night() override { return maipai_face_is_night(); }
+     bool clock24() override { return maipai_face_config().clock24 != 0; }
+-    bool clock_ring() override { return maipai_face_config().clock_style != 0; }
++    bool clock_ring() override { return maipai_face_config().clock_style == 1; }
++    // Patch SF81 (docs/design/clock-styles.md): the style is kept in the face configuration (0 digits, 1 ring, 2 date and time). A tap changes it in memory at once; the flash is written once,
++    // 700 ms after the last tap, on the application task (never the display task or a task with its stack in PSRAM), and only when the style changed since the last write.
++    int clock_style() override { return maipai_face_config().clock_style; }
++    void clock_set_style(int v) override
++    {
++        const int cur = maipai_face_config().clock_style;
++        if (v < 0 || v > 2 || v == cur) return;
++        if (s_clock_saved < 0) s_clock_saved = cur;  // what flash holds now: the config loaded at boot
++        maipai_face_set_clock_style(v);
++        arm_clock_save();
++    }
++    // The unit has no sleep state of its own: a host that puts it to sleep dims the screen (and any person's touch brings it back: maipai_screen_wake). Asleep means the screen is
++    // dimmed below the level the person saved.
++    bool asleep() override
++    {
++        int saved = 0, live = 0;
++        maipai_screen_levels(&saved, &live);
++        return saved > 0 && live < saved;
++    }
+     bool spanish() override { return maipai_face_config().lang == MF_LANG_ES; }
+     bool quiet() override { return (maipai_privacy_bits() & kPrivQuiet) != 0; }
+     bool muted() override { return (maipai_privacy_bits() & kPrivMute) != 0; }

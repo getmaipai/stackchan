@@ -391,6 +391,21 @@ static void test_pick_and_place(void)
     mf_chip_place(3, 2, &x, &y); CHECK(x == 86);            /* the lone chip of an odd count is centred */
 }
 
+/* patch SF81: the clock style 2 (date and time) is a valid saved value, 3 is not, and the saved byte keeps its place (an older 0 or 1 reads the same) */
+static void test_clock_style_range(void)
+{
+    mf_config_t c, d;
+    mf_default(&c);
+    for (int v = 0; v <= 2; v++) {
+        c.clock_style = (uint8_t)v;
+        uint8_t buf[MF_BLOB_MAX];
+        const size_t n = mf_save(&c, buf, sizeof(buf));
+        CHECK(n > 0 && mf_load(&d, buf, n) == MF_OK && d.clock_style == v);
+    }
+    c.clock_style = 3;
+    CHECK(!mf_valid(&c));
+}
+
 int main(void)
 {
     test_default_is_neutral();
@@ -410,6 +425,7 @@ int main(void)
     test_countdown_text();
     test_chip_text_and_words();
     test_pick_and_place();
+    test_clock_style_range();
     if (failures) { printf("%d failure(s)\n", failures); return 1; }
     printf("face cores: all passed\n");
     return 0;

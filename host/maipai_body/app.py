@@ -1912,6 +1912,33 @@ class StackChanBehavior:
         logger.info("StackChan woke up on touch (%s)", ", ".join(sorted(set(kinds))))
         return True
 
+    def extra_unit_tick(self, now: float) -> None:
+        """One pass for a unit after the first (docs/plan/per-unit-behavior.md): idle look, touch, reactions, orientation, keep-awake, rest and the face
+        watchdog. No camera work: face search and tracking read one camera and stay on the first unit."""
+        if (
+            not self._active.is_set()
+            and not self.idle_still()
+            and now - self._last_idle >= self._idle_interval_s
+            and self._rest.stage == "awake"
+        ):
+            self._last_idle = now
+            try:
+                self.render_primitive("settle")
+            except Exception:
+                self._warn_limited("idle", "StackChan idle expression failed")
+        for key, step in (
+            ("touch", lambda: self.wake_on_touch(now)),
+            ("reaction", lambda: self.reaction_tick and self.reaction_tick()),
+            ("orientation", lambda: self.orientation_tick and self.orientation_tick()),
+            ("keep_awake", lambda: self.keep_awake_tick and self.keep_awake_tick()),
+            ("rest", lambda: self.rest_step(now)),
+            ("watchdog", lambda: self.face_watchdog(now)),
+        ):
+            try:
+                step()
+            except Exception:
+                self._warn_limited(key, f"StackChan {key} step of an extra unit failed")
+
     def _warn_limited(self, key: str, message: str) -> None:
         """One warning with its traceback per minute per cause: a loop that fails five times a
         second while the unit is away logged 378 tracebacks in nine minutes."""
@@ -2563,7 +2590,7 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
         extra.head_busy = head_busy
         unit_reactions = Reactions(
             face=lambda expression: extra.show_face(expression, while_listening=True),
-            say=lambda _text: False,  # the host speaks reactions only with one unit connected (turn.py speak_reaction)
+            say=lambda text: bridge.speak_reaction(text, device_id),  # this unit's own line: only its own turn, speech and mute decide
             quiet=lambda: night.night,
             busy=extra.reaction_blocked,
             head_moved_ago=extra.head_moved_ago,
@@ -2583,7 +2610,7 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
 
         orientation = OrientationReactions(
             face=lambda expression: extra.show_face(expression, while_listening=False),
-            say=lambda _text: False,  # spoken lines only with one unit connected (turn.py speak_reaction)
+            say=lambda text: bridge.speak_reaction(text, device_id),
             rotate=rotate,
             hold_motion=lambda _held: None,  # the unit's own limiter (ML01) already holds a unit that is not upright
             quiet=lambda: ("night mode is on" if night.night else "") or ("asleep" if extra._rest.stage != "awake" else ""),
@@ -2596,6 +2623,46 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
         )
         extra.orientation = orientation
         extra.orientation_tick = orientation.tick
+        keep_at = [float("-inf")]
+        no_tool = [False]
+
+        def keep_awake() -> None:
+            """The hub link is up for this unit: restart its idle timers once a minute (patch 074), as for the first unit."""
+            now = time.monotonic()
+            if no_tool[0] or now - keep_at[0] < KEEP_AWAKE_S:
+                return
+            keep_at[0] = now
+            try:
+                client._call("self.power.keep_awake", {})
+            except Exception as error:
+                if type(error).__name__ == "NotSupported":
+                    no_tool[0] = True
+
+        extra.keep_awake_tick = keep_awake
+
+        # This unit's own ring light: its own service, indicator and battery poll, so its listening cue shows on its own ring (never on another unit's).
+        from types import SimpleNamespace
+
+        from maipai_body.bodies.stackchan.light_wiring import start_stackchan_light
+
+        extra.unit_stop = threading.Event()
+        both_stop = threading.Event()
+
+        def _watch_stops() -> None:  # the unit's own stop or the host's: either ends this unit's light threads
+            while not (extra.unit_stop.is_set() or stop_event.is_set()):
+                extra.unit_stop.wait(0.5)
+            both_stop.set()
+
+        threading.Thread(target=_watch_stops, name="stackchan-unit-light-stop", daemon=True).start()
+        unit_light = start_stackchan_light(
+            SimpleNamespace(robot=extra.robot, client=client),
+            offline,
+            both_stop,
+            device_connected=lambda: device_id in voice._sessions,
+        )
+        extra._rest_renderer._set_ring_sleeping = unit_light.set_sleeping
+        extra.privacy_light = unit_light
+        extra.unit_light = unit_light
         extra.pose_held = lambda: orientation.pose != "upright" or _unit_not_upright(extra)
         return extra
 
@@ -2605,6 +2672,8 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
     behavior.other_unit_event_handlers.append(behavior.unit_behaviors.feed)
     voice.session_listeners.append(behavior.unit_behaviors.on_connect)
     behavior.unit_behaviors.start(stop_event)
+    # The green "your voice is being sent" cue belongs to the unit that is listening: an extra unit's turn lights its own ring, not the first unit's.
+    bridge.live_sink_for = lambda active, unit: (behavior.unit_behaviors.light_for(unit) or light).cue_live(active)
     _wire_orientation(voice, behavior, bridge, night, power)
     bridge.on_user_words = reactions.on_user_words
     bridge.language = units.base.home.language
@@ -3091,14 +3160,31 @@ def _turn_sink(behavior, light, faces=None, devices=None):
         "settle": FunnelState.IDLE,
     }
 
+    talking_unit: list[str | None] = [None]  # the unit of the turn in progress, for a "settle" that arrives outside its scope
+
     def sink(state: str, *, mood: str | None = None) -> None:
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT as _SCOPE_UNIT
+
+        scoped = _SCOPE_UNIT.get()
+        if scoped:
+            talking_unit[0] = scoped
+        unit_now = scoped or (talking_unit[0] if state == "settle" else None)
+        if state == "settle":
+            talking_unit[0] = None
         next_state = funnel.get(state)
         if next_state is not None:
             try:
-                light.update(funnel=next_state)
+                from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT as _LIGHT_UNIT
+
+                units_light = getattr(behavior, "unit_behaviors", None)
+                ((units_light.light_for(unit_now) if units_light is not None else None) or light).update(funnel=next_state)
             except Exception:  # a light never fails the turn
                 logger.warning("StackChan funnel light failed", exc_info=True)
-        behavior.render_turn_state(state, mood=mood)
+        from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT as _TURN_UNIT
+
+        units_of = getattr(behavior, "unit_behaviors", None)
+        owner = units_of.behavior_for(unit_now) if units_of is not None else None
+        (owner or behavior).render_turn_state(state, mood=mood)  # a turn on an extra unit is that unit's own state, not the first unit's
         if cue_worker is not None:
             from maipai_body.bodies.stackchan.xiaozhi.server import ACTIVE_UNIT
 
@@ -3471,6 +3557,33 @@ async def _serve_stackchan_channels(
             device_connected, StackChanTurnBridge,
         )
     await voice.start(host, xiaozhi_port, ssl=tls_context)
+    # The voice and avatar servers share this loop. A task beats once a second; a loop that stops beating shows on the health page as "not responding"
+    # (reported, not restarted: the servers cannot be swapped inside a running host, so the advice is to restart the host).
+    from maipai_body.supervisor import Worker as _Worker
+
+    main_loop = asyncio.get_running_loop()
+
+    async def _beat_servers() -> None:
+        while not stop_event.is_set():
+            supervisor.beat("voice server")
+            await asyncio.sleep(1.0)
+
+    beat_task = asyncio.create_task(_beat_servers(), name="voice-server-heartbeat")
+
+    class _LoopHandle:
+        @staticmethod
+        def is_alive() -> bool:
+            return main_loop.is_running() and not beat_task.done()
+
+    supervisor.add(
+        _Worker(
+            "voice server",
+            lambda: _LoopHandle(),
+            heartbeat_limit_s=15.0,
+            plain="the voice and avatar servers",
+            advice="Restart the host with `stackchan service stop` and `stackchan service start`. If it happens again, run `stackchan service logs`.",
+        )
+    )
     settings_server = _start_settings_page(voice, pairing, units, behavior, faces, link_security)
     try:
         await avatar.start(avatar_host, avatar_port, ssl=tls_context)
@@ -3492,6 +3605,7 @@ async def _serve_stackchan_channels(
             await asyncio.to_thread(behavior.start_presence, stop_event)
         await asyncio.to_thread(stop_event.wait)
     finally:
+        beat_task.cancel()
         supervisor.stop()  # stopping the host on purpose is not a failure: nothing is restarted from here on
         service_threads.SUPERVISOR = None
         _RUNTIME.clear()
@@ -3683,7 +3797,7 @@ def _wire_installed_sets(voice, backend, pairing, stop_event) -> None:
         language = load_config().home.language or "en"
     except Exception:
         language = "en"
-    transport = LegacyTransport(packs, lambda unit: unit in voice._sessions, lambda unit: packs.probe.has(unit, "assets") is True)
+    transport = LegacyTransport(packs, lambda unit: unit in voice._sessions, lambda unit: voice.device_supports("assets", unit))  # the unit says so in its hello; there is no read-only asset tool to probe
     sets = InstalledSets(packs.library, InstalledStore(_data_dir() / "installed-sets.json"), transport, language=lambda unit: language)
     backend.installed = sets
     backend.installed_units = lambda: [{"id": d, "name": "", "connected": d in voice._sessions} for d in sorted(set(pairing.paired_devices()) | set(voice._sessions))]

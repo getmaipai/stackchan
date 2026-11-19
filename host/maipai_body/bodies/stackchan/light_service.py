@@ -99,7 +99,10 @@ class StackChanLightService:
     def update(self, **changes: bool | str | None | FunnelState) -> None:
         """Replace the named facts and re-resolve; an unknown name raises
         ``TypeError``."""
-        self._facts = replace(self._facts, **changes)
+        new = replace(self._facts, **changes)
+        if new == self._facts:
+            return  # nothing changed: no write (a repeat of the same fact, such as a second idle, must not touch the ring or the unit's link)
+        self._facts = new
         self._apply()
 
     def refresh(self) -> None:
