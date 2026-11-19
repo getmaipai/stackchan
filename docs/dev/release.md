@@ -45,3 +45,7 @@ The gate passed end to end in 14 minutes 8 seconds on a clean checkout of `main`
 - The gate tests that copy `release.sh` into a stub tree now stub the new host environment step.
 
 A real release still needs the owner's signing key and a pinned key in `flasher/trusted-keys.json` (see above).
+
+## Pinning the release key and a date floor
+
+`flasher/trusted-keys.json` holds the release public keys the web flasher trusts and an optional `not_before` date (for example `"2026-11-19"`). A signed release list made before that date is refused, so an old release with a known hole stops being offered once the date is raised. An empty `not_before` means no floor. A real release is refused while `keys` is empty or lacks the key it is signed with.

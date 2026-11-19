@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { FlasherError, fetchAndVerify, parseManifest, sha256Hex, toFileArray } from "../flasher-core.js";
+import { FlasherError, assertNotOlder, fetchAndVerify, parseManifest, sha256Hex, toFileArray } from "../flasher-core.js";
 
 const bytes = (s) => new TextEncoder().encode(s);
 async function manifestFor(files) {
@@ -139,4 +139,13 @@ test("review fix: the test-release box is for localhost or ?test=1 only", () => 
   assert.equal(at("http://localhost:8000/flasher/"), true);
   assert.equal(at("http://127.0.0.1:8000/"), true);
   assert.equal(at("https://localhost.evil.example/"), false);
+});
+
+test("review fix: a signed release list older than the pinned date is refused", () => {
+  const base = { version: "1.0.0", builds: [] };
+  assert.doesNotThrow(() => assertNotOlder({ ...base, created_at: "2026-11-20T00:00:00Z" }, "2026-11-19"));
+  assert.doesNotThrow(() => assertNotOlder({ ...base, created_at: "2026-11-19T00:00:00Z" }, "2026-11-19"));
+  assert.throws(() => assertNotOlder({ ...base, created_at: "2026-11-01T00:00:00Z" }, "2026-11-19"), /older than the oldest release this page accepts/);
+  assert.throws(() => assertNotOlder(base, "2026-11-19"), /no date/);
+  assert.doesNotThrow(() => assertNotOlder(base, ""), "no pinned date means no floor");
 });
