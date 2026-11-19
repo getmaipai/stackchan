@@ -1,5 +1,8 @@
 // The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 #include "render_hooks.h"
+#include <cstdio>
+#include <cstdint>
+#include <string>
 #include <esp_timer.h>
 #include "maipai_look_core.h"
 using namespace stackchan::avatar;
@@ -8,8 +11,10 @@ void render_hook_init(DefaultAvatar*, lv_obj_t*) {}
 void render_hook_frame(DefaultAvatar*) {}
 Emotion render_hook_emotion(const std::string& n)
 {
-    static const char* names[] = {"neutral", "happy", "angry", "sad", "doubt", "sleepy", "surprised", "tired", "closing", "sleeping", "love", "content"};
-    for (int i = 0; i < 12; i++) if (n == names[i]) return static_cast<Emotion>(i);
+    static const char* names[] = {"neutral", "happy", "angry", "sad", "doubt", "sleepy", "surprised", "tired", "closing", "sleeping", "love", "content",
+                                  "joy", "excited", "shocked", "curious", "worried"};
+    const int count = ML_COUNT < 17 ? ML_COUNT : 17;   // patch UXF02 adds five names after the first twelve
+    for (int i = 0; i < count; i++) if (n == names[i]) return static_cast<Emotion>(i);
     return Emotion::Neutral;
 }
 bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream& in)
@@ -50,6 +55,20 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
     }
     if (c == "gaze") { int x, y; in >> x >> y; av->leftEye().setPosition(uitk::Vector2i(x, y)); av->rightEye().setPosition(uitk::Vector2i(x, y)); return true; }  // gaze X Y: eyes look (patch MD02)
     if (c == "sprite") { std::string n; in >> n; g_msp_off = (n == "off") ? 1 : 0; return true; }  // sprite on|off: pictures or shape lists (patch V23)
+#ifdef ML_STYLE_RECIPE
+    if (c == "recipe") {   // recipe FILE: a face recipe (patch UXF01, 44 to 256 bytes) fills the writable style row and the face draws it
+        std::string path; in >> path;
+        FILE* f = fopen(path.c_str(), "rb");
+        if (f == nullptr) { fprintf(stderr, "recipe: cannot open %s\n", path.c_str()); return true; }
+        uint8_t buf[ML_RECIPE_MAX_BYTES + 1];
+        const int len = (int)fread(buf, 1, sizeof(buf), f);
+        fclose(f);
+        const char* why = "";
+        if (ml_recipe_apply(buf, len, &why) != 0) { fprintf(stderr, "recipe: %s\n", why); return true; }
+        av->setLook(ML_STYLE_RECIPE);
+        return true;
+    }
+#endif
     if (c == "think") { std::string n; in >> n; av->setThinking(n == "on"); return true; }
     if (c == "tint") { std::string n; in >> n; av->setEmotionTint(n == "on"); return true; }
     if (c == "colour") { int r, g, b, br = 0, bg = 0, bb = 0; in >> r >> g >> b; if (in >> br >> bg >> bb) {} av->setColors(lv_color_make(r, g, b), lv_color_make(br, bg, bb)); return true; }

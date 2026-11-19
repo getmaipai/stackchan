@@ -1,0 +1,19 @@
+{
+ "name": "retro_pixel",
+ "title": "Pixel",
+ "about": "Square block eyes and a block mouth.",
+ "eye_d": 64,
+ "eye_x": 66,
+ "eye_y": -10,
+ "mouth_y": 56,
+ "mouth_w": 56,
+ "mouth_t": 12,
+ "ew": 64,
+ "eh": 64,
+ "mouth": "bar",
+ "r_pct": 0,
+ "pupil": 0,
+ "brows": 0,
+ "drift": 0,
+ "blw": 8
+}

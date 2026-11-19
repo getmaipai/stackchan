@@ -1,0 +1,21 @@
+{
+ "name": "heart_eyes",
+ "title": "Heart eyes",
+ "about": "A heart for each eye and soft cheeks.",
+ "eye_d": 80,
+ "eye_x": 66,
+ "eye_y": -8,
+ "mouth_y": 56,
+ "mouth_w": 44,
+ "mouth_t": 7,
+ "ew": 80,
+ "eh": 72,
+ "mouth": "cute",
+ "r_pct": 100,
+ "pupil": 0,
+ "brows": 0,
+ "drift": 0,
+ "blw": 5,
+ "look": "heart",
+ "extras": "blush"
+}

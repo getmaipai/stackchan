@@ -1,0 +1,19 @@
+{
+ "name": "round",
+ "title": "Round",
+ "about": "Round, wide-open eyes with a pupil.",
+ "eye_d": 80,
+ "eye_x": 66,
+ "eye_y": -12,
+ "mouth_y": 56,
+ "mouth_w": 40,
+ "mouth_t": 7,
+ "ew": 80,
+ "eh": 80,
+ "mouth": "cute",
+ "r_pct": 100,
+ "pupil": 1,
+ "brows": 0,
+ "drift": 6,
+ "blw": 6
+}
