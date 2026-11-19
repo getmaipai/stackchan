@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 174,
+ "count": 179,
  "tools": {
   "self.assets.abort": "SF90-asset-store-on-the-unit.patch",
   "self.assets.commit": "SF90-asset-store-on-the-unit.patch",
@@ -141,6 +141,11 @@
   "self.privacy.get": "106-privacy-core.patch",
   "self.privacy.set": "106-privacy-core.patch",
   "self.privacy.set_policy": "106-privacy-core.patch",
+  "self.qa.end": "SF88-question-games-on-the-unit.patch",
+  "self.qa.question": "SF88-question-games-on-the-unit.patch",
+  "self.qa.start": "SF88-question-games-on-the-unit.patch",
+  "self.qa.stop": "SF88-question-games-on-the-unit.patch",
+  "self.qa.verdict": "SF88-question-games-on-the-unit.patch",
   "self.reaction.get_table": "U02-word-reactions.patch",
   "self.reaction.reset": "U02-word-reactions.patch",
   "self.reaction.set_table": "U02-word-reactions.patch",
@@ -609,6 +614,31 @@
   },
   "self.privacy.set_policy": {
    "local_unmute": "boolean"
+  },
+  "self.qa.end": {
+   "result": "string",
+   "score_text": "string",
+   "score": "integer"
+  },
+  "self.qa.question": {
+   "id": "integer",
+   "text": "string",
+   "choices": "string",
+   "hint": "string",
+   "guess": "boolean"
+  },
+  "self.qa.start": {
+   "game": "string",
+   "lang": "string",
+   "rounds": "integer"
+  },
+  "self.qa.stop": {},
+  "self.qa.verdict": {
+   "id": "integer",
+   "correct": "boolean",
+   "right": "integer",
+   "text": "string",
+   "score": "integer"
   },
   "self.reaction.get_table": {},
   "self.reaction.reset": {},
