@@ -532,7 +532,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
-| **Safety, speed and update fixes series** | 109 patch(es): Safety fix, train 1.; Safety fix, train 2.; The listening guard follows voice.... | proven virtual | 58 | not declared | `SF01-time-helper-lock-and-remote-safety.patch`<br>`SF02-hello-gate-switches-banner-and-light-safety.patch`<br>`SF03-listening-guard-follows-voice.patch` | `bench-window10.md`, `bench-window11.md` | doc missing |
+| **Safety, speed and update fixes series** | 110 patch(es): Safety fix, train 1.; Safety fix, train 2.; The listening guard follows voice.... | proven virtual | 59 | not declared | `SF01-time-helper-lock-and-remote-safety.patch`<br>`SF02-hello-gate-switches-banner-and-light-safety.patch`<br>`SF03-listening-guard-follows-voice.patch` | `bench-window10.md`, `bench-window11.md` | doc missing |
 | **Base firmware changes (numbered patches: the rebuilt base)** | 52 patch(es): Skip remote activation and OTA checks and open the provisioned websoc...; Stop the registry and MQTT service and remove its URL from the device...; Add optional certificate and pairing configuration fields.... | built | 47 | not declared | `002-nvs-websocket-no-ota.patch`<br>`005-disable-registry-mqtt.patch`<br>`008-additional-ca-bundle.patch` | average of 52 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
 | **Screen and word polish** | 48 patch(es): Set the minimal and classic resting mouth widths so every emotion dra...; Give app screens one named palette for all fixed colors.; Draw the calm sealed mouth line for the eyes-only style.... | proven virtual | 61 | not declared | `UX01-style-mouth-widths.patch`<br>`UX02a-screen-palette.patch`<br>`UX03a-eyes-only-mute-mark.patch` | `bench-b15.md` | doc missing |
 | **Hands-on test fixes: bigger targets, sheets and settings** | 17 patch(es): Owner's hands-on test, part 1.; Owner's hands-on test, part 2.; Owner's hands-on test, part 3: the Color Memory beep was not timed wi...... | proven virtual | 70 | not declared | `UI01-bigger-targets-longer-sheet-no-find-clock-games.patch`<br>`UI02-quick-settings-and-more-screens-dismissable.patch`<br>`UI03-color-memory-tone-and-light-together.patch` | average of 17 patch(es): built 40, a test names it 70, a bench note names it 100 | doc missing |
@@ -1110,7 +1110,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 17 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 18 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -1149,6 +1149,7 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 33 | **Score-only games never say "You won!"** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 | 34 | **The Brain choice offers two equal routes** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 | 35 | **Pantry open questions answered (coordinator defaults, 2026-11-18)** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 36 | **The look 0 worst-frame gate is 22,000 microseconds (firmware track, measured 2026-11-19, not an owner decision)** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 
 ## Scrapped (10)
 

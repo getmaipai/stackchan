@@ -56,7 +56,7 @@ int main(void)
     test_the_orientation_hold_has_a_cap();
     mml_t m;
     mml_init(&m);
-    run(&m, 0, 0, 90, 500);
+    run(&m, 0, 0, 90, 2500); /* patch SF116: the first cable reading (out) is believed after the same 2 s as later ones */
     CHECK(mml_state(&m) == MML_FREE && mml_scale(&m) == 100 && mml_speed_cap(&m) == 1000 && mml_dance_max(&m) == 4);
     CHECK(mml_angle(&m, 300, 0) == 300);
 
@@ -175,8 +175,8 @@ int main(void)
         mml_init(&k);
         CHECK(mml_orient(&k, 0) == MML_O_UNKNOWN && mml_scale(&k) == 50 && mml_dance_max(&k) == 3); /* no data yet: limited */
         STALE = 0; vec(0, 0);
-        run(&k, 0, 0, 90, 100);
-        CHECK(k.orient == MML_O_UPRIGHT && mml_state(&k) == MML_FREE && mml_scale(&k) == 100); /* the first reading is believed at once */
+        run(&k, 0, 0, 90, 2100); /* the orientation reading is believed at once; the first cable reading after 2 s (patch SF116) */
+        CHECK(k.orient == MML_O_UPRIGHT && mml_state(&k) == MML_FREE && mml_scale(&k) == 100);
         vec(10, 0); run(&k, 0, 0, 90, 2000);
         CHECK(k.orient == MML_O_UPRIGHT); /* 10 degrees: upright */
         vec(20, 0); run(&k, 0, 0, 90, 300);
@@ -279,9 +279,11 @@ int main(void)
         b.force_orient = MML_O_UPRIGHT; /* the orientation rule is its own test */
         for (uint32_t t = 0; t < 3000; t += 20) mml_step(&b, t, 0, -1, -1);
         CHECK(mml_state(&b) == MML_USB && mml_scale(&b) == 50 && mml_speed_pct(&b) == 60);
-        mml_step(&b, 3020, 0, 0, -1); /* the first reading: no cable, believed at once */
+        mml_step(&b, 3020, 0, 0, -1); /* the first reading: no cable, believed after 2 s (patch SF116) */
+        CHECK(mml_state(&b) == MML_USB);
+        mml_step(&b, 5020, 0, 0, -1);
         CHECK(mml_state(&b) == MML_FREE && mml_scale(&b) == 100);
-        mml_step(&b, 3040, 0, 1, -1); /* a cable goes in: limited at once, no 2 s wait */
+        mml_step(&b, 5040, 0, 1, -1); /* a cable goes in: limited at once, no 2 s wait */
         CHECK(mml_state(&b) == MML_USB);
         mml_step(&b, 3060, 0, 0, -1); /* out again: held for 2 s */
         CHECK(mml_state(&b) == MML_USB);
@@ -302,6 +304,24 @@ int main(void)
         for (uint32_t t = 1020; t < 2000; t += 20) mml_orient_hold(&h, t); /* tilted readings would have come here */
         CHECK(mml_orient(&h, 2000) == MML_O_UPRIGHT && h.orient_raw == MML_O_UPRIGHT);
         CHECK(!strcmp(mml_state_name_of(MML_USB), "usb_limited") && !strcmp(mml_state_name_of(MML_FREE), "free"));
+    }
+    { /* patch SF116 (review fix): a cable reading that stops arriving fails closed; the first "out" reading needs the same debounce */
+        mml_t c;
+        mml_init(&c);
+        c.force_orient = MML_O_UPRIGHT;
+        mml_step(&c, 100, 0, 0, -1);
+        CHECK(c.usb && mml_state(&c) == MML_USB);
+        mml_step(&c, 2099, 0, 0, 100);
+        CHECK(c.usb);
+        mml_step(&c, 2100, 0, 0, 100);
+        CHECK(!c.usb);
+        mml_step(&c, 2200, 0, -1, 100);
+        mml_step(&c, 5099, 0, -1, 100);
+        CHECK(!c.usb);
+        mml_step(&c, 5100, 0, -1, 100);
+        CHECK(c.usb && !c.usb_known && mml_state(&c) == MML_USB);
+        mml_step(&c, 5120, 0, 1, 100);
+        CHECK(c.usb && c.usb_known);
     }
     STALE = 0; vec(0, 0);
     if (failures) { printf("%d failure(s)\n", failures); return 1; }
