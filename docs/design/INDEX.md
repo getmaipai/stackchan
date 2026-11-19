@@ -267,7 +267,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/mumble/samples.json` (673): no header
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (50): How MaiPai for StackChan fits together
-- `docs/dev/pantry-seed.md` (9): Pantry seed library
+- `docs/dev/pantry-seed.md` (11): Pantry seed library
 - `docs/dev/pre-publish-checklist.md` (34): Before the repository goes public
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
@@ -548,7 +548,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/home-tools.md` (36): Connect the robot to your own tools
 - `docs/user/index.md` (62): MaiPai for StackChan: user guide
 - `docs/user/install-the-host.md` (49): Install, update and remove the host
-- `docs/user/jokes-and-games-content.md` (35): Jokes and games content (optional package)
+- `docs/user/jokes-and-games-content.md` (39): Jokes and games content (optional package)
 - `docs/user/languages.md` (26): Switch the language
 - `docs/user/lights-and-sounds.md` (62): Lights and sounds
 - `docs/user/local-stack.md` (30): Install the small stack
@@ -1663,42 +1663,54 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/memory_notes/__init__.py` (12): Local memory for several adults as plain per-person notes files.
 - `host/maipai_packages/memory_notes/admission.py` (93): What may be stored, and who may read it (shaped like the shared memory admission concept).
 - `host/maipai_packages/memory_notes/store.py` (367): One plain text file per person; one note per line: ``- 2026-11-18 [ab12cd] the note``."""
-- `host/maipai_packages/pantry/__init__.py` (55): Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the
+- `host/maipai_packages/pantry/__init__.py` (58): Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the
 - `host/maipai_packages/pantry/dedupe.py` (64): Dedupe (docs/design/content-pantry.md, section 6): the same line twice, or the same idea in other words, is ke
 - `host/maipai_packages/pantry/filter.py` (100): Filter (docs/design/content-pantry.md, section 6): what the host is willing to store and tell later. Cheapest 
 - `host/maipai_packages/pantry/generator.py` (96): Generate (docs/design/content-pantry.md, section 6): ask the owner's model for batches of 20 records as JSON, 
 - `host/maipai_packages/pantry/library.py` (157): The master library (docs/design/content-pantry.md, section 6): plain files in the host's data folder, one JSON
 - `host/maipai_packages/pantry/model.py` (27): The owner's own model as a plain function ``ask(prompt) -> text`` for the pantry (an OpenAI-style chat address
+- `host/maipai_packages/pantry/objects/core.json` (531): no header
+- `host/maipai_packages/pantry/objects/de.json` (107): no header
+- `host/maipai_packages/pantry/objects/es.json` (107): no header
+- `host/maipai_packages/pantry/objects/fr.json` (107): no header
+- `host/maipai_packages/pantry/objects/it.json` (107): no header
+- `host/maipai_packages/pantry/objects/pt.json` (107): no header
 - `host/maipai_packages/pantry/record.py` (103): The pantry record (docs/design/content-pantry.md, section 2): one thing the robot can say, with the rules that
 - `host/maipai_packages/pantry/seed/de-joke.json` (42): no header
 - `host/maipai_packages/pantry/seed/de-line.json` (122): no header
+- `host/maipai_packages/pantry/seed/de-object.json` (108): no header
 - `host/maipai_packages/pantry/seed/de-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/de-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed/en-joke.json` (102): no header
 - `host/maipai_packages/pantry/seed/en-line.json` (122): no header
+- `host/maipai_packages/pantry/seed/en-object.json` (108): no header
 - `host/maipai_packages/pantry/seed/en-riddle.json` (102): no header
 - `host/maipai_packages/pantry/seed/en-trivia.json` (102): no header
 - `host/maipai_packages/pantry/seed/es-joke.json` (42): no header
 - `host/maipai_packages/pantry/seed/es-line.json` (122): no header
+- `host/maipai_packages/pantry/seed/es-object.json` (108): no header
 - `host/maipai_packages/pantry/seed/es-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/es-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed/fr-joke.json` (42): no header
 - `host/maipai_packages/pantry/seed/fr-line.json` (122): no header
+- `host/maipai_packages/pantry/seed/fr-object.json` (108): no header
 - `host/maipai_packages/pantry/seed/fr-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/fr-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed/it-joke.json` (42): no header
 - `host/maipai_packages/pantry/seed/it-line.json` (122): no header
+- `host/maipai_packages/pantry/seed/it-object.json` (108): no header
 - `host/maipai_packages/pantry/seed/it-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/it-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed/pt-joke.json` (42): no header
 - `host/maipai_packages/pantry/seed/pt-line.json` (122): no header
+- `host/maipai_packages/pantry/seed/pt-object.json` (108): no header
 - `host/maipai_packages/pantry/seed/pt-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/pt-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed_loader.py` (68): ruff: noqa: E501
 - `host/maipai_packages/pantry/shelf.py` (84): The shelf: the bytes of one `pantry` asset item (docs/design/content-pantry.md, section 3): one kind in one la
 - `host/maipai_packages/pantry/sync.py` (122): Sync (docs/design/content-pantry.md, section 5): when to refill a unit's shelves, how a shelf is built, and ho
 - `host/maipai_packages/pantry/talk_fallback.py` (149): ruff: noqa: E501
-- `host/maipai_packages/pantry/twenty_fallback.py` (145): ruff: noqa: E501
+- `host/maipai_packages/pantry/twenty_fallback.py` (146): ruff: noqa: E501
 - `host/maipai_packages/pantry/unit_link.py` (68): The unit link over the firmware's pantry tools (firmware patches on fw/unproven2: `self.pantry.status`, `.hear
 - `host/maipai_packages/wake_word_maker/__init__.py` (10): Make your own wake word on this computer: record clips on the settings page, train a small model, check it, in
 - `host/maipai_packages/wake_word_maker/engine/__init__.py` (1): The small local wake-word trainer (features, dataset, training, checking). Copied from scripts/wakeword with o
@@ -2398,8 +2410,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
 - `host/tests/test_e2e_extra.py` (110): ruff: noqa: E501
-- `host/tests/test_e2e_fleet.py` (35): ruff: noqa: E501
-- `host/tests/test_e2e_virtual_unit.py` (31): ruff: noqa: E501
+- `host/tests/test_e2e_fleet.py` (37): ruff: noqa: E501
+- `host/tests/test_e2e_virtual_unit.py` (33): ruff: noqa: E501
 - `host/tests/test_efuse_check.py` (33): Owner decision 14 (2026-11-18): nothing burns an eFuse. scripts/efuse-check.py must pass on the repository and
 - `host/tests/test_entry_point.py` (28): The reachy_mini_apps entry point resolves to a real ReachyMiniApp.
 - `host/tests/test_envelope.py` (82): The envelope: what a goto or set_target is allowed to reach the daemon with."""
@@ -2567,10 +2579,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_packs.py` (308): ruff: noqa: E501
 - `host/tests/test_packs_languages_phrases.py` (689): ruff: noqa: E501, F811
 - `host/tests/test_pair_code_persistence.py` (69): A pair code made by `stackchan pair` survives the CLI process."""
-- `host/tests/test_pantry.py` (340): The content pantry (docs/design/content-pantry.md): record, shelf round trip, filter, dedupe, generator, libra
-- `host/tests/test_pantry_seed.py` (81): The built-in pantry seed library (docs/dev/pantry-seed.md): every file parses, every record passes the shape r
+- `host/tests/test_pantry.py` (352): The content pantry (docs/design/content-pantry.md): record, shelf round trip, filter, dedupe, generator, libra
+- `host/tests/test_pantry_objects.py` (63): The object table for twenty questions (docs/design/twenty-questions-library.md): shape, uniqueness and the nam
+- `host/tests/test_pantry_seed.py` (93): The built-in pantry seed library (docs/dev/pantry-seed.md): every file parses, every record passes the shape r
 - `host/tests/test_pantry_talk.py` (89): Riddles and trivia from the pantry library with no model (talk_fallback.py)."""
-- `host/tests/test_pantry_twenty.py` (85): Twenty questions from the library with no model (docs/design/twenty-questions-library.md)."""
+- `host/tests/test_pantry_twenty.py` (96): Twenty questions from the library with no model (docs/design/twenty-questions-library.md)."""
 - `host/tests/test_phase4_config.py` (50): no header
 - `host/tests/test_phase4_pairing_cli.py` (47): no header
 - `host/tests/test_phone_pairing_path.py` (84): No-terminal pairing and the phone path, end to end through the real settings server.
@@ -3005,10 +3018,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/dance/sfx_render.c` (30): Renders the unit's own game clips (maipai_games_sfx_core.h, the tone-segment table and mgs_render) to WAV file
 - `scripts/virtual-unit/dance_core.py` (97): Builds and loads the real dance ladder core for the virtual unit (firmware patch MD01): the header is cut out 
 - `scripts/virtual-unit/dance_sim.py` (605): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
-- `scripts/virtual-unit/e2e.py` (706): End to end on the virtual unit, with no hardware and no real models.
+- `scripts/virtual-unit/e2e.py` (718): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
 - `scripts/virtual-unit/e2e_fleet.py` (779): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
-- `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
+- `scripts/virtual-unit/e2e_hostile.py` (341): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/ed25519_pure.py` (103): Ed25519 (RFC 8032) in plain Python, for the places the `cryptography` package is not there (the browser build 
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
@@ -3096,7 +3109,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/view.html` (331): app{display:flex;height:100%}
 - `scripts/virtual-unit/view.py` (498): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
 - `scripts/virtual-unit/view3d.js` (535): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
-- `scripts/virtual-unit/vunit.py` (361): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
+- `scripts/virtual-unit/vunit.py` (373): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/virtual-unit/wasm/build.sh` (96): build the virtual robot's browser pieces with Emscripten: the face (Spike A: the unit's real LVGL face code) a
 - `scripts/virtual-unit/wasm/bundle.py` (63): pack the virtual unit's Python, unchanged, with the data files it reads and the adapter layer into one zip the
 - `scripts/virtual-unit/wasm/check.js` (34): Headless check: serves this folder, opens index.html in Chromium (Playwright), taps the face, runs the cores, 
