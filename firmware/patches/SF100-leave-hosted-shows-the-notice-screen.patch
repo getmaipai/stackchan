@@ -1,0 +1,78 @@
+# Intent: Leaving the hosted brain shows the playground's notice screen (UX20: "Hosted link removed", what was removed, where the voice goes now, one OK button, in the six languages) instead of a silent alert line. It appears on the top layer when self.brain.set_route custom has erased the cl_ settings; OK restarts the unit at once (ending every vendor timer, task and RAM copy), and with no tap the unit restarts after a minute. The language is the unit's screen language. Silent.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_hosted.cc (ours; builds the notice of UX20)
+# Check after a flash: self.brain.set_route custom shows the notice screen; OK restarts the unit; no tap restarts it after a minute; self.brain.status then reads route custom, cl_keys 0, vendor_attempts 0. The line about removing the robot in the vendor's own console is not on the UX20 screen yet: the playground adds it.
+# Kconfig: none
+# Memory cost: the notice is about 10 LVGL objects (an estimated 1.5 KB internal) while it shows, deleted by the restart; nothing otherwise.
+
+diff --git a/firmware/main/hal/maipai_hosted.cc b/firmware/main/hal/maipai_hosted.cc
+--- a/firmware/main/hal/maipai_hosted.cc
++++ b/firmware/main/hal/maipai_hosted.cc
+@@ -7,6 +7,8 @@
+ #include "maipai_hosted_core.h"
+ #include "device_events.h"
+ #include "hal.h"
++#include "maipai_brain_notice.h"
++#include "maipai_face.h"
+ #include "maipai_cloudtest.h"
+ #include <application.h>
+ #include <esp_log.h>
+@@ -82,9 +84,35 @@ int hosted_keys()
+     return n;
+ }
+ 
+-bool want_spanish()
++lv_obj_t* s_notice = nullptr;
++esp_timer_handle_t s_restart_timer = nullptr;
++
++int language_index()
++{
++#if CONFIG_MAIPAI_FACE_CONFIG
++    return maipai_face_config().lang;   // MF_LANG_* order is the notice's order
++#else
++    return 0;
++#endif
++}
++
++void restart_now(void*) { esp_restart(); }
++
++void arm_restart(int64_t us)
++{
++    if (s_restart_timer == nullptr) {
++        esp_timer_create_args_t a = {};
++        a.callback = restart_now;
++        a.name = "brain_restart";
++        if (esp_timer_create(&a, &s_restart_timer) != ESP_OK) return;
++    }
++    esp_timer_stop(s_restart_timer);
++    esp_timer_start_once(s_restart_timer, us);
++}
++
++void on_ok(lv_event_t*)
+ {
+-    return false;   // the plain line is shown in English; the Spanish twin is in the core for the screens that know the language
++    arm_restart(300 * 1000);   // OK: restart at once, ending every vendor timer, task and RAM copy
+ }
+ 
+ }  // namespace
+@@ -105,16 +133,12 @@ void maipai_hosted_leave()
+         st.SetString("route", "custom");
+     }
+     ESP_LOGW(TAG, "hosted link left: %d namespaces erased%s", r < 0 ? 0 : r, r < 0 ? " (some failed; a second call finishes)" : "");
+-    Application::GetInstance().Schedule([]() {
+-        Application::GetInstance().Alert("Brain", mhs_removed_text(want_spanish() ? 1 : 0), "neutral", "");   // silent
++    Application::GetInstance().Schedule([]() {   // the notice (UX20): what was removed, where the voice goes now, one OK; silent
++        LvglLockGuard lock;
++        if (s_notice == nullptr) s_notice = mbn::build(lv_layer_top(), language_index(), on_ok, nullptr);
+     });
+     device_events_push("brain_route", "\"route\":\"custom\",\"hosted_removed\":true");
+-    // A restart ends every vendor timer, task and RAM copy at once; the line stays readable first.
+-    static esp_timer_handle_t t = nullptr;
+-    esp_timer_create_args_t a = {};
+-    a.callback = [](void*) { esp_restart(); };
+-    a.name = "brain_restart";
+-    if (esp_timer_create(&a, &t) == ESP_OK) esp_timer_start_once(t, 4ll * 1000 * 1000);
++    arm_restart(60ll * 1000 * 1000);   // a restart ends every vendor timer, task and RAM copy at once; the notice waits for OK, at most a minute
+ }
+ 
+ void maipai_brain_register_tools()

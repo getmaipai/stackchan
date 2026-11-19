@@ -82,9 +82,9 @@ The Brain route is a normal setting: **custom** (the unit's own host, Home or lo
 2. Erases every NVS namespace whose name starts with `cl_` (the vendor link's address and token, activation state, MQTT settings, any cached offer) and nothing else. A failed erase is reported and a second call finishes it.
 3. Leaves the host pairing, the privacy bits and the chip's key blocks untouched. Nothing is burned and no key is read out.
 4. Saves route custom (so a cloudtest image does not activate again at the next start).
-5. Shows one plain line on the screen, silently: "Hosted link removed. To stop your account keeping this robot, remove it in the vendor's console."
+5. Shows the notice screen of UX20 ("Hosted link removed", what was removed, where the voice goes now, one OK; six languages), silently. The plain line the owner asked for, "To stop your account keeping this robot, remove it in the vendor's console", is not on that screen yet: the screen track adds it (the English line is also in `maipai_hosted_core.h`).
 6. Pushes the event `brain_route {route: "custom", hosted_removed: true}` so the dashboard shows the route.
-7. Restarts four seconds later, so no vendor timer, task or RAM copy survives.
+7. Restarts when OK is tapped (or after a minute), so no vendor timer, task or RAM copy survives.
 
 A factory reset also erases `cl_` (it is not on the keep list; a test pins this).
 
