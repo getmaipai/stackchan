@@ -103,3 +103,7 @@ Estimate for everything in the table that is in scope for a first public page (p
 - **Toolchain pins.** Emscripten 3.1.74, LVGL 9.5.0 (commit `85aa60d1`), the font package (commit `d45dbc64`, from its GitHub repository), zlib 1.3.1, Pyodide 0.27.7 (SHA-256 `9bc8f127...41be8`, checked by the build). The IDF component registry is not reachable from the cloud container, so the build depends on GitHub for LVGL, the fonts and zlib.
 - **Pyodide 0.27.7 is Python 3.12; the native playground runs 3.13.** No difference showed in 287 cases. Move Pyodide when a 3.13 release is pinned.
 - **Time passes only while a command runs in this container.** Long checks here must run in the foreground (`parity.js` takes about 3 minutes); a background copy appeared to hang for that reason. Not a property of the build.
+
+## Parity rerun on main's series (2026-11-18)
+
+Built from the newest replayed tree (b66 plus the overlay patches this branch adds). 318 cases: 312 give the same result as the native run, all 159 tool calls, the dance, quiet-hours and memory cases included. Six frames differ from native: `dance-session-4-full`, `host-away-notice-fr`, `-de`, `-pt` (the browser build draws with the font package cloned from the font repository, the native one with the tree's own fonts), and `mumble-mouth-sync`, `host-away-two-messages` (filmstrips composed with `snapnow`; cause not found yet). Next: pin the font package to the tree's fonts, then look at the two filmstrips.

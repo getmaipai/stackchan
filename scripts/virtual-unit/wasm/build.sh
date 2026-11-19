@@ -64,7 +64,7 @@ build_face() {
   local CXXF=(-std=gnu++20 -O2 -w -I"$WORK/inc" -I"$R" -I"$R/stub" -I"$L" -I"$L/src" -DESP_PLATFORM=1 -DMAIPAI_HOST_RENDER=1 -DMD_HOST_SWITCH=1 -DLV_CONF_SKIP=1 -I"$U" -I"$U/lvgl" -I"$U/.." -I"$FW/main" -I"$H")
   mkdir -p "$WORK/obj/face"
   local OBJS=()
-  for f in "$HERE/face_api.cc" "$R/hooks_new.cc" "$S/eyes.cpp" "$S/mouth.cpp" "$S/default.cpp" "$S/speech_bubble.cpp" "$H/maipai_facefx.cc"; do
+  for f in "$HERE/face_api.cc" "$R/hooks_new.cc" "$S/eyes.cpp" "$S/mouth.cpp" "$S/default.cpp" "$S/speech_bubble.cpp" "$H/maipai_facefx.cc" "$R/mumble_stub.cc"; do
     o="$WORK/obj/face/$(basename "$f").o"; emcc "${CXXF[@]}" -c "$f" -o "$o"; OBJS+=("$o")
   done
   o="$WORK/obj/face/arrow.o"; emcc "${CF[@]}" -c "$S/assets/default_bubble_arrow.c" -o "$o"; OBJS+=("$o")

@@ -74,7 +74,7 @@ build_screens() {
   mkdir -p "$WORK/more"
   # the whole HAL header is not needed by the More screen: the native build does the same cut (build-screens.sh)
   sed 's|#include "hal.h"|// hal.h left out in the host build|' "$H/maipai_more.cc" > "$WORK/more/maipai_more.cc"
-  local EXTRA="$WORK/more/maipai_more.cc $R/more_host.cc $R/hooks_banner.cc $H/maipai_banner.cc $H/maipai_subtitles.cc $H/maipai_pages.cc $H/maipai_apps.cc $H/maipai_firstrun.cc $S/eyes.cpp $S/mouth.cpp $S/default.cpp $S/speech_bubble.cpp $H/maipai_facefx.cc"
+  local EXTRA="$WORK/more/maipai_more.cc $R/more_host.cc $R/hooks_banner.cc $H/maipai_banner.cc $H/maipai_subtitles.cc $H/maipai_pages.cc $H/maipai_apps.cc $H/maipai_firstrun.cc $S/eyes.cpp $S/mouth.cpp $S/default.cpp $S/speech_bubble.cpp $H/maipai_facefx.cc $R/mumble_stub.cc"
   build_program screens "$R/render.cc" "$EXTRA" "$FONTS/font_noto_sans_basic_20_4.c $FONTS/font_noto_sans_basic_16_4.c $S/assets/default_bubble_arrow.c" "-DBUILTIN_TEXT_FONT=font_noto_sans_basic_20_4 -DMAIPAI_PAGES_RENDER=1" ""
   # the passcode lock screen and keypad, and the link covers: separate native programs, separate small modules the page loads on demand
   build_program lock "$R/lock_render.cc" "" "" "" ""
