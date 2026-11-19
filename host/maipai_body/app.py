@@ -2994,7 +2994,6 @@ def _wire_timers_and_announcements(
             try:
                 state.observe(kind, extra)
                 tester.on_event(kind, extra)
-                _brain_route_event(kind, extra)
             except Exception:
                 logger.warning("a self-heal event of one unit failed", exc_info=True)
 

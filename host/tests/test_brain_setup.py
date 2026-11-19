@@ -317,6 +317,7 @@ def test_unit_event_keeps_the_saved_route_and_leaving_hosted_asks_the_units(tmp_
 
     cfg = tmp_path / "robot.toml"
     cfg.write_text('brain = "llm"\n', encoding="utf-8")
+    monkeypatch.setattr(brain_route, "HOSTED_PROVEN", True)
     assert brain_route.on_event(cfg, "brain_route", {"route": "hosted"}) is True and brain_route.read(cfg) == "hosted"
     assert brain_route.on_event(cfg, "brain_route", {"route": "hosted"}) is False
     assert brain_route.on_event(cfg, "other", {"route": "custom"}) is False
@@ -327,3 +328,62 @@ def test_unit_event_keeps_the_saved_route_and_leaving_hosted_asks_the_units(tmp_
     assert sent == [("a", {"route": "custom"})] and brain_route.read(cfg) == "custom"
     setup.apply("home", {"url": "http://192.0.2.10:8000"})
     assert len(sent) == 1  # not repeated once the route is custom
+
+
+def test_a_unit_event_cannot_save_hosted_while_it_is_unproven(tmp_path, monkeypatch):
+    from maipai_body import brain_route
+
+    cfg = tmp_path / "robot.toml"
+    cfg.write_text('brain = "llm"\nbrain_route = "custom"\n', encoding="utf-8")
+    monkeypatch.setattr(brain_route, "HOSTED_PROVEN", False)
+    assert brain_route.on_event(cfg, "brain_route", {"route": "hosted"}) is False
+    assert brain_route.on_event(cfg, "brain_route", {"route": "hosted"}) is False
+    assert 'brain_route = "custom"' in cfg.read_text() and brain_route.read(cfg) == "custom"
+
+
+def test_other_units_do_not_file_the_brain_route():
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "maipai_body" / "app.py").read_text(encoding="utf-8")
+    body = text.split("def heal_other_units", 1)[1].split("behavior.other_unit_event_handlers.append(heal_other_units)", 1)[0]
+    assert not re.search(r"_brain_route_event\(", body)
+
+
+def test_a_bad_address_does_not_restart_the_robots_or_change_the_route(tmp_path, monkeypatch):
+    from maipai_body import brain_route
+    from maipai_body.brain_setup.controller import BrainSetup
+
+    cfg = tmp_path / "robot.toml"
+    cfg.write_text('brain = "llm"\nbrain_route = "hosted"\n', encoding="utf-8")
+    setup = BrainSetup(cfg, tmp_path / "stack")
+    called = []
+    setup.on_leave_hosted = lambda: called.append(1)
+    out = setup.apply("home", {"url": "not a url"})
+    assert out["ok"] is False and called == [] and brain_route.read(cfg) == "hosted"
+    out = setup.apply("home", {"url": "http://192.0.2.10:8000"})
+    assert out["ok"] is True and called == [1] and brain_route.read(cfg) == "custom"
+
+
+def test_set_values_writes_through_a_temp_file_keeps_the_mode_and_loses_no_update(tmp_path, monkeypatch):
+    import os
+    import threading
+
+    cfg = tmp_path / "robot.toml"
+    cfg.write_text('brain = "llm"\n', encoding="utf-8")
+    os.chmod(cfg, 0o640)
+    replaced = []
+    real = os.replace
+    monkeypatch.setattr(os, "replace", lambda a, b: (replaced.append((str(a), str(b))), real(a, b))[1])
+    modes.set_values(cfg, "", {"x0": 1})
+    assert replaced and replaced[0][1] == str(cfg) and replaced[0][0] != str(cfg)
+    assert (cfg.stat().st_mode & 0o777) == 0o640 and not [p for p in tmp_path.iterdir() if p.name != "robot.toml"]
+    threads = [threading.Thread(target=modes.set_values, args=(cfg, "", {f"k{i}": i})) for i in range(1, 25)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    import tomllib
+
+    data = tomllib.loads(cfg.read_text())
+    assert all(data[f"k{i}"] == i for i in range(1, 25)) and data["brain"] == "llm"
