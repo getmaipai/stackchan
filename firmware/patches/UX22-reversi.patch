@@ -1,0 +1,304 @@
+# Intent: Reversi (spec docs/design/reversi.md, rank 3 of docs/plan/more-games.md): 8 by 8, the person plays black and moves first, the unit plays white with a two-ply search over a positional table (at most a few hundred nodes a move, bounded by a host test); passes are automatic; the game ends when neither side can move and shows You won, You lost or Draw with the disc count. Two new header-only files: the pure core and the screen (the board is ONE object with one draw callback, cells of 25 px). Registering the game, the touches (rv_hit), the unit's move after a short pause, the sounds, the best score and the game-over call are the firmware track's.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_reversi_core.h, maipai_reversi.h (new, ours)
+# Check after a flash: Games, Reversi: the board with four discs and amber dots on the four legal cells; a tap on a dotted cell flips discs and the unit answers within a moment; a side with no move passes with a line saying so; the end shows the shared game-over screen with the disc count.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_reversi_core.h b/firmware/main/hal/maipai_reversi_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_reversi_core.h
+@@ -0,0 +1,204 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Reversi (patch UX22; spec docs/design/reversi.md): 8 by 8, the person plays black and moves first, the unit plays white. A move must flip at least one line of the other side's discs; a side
++ * with no move passes; the game ends when neither side can move or the board is full, and the side with more discs wins. A game with a real winner: it ends on You won, You lost or Draw with
++ * the disc count. The unit's move is a two-ply search over a positional table (corners high, the cells next to a free corner low) plus mobility, so one move costs at most a few hundred
++ * nodes (`rv_nodes` counts them; a host test bounds it). Pure C99, no ESP and no LVGL call, no heap.
++ */
++#ifndef MAIPAI_REVERSI_CORE_H
++#define MAIPAI_REVERSI_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define RV_N 8
++#define RV_CELLS 64
++enum { RV_EMPTY = 0, RV_PERSON = 1, RV_UNIT = 2 };
++enum { RV_PLAY = 0, RV_END };
++enum { RV_WON = 1, RV_LOST, RV_DRAW };
++
++typedef struct {
++    uint8_t b[RV_CELLS];
++    uint8_t turn;            /* whose move: RV_PERSON or RV_UNIT */
++    uint8_t phase;
++    int8_t last;             /* the cell of the last move (either side), -1 before the first */
++    uint8_t passes;          /* passes so far, for the message */
++    uint8_t last_pass;       /* 1 when the move before this one was a pass by the side that had none */
++    uint32_t nodes;          /* nodes searched by the last unit move (a bound the test checks) */
++} rv_t;
++
++static inline void rv_init(rv_t* g)
++{
++    memset(g, 0, sizeof(*g));
++    g->b[3 * 8 + 3] = RV_UNIT;
++    g->b[3 * 8 + 4] = RV_PERSON;
++    g->b[4 * 8 + 3] = RV_PERSON;
++    g->b[4 * 8 + 4] = RV_UNIT;
++    g->turn = RV_PERSON;
++    g->phase = RV_PLAY;
++    g->last = -1;
++}
++
++static const int8_t RV_DIR[8][2] = {{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}};
++
++/* How many discs a move at `idx` by `who` flips on `b` (0 means the move is illegal). When `flip` is set the discs are flipped. */
++static inline int rv_flips(uint8_t* b, int idx, int who, int flip)
++{
++    if (idx < 0 || idx >= RV_CELLS || b[idx] != RV_EMPTY) return 0;
++    const int other = who == RV_PERSON ? RV_UNIT : RV_PERSON, r0 = idx / 8, c0 = idx % 8;
++    int total = 0;
++    for (int d = 0; d < 8; d++) {
++        int r = r0 + RV_DIR[d][0], c = c0 + RV_DIR[d][1], run = 0;
++        while (r >= 0 && r < 8 && c >= 0 && c < 8 && b[r * 8 + c] == other) { r += RV_DIR[d][0]; c += RV_DIR[d][1]; run++; }
++        if (run > 0 && r >= 0 && r < 8 && c >= 0 && c < 8 && b[r * 8 + c] == who) {
++            total += run;
++            if (flip) {
++                for (int k = 1; k <= run; k++) b[(r0 + RV_DIR[d][0] * k) * 8 + c0 + RV_DIR[d][1] * k] = (uint8_t)who;
++            }
++        }
++    }
++    if (flip && total > 0) b[idx] = (uint8_t)who;
++    return total;
++}
++
++static inline int rv_count_moves(const uint8_t* b, int who)
++{
++    uint8_t t[RV_CELLS];
++    memcpy(t, b, RV_CELLS);
++    int n = 0;
++    for (int i = 0; i < RV_CELLS; i++) if (rv_flips(t, i, who, 0) > 0) n++;
++    return n;
++}
++
++static inline int rv_legal(const rv_t* g, int idx, int who)
++{
++    uint8_t t[RV_CELLS];
++    memcpy(t, g->b, RV_CELLS);
++    return rv_flips(t, idx, who, 0) > 0;
++}
++
++static inline int rv_discs(const rv_t* g, int who)
++{
++    int n = 0;
++    for (int i = 0; i < RV_CELLS; i++) if (g->b[i] == who) n++;
++    return n;
++}
++
++/* The positional table: corners 100, the cells beside a corner -20 (and the diagonal one -50), edges 10, the inside 1 to 5. */
++static const int8_t RV_W[RV_CELLS] = {
++    100, -20, 10, 5, 5, 10, -20, 100,
++    -20, -50, -2, -2, -2, -2, -50, -20,
++    10, -2, 3, 1, 1, 3, -2, 10,
++    5, -2, 1, 0, 0, 1, -2, 5,
++    5, -2, 1, 0, 0, 1, -2, 5,
++    10, -2, 3, 1, 1, 3, -2, 10,
++    -20, -50, -2, -2, -2, -2, -50, -20,
++    100, -20, 10, 5, 5, 10, -20, 100};
++
++static inline int rv_eval(const uint8_t* b)   /* from the unit's side: positional weights, and the difference of moves */
++{
++    int s = 0;
++    for (int i = 0; i < RV_CELLS; i++) s += b[i] == RV_UNIT ? RV_W[i] : (b[i] == RV_PERSON ? -RV_W[i] : 0);
++    return s + 4 * (rv_count_moves(b, RV_UNIT) - rv_count_moves(b, RV_PERSON));
++}
++
++/* The unit's best cell for `RV_UNIT` now: a two-ply search (its move, the person's best reply). Returns -1 when it has no move. */
++static inline int rv_unit_choice(rv_t* g)
++{
++    int best = -1, best_v = -1000000;
++    g->nodes = 0;
++    for (int i = 0; i < RV_CELLS; i++) {
++        uint8_t t[RV_CELLS];
++        memcpy(t, g->b, RV_CELLS);
++        if (rv_flips(t, i, RV_UNIT, 1) == 0) continue;
++        g->nodes++;
++        int worst = 1000000, replies = 0;
++        for (int j = 0; j < RV_CELLS; j++) {
++            uint8_t u[RV_CELLS];
++            memcpy(u, t, RV_CELLS);
++            if (rv_flips(u, j, RV_PERSON, 1) == 0) continue;
++            replies++;
++            g->nodes++;
++            const int v = rv_eval(u);
++            if (v < worst) worst = v;
++        }
++        if (replies == 0) worst = rv_eval(t) + 30;   /* the person would have to pass */
++        if (worst > best_v) { best_v = worst; best = i; }
++    }
++    return best;
++}
++
++/* After a move, whose turn it is: the other side, or the same side again when the other has no move, or the end. */
++static inline void rv_next(rv_t* g, int mover)
++{
++    const int other = mover == RV_PERSON ? RV_UNIT : RV_PERSON;
++    g->last_pass = 0;
++    if (rv_count_moves(g->b, other) > 0) {
++        g->turn = (uint8_t)other;
++    } else if (rv_count_moves(g->b, mover) > 0) {
++        g->turn = (uint8_t)mover;
++        g->passes++;
++        g->last_pass = 1;
++    } else {
++        g->phase = RV_END;
++    }
++}
++
++/* The person's move at `idx`. Returns the discs flipped (0 when not allowed: not their turn, a cell that flips nothing). */
++static inline int rv_person_move(rv_t* g, int idx)
++{
++    if (g->phase != RV_PLAY || g->turn != RV_PERSON) return 0;
++    const int n = rv_flips(g->b, idx, RV_PERSON, 1);
++    if (n == 0) return 0;
++    g->last = (int8_t)idx;
++    rv_next(g, RV_PERSON);
++    return n;
++}
++
++/* The unit's move (call it while it is the unit's turn): picks and plays. Returns the cell, or -1 when it was not its turn. */
++static inline int rv_unit_move(rv_t* g)
++{
++    if (g->phase != RV_PLAY || g->turn != RV_UNIT) return -1;
++    const int idx = rv_unit_choice(g);
++    if (idx < 0) return -1;
++    rv_flips(g->b, idx, RV_UNIT, 1);
++    g->last = (int8_t)idx;
++    rv_next(g, RV_UNIT);
++    return idx;
++}
++
++/* The end result for the person: RV_WON, RV_LOST or RV_DRAW (0 while the game goes on). */
++static inline int rv_result(const rv_t* g)
++{
++    if (g->phase != RV_END) return 0;
++    const int p = rv_discs(g, RV_PERSON), u = rv_discs(g, RV_UNIT);
++    return p > u ? RV_WON : (p < u ? RV_LOST : RV_DRAW);
++}
++
++/* ---- the screen: the board on the left (cells 25 px, 200 by 200 at x 8, y 30), the scores on the right ---- */
++#define RV_CELL 25
++#define RV_BX 8
++#define RV_BY 30
++static inline void rv_cell_box(int idx, int* x, int* y, int* w, int* h)
++{
++    *x = RV_BX + (idx % 8) * RV_CELL;
++    *y = RV_BY + (idx / 8) * RV_CELL;
++    *w = RV_CELL;
++    *h = RV_CELL;
++}
++/* The cell under a touch, or -1. */
++static inline int rv_hit(int px, int py)
++{
++    if (px < RV_BX || py < RV_BY || px >= RV_BX + 8 * RV_CELL || py >= RV_BY + 8 * RV_CELL) return -1;
++    return ((py - RV_BY) / RV_CELL) * 8 + (px - RV_BX) / RV_CELL;
++}
++
++static inline const char* rv_turn_text(const rv_t* g, int es)
++{
++    if (g->phase == RV_END) return es ? "Fin" : "Game over";
++    if (g->last_pass) return es ? "Sin jugada: pasa" : "No move: pass";
++    return g->turn == RV_PERSON ? (es ? "Tu turno" : "Your move") : (es ? "Pienso..." : "Thinking...");
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_reversi.h b/firmware/main/hal/maipai_reversi.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_reversi.h
+@@ -0,0 +1,84 @@
++// SPDX-License-Identifier: MIT
++// The Reversi screen (patch UX22; spec docs/design/reversi.md). Header only, so the host renderer compiles the very same drawing code. The board is drawn by ONE object and one draw callback (the
++// grid-game pattern: 1 LVGL object instead of 64 cells and 64 discs), the scores and the turn line are three labels. The firmware track wires the touches (rv_hit), the unit's move after a short
++// pause, the sounds, the best score and the shared game-over screen (You won, You lost or Draw, with the disc count). No ESP call here.
++#ifndef MAIPAI_REVERSI_H
++#define MAIPAI_REVERSI_H
++
++#include <lvgl.h>
++#include <stdio.h>
++#include "maipai_reversi_core.h"
++
++namespace rvs {
++
++inline void rect(lv_layer_t* layer, int x, int y, int w, int h, int radius, uint32_t color, lv_opa_t opa = LV_OPA_COVER)
++{
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.bg_color = lv_color_hex(color);
++    d.bg_opa = opa;
++    d.radius = radius;
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + h - 1)};
++    lv_draw_rect(layer, &d, &a);
++}
++
++inline void draw_board(lv_event_t* e)
++{
++    const rv_t* g = static_cast<const rv_t*>(lv_event_get_user_data(e));
++    if (g == nullptr) return;
++    lv_layer_t* layer = lv_event_get_layer(e);
++    rect(layer, RV_BX - 2, RV_BY - 2, 8 * RV_CELL + 4, 8 * RV_CELL + 4, 4, 0x0B3D2A);                // the frame
++    for (int i = 0; i < RV_CELLS; i++) {
++        int x, y, w, h;
++        rv_cell_box(i, &x, &y, &w, &h);
++        rect(layer, x, y, w, h, 0, ((i / 8 + i % 8) & 1) ? 0x1E6B47 : 0x237A50);                      // the two greens of the board
++        if (g->b[i] != RV_EMPTY) {
++            rect(layer, x + 3, y + 3, w - 6, h - 6, LV_RADIUS_CIRCLE, g->b[i] == RV_PERSON ? 0x15171C : 0xF1EEE4);   // the person plays black, the unit white
++        } else if (g->phase == RV_PLAY && g->turn == RV_PERSON && rv_legal(g, i, RV_PERSON)) {
++            rect(layer, x + 9, y + 9, w - 18, h - 18, LV_RADIUS_CIRCLE, 0xF2B24A, LV_OPA_70);          // a moves the person may make: a small amber dot
++        }
++        if (i == g->last) rect(layer, x + 10, y + 10, w - 20, h - 20, LV_RADIUS_CIRCLE, g->b[i] == RV_PERSON ? 0xF2B24A : 0xE07A7A);   // the last move: a colored center
++    }
++}
++
++inline lv_obj_t* words(lv_obj_t* parent, const char* t, const lv_font_t* font, uint32_t rgb, int x, int y, int w, lv_text_align_t align)
++{
++    lv_obj_t* l = lv_label_create(parent);
++    lv_label_set_text(l, t);
++    lv_obj_set_style_text_font(l, font, 0);
++    lv_obj_set_style_text_color(l, lv_color_hex(rgb), 0);
++    lv_obj_set_style_text_align(l, align, 0);
++    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
++    lv_obj_set_width(l, w);
++    lv_obj_set_pos(l, x, y);
++    return l;
++}
++
++// `g` must outlive the screen (the draw callback reads it); a change of the board is shown by lv_obj_invalidate on the returned root's first child.
++inline lv_obj_t* screen(lv_obj_t* parent, const rv_t* g, bool es)
++{
++    lv_obj_t* r = lv_obj_create(parent);
++    lv_obj_remove_style_all(r);
++    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(r, 320, 240);
++    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    lv_obj_t* board = lv_obj_create(r);
++    lv_obj_remove_style_all(board);
++    lv_obj_remove_flag(board, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(board, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(board, 320, 240);
++    lv_obj_set_pos(board, 0, 0);
++    lv_obj_add_event_cb(board, draw_board, LV_EVENT_DRAW_MAIN, const_cast<rv_t*>(g));
++    char a[24], b[24];
++    snprintf(a, sizeof(a), es ? "Tu %d" : "You %d", rv_discs(g, RV_PERSON));
++    snprintf(b, sizeof(b), es ? "Unidad %d" : "Unit %d", rv_discs(g, RV_UNIT));
++    words(r, a, &lv_font_montserrat_20, 0xE8E8E8, 216, 40, 96, LV_TEXT_ALIGN_LEFT);
++    words(r, b, &lv_font_montserrat_20, 0xB8C4D8, 216, 72, 96, LV_TEXT_ALIGN_LEFT);
++    words(r, rv_turn_text(g, es), &lv_font_montserrat_16, g->turn == RV_PERSON || g->phase == RV_END ? 0x7FE0B8 : 0x9AA3B0, 216, 118, 96, LV_TEXT_ALIGN_LEFT);
++    return r;
++}
++
++}  // namespace rvs
++
++#endif

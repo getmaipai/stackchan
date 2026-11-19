@@ -38,6 +38,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
 - `docs/design/boundary-debt.txt` (40): no header
+- `docs/design/brain-routes.md` (30): The brain routes on the unit (owner decision 34)
 - `docs/design/brain-seam.md` (16): Brain seam call map
 - `docs/design/character-pack-format.md` (17): Illustrated character packs
 - `docs/design/clock-styles.md` (66): Clock styles, the tap and the sleep sign
@@ -710,7 +711,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (356): no header
+- `firmware/patches/ORDER` (358): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -903,6 +904,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX16-offline-mumble-core.patch` (197): The offline mumble (owner decision 24, 2026-11-18; spec docs/design/offline-mumble.md). When the unit has word
 - `firmware/patches/UX17-question-and-answer-game-screens.patch` (285): The screens of the question-and-answer games (owner decisions 25 to 27, 2026-11-18; spec docs/design/qa-game-s
 - `firmware/patches/UX18-dice-poker.patch` (249): Dice Poker (the first of the new games of docs/plan/more-games.md, ranked 2; spec docs/design/dice-poker.md). 
+- `firmware/patches/UX19-brain-two-equal-routes.patch` (182): The brain step of the first run offers two equal routes (owner decision 34, 2026-11-18): A "Hosted by M5Stack/
+- `firmware/patches/UX20-hosted-link-removed-notice.patch` (146): The notice "Hosted link removed" (owner decision 34): shown on the unit after it left the hosted brain (M5Stac
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -1971,6 +1974,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/barge_core_test.c` (53): Host test for the talk-over decisions (patch SF18). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/beat_test.c` (64): include <stdio.h>
 - `host/tests/firmware/boottone_core_test.c` (35): Host test for the start-up sound rules (patch SF46). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the heade
+- `host/tests/firmware/brain_notice_core_test.c` (25): Host test of maipai_brain_notice_core.h (patch UX20): the "Hosted link removed" notice in six languages, and w
 - `host/tests/firmware/campro_core_test.c` (67): Host test for the camera probe core (patch SF45). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>.
 - `host/tests/firmware/core_guards_test.c` (81): Host test for the guards added after the static analysis run (patch SF83): the cases the analysis flagged must
 - `host/tests/firmware/dance_cap_core_test.c` (51): Host test for the offline dance cap (patch SF14). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the headers>
@@ -2187,6 +2191,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_brain_fake.py` (8): no header
 - `host/tests/test_brain_home.py` (43): no header
 - `host/tests/test_brain_interface.py` (45): no header
+- `host/tests/test_brain_route.py` (49): The brain route switch of the playground (decision 34): joining hosted writes only the cl_ settings, leaving i
+- `host/tests/test_brain_screens.py` (60): Patches UX19 (the brain step with two equal routes) and UX20 (the Hosted link removed notice), owner decision 
 - `host/tests/test_brain_setup.py` (285): The three ways to get a brain: pinned catalog, installer with a fake downloader, mode writer, address tests, c
 - `host/tests/test_bus_gates_fed.py` (58): The command-bus gates for a child present, a remote cue and a sleeping unit are fed from real state."""
 - `host/tests/test_camera_frame.py` (71): The fixture-backed `Camera.get_frame()` path added alongside
@@ -2691,7 +2697,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
 - `scripts/fw-face-render/games_render.cc` (252): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
-- `scripts/fw-face-render/grid_render.cc` (321): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
+- `scripts/fw-face-render/grid_render.cc` (385): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
 - `scripts/fw-face-render/hooks_banner.cc` (335): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
 - `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
@@ -2785,6 +2791,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/assets_sim.py` (282): The installed set in the virtual unit (owner decision 17; docs/plan/installed-set.md B1 to B5): slots per kind
 - `scripts/virtual-unit/backends.py` (163): The playground's backends: the Simulation (a virtual unit on this computer) or one registered robot through it
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
+- `scripts/virtual-unit/brain_route.py` (44): The brain route of the virtual unit (owner decision 34): hosted (route A, the vendor's servers) or custom (rou
 - `scripts/virtual-unit/build-face.sh` (20): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (40): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
@@ -2850,7 +2857,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (446): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (460): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la

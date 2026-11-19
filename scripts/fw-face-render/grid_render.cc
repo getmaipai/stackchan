@@ -14,6 +14,9 @@
 //   swipe X0 Y0 X1 Y1 HELD_MS            a finger down at X0 Y0 and up at X1 Y1 after HELD_MS: the unit's own classification (tap, long press, swipe) steers Snake, slides 2048, taps or flags Mine Finder (patch SF76)
 //   tiles E0 .. E15                      2048: set the sixteen tile exponents (0 empty, 1 = 2, 2 = 4 ... 11 = 2048)
 //   poker D0 D1 D2 D3 D4|HELD MASK|RE-ROLLS LEFT|ROUND|SCORE|PHASE 0 roll 1 hold|en or es   the Dice Poker screen (patch UX18)
+//   hilo CUR NEXT|REVEAL|RESULT 1 right 2 wrong 3 same|STREAK|en or es   the Higher or Lower screen (patch UX21): cards are 0 to 51 (suit * 13 + rank - 1)
+//   reversi MOVES|THINKING|en or es                      the Reversi screen (patch UX22): the person's cells (0 to 63) in order, the unit answering each; THINKING 1 stops before the unit's last answer
+//   reversi board BOARD64|TURN 1 person 2 unit|LAST|LASTPASS|en or es   a hand-made Reversi position ('.' empty, 'P' person, 'U' unit)
 //   snap FILE.png
 // Build: see scripts/virtual-unit/build-screens.sh. Placement: host-side development tool; no firmware change. Upstream: none.
 #include <lvgl.h>
@@ -44,6 +47,14 @@
 #if __has_include("maipai_dicepoker.h")
 #include "maipai_dicepoker.h"   /* patch UX18: Dice Poker */
 #define HAVE_POKER 1
+#endif
+#if __has_include("maipai_hilo.h")
+#include "maipai_hilo.h"   /* patch UX21: Higher or Lower */
+#define HAVE_HILO 1
+#endif
+#if __has_include("maipai_reversi.h")
+#include "maipai_reversi.h"   /* patch UX22: Reversi */
+#define HAVE_REVERSI 1
 #endif
 #if __has_include("maipai_qa.h")
 #include "maipai_qa.h"   /* patch UX17: the question and answer game screens */
@@ -312,6 +323,59 @@ int main()
             lv_refr_now(nullptr);
 #else
             printf("this firmware tree has no Dice Poker (patch UX18)\n");
+#endif
+        } else if (c == "hilo") {
+#ifdef HAVE_HILO
+            std::string rest; std::getline(in, rest);
+            std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
+            for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
+            while (f.size() < 5) f.push_back("");
+            static hl_t hg;
+            hl_init(&hg, 1);
+            int cur = 0, nx = 1; std::stringstream cs(f[0]); cs >> cur >> nx;
+            for (int i = 0; i < HL_DECK; i++) if (hg.deck[i] == cur) { hg.deck[i] = hg.deck[0]; hg.deck[0] = (uint8_t)cur; break; }
+            const bool reveal = atoi(f[1].c_str()) != 0;
+            if (reveal) {
+                for (int i = 1; i < HL_DECK; i++) if (hg.deck[i] == nx) { hg.deck[i] = hg.deck[1]; hg.deck[1] = (uint8_t)nx; break; }
+                hg.pos = 1; hg.last = (uint8_t)nx; hg.last_result = (uint8_t)atoi(f[2].c_str());
+            }
+            hg.streak = (uint16_t)atoi(f[3].c_str());
+            hlo::screen(lv_layer_top(), hg, reveal, f[4] == "es");
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no Higher or Lower (patch UX21)\n");
+#endif
+        } else if (c == "reversi") {
+#ifdef HAVE_REVERSI
+            static rv_t rg;
+            rv_init(&rg);
+            std::string rest; std::getline(in, rest);
+            rest = rest.substr(rest.find_first_not_of(' '));
+            std::vector<std::string> f;
+            {   std::stringstream ss(rest); for (std::string part; std::getline(ss, part, '|');) f.push_back(part); }
+            bool es = false;
+            if (!f.empty() && f[0].rfind("board ", 0) == 0) {
+                while (f.size() < 5) f.push_back("");
+                const std::string b = f[0].substr(6);
+                for (int i = 0; i < RV_CELLS && i < (int)b.size(); i++) rg.b[i] = b[i] == 'P' ? RV_PERSON : (b[i] == 'U' ? RV_UNIT : RV_EMPTY);
+                rg.turn = (uint8_t)atoi(f[1].c_str()); rg.last = (int8_t)atoi(f[2].c_str()); rg.last_pass = (uint8_t)atoi(f[3].c_str());
+                if (rv_count_moves(rg.b, RV_PERSON) == 0 && rv_count_moves(rg.b, RV_UNIT) == 0) rg.phase = RV_END;
+                es = f[4] == "es";
+            } else {
+                while (f.size() < 3) f.push_back("");
+                std::stringstream ms(f[0]);
+                int cell, thinking = atoi(f[1].c_str());
+                std::vector<int> cells; while (ms >> cell) cells.push_back(cell);
+                for (size_t k = 0; k < cells.size(); k++) {
+                    rv_person_move(&rg, cells[k]);
+                    while (rg.phase == RV_PLAY && rg.turn == RV_UNIT && !(thinking && k + 1 == cells.size())) rv_unit_move(&rg);
+                }
+                es = f[2] == "es";
+            }
+            rvs::screen(lv_layer_top(), &rg, es);
+            lv_refr_now(nullptr);
+#else
+            printf("this firmware tree has no Reversi (patch UX22)\n");
 #endif
         } else if (c == "snap") {
             std::string f; in >> f; snap(f.c_str());
