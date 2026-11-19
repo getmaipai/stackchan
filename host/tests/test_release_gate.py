@@ -14,7 +14,7 @@ def _tree(tmp: Path, **stubs: str) -> tuple[Path, list[str]]:
     scripts = tmp / "scripts"
     scripts.mkdir()
     shutil.copy(ROOT / "scripts" / "release.sh", scripts / "release.sh")
-    defaults = {"check.sh": "exit 0", "test-all.sh": "exit 0", "security-scan.py": "print('[PASS] x: ok')", "exposure-test.py": "print('[PASS] y: ok')"}
+    defaults = {"build-clean-host-env.sh": "exit 0", "check.sh": "exit 0", "test-all.sh": "exit 0", "security-scan.py": "print('[PASS] x: ok')", "exposure-test.py": "print('[PASS] y: ok')"}
     defaults.update(stubs)
     for name, body in defaults.items():
         text = f"#!/usr/bin/env bash\n{body}\n" if name.endswith(".sh") else f"{body}\n"
