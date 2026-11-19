@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 903 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 904 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 54 items, 6 measured, 21 estimated, 27 placeholders or not built. 84 of 903 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 54 items, 6 measured, 21 estimated, 27 placeholders or not built. 84 of 904 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 28 | 267 | 8 | 51 | 375 | 64 |
-| Maker and tech | 0 | 0 | 73 | 395 | 60 | 0 | 528 | 69 |
+| Maker and tech | 0 | 0 | 74 | 395 | 60 | 0 | 529 | 69 |
 
 ## Everyday user
 
@@ -899,7 +899,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: pantry** | Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the owner's model, filters, dedupes and keeps, and the unit keeps a small shelf of. | proven virtual | 70 | not declared | `host/maipai_packages/pantry` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (88)
+### Scripts and tools (89)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -961,6 +961,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: make-hero-robot-gif.py** | Make docs/images/hero-robot.gif from the virtual unit: the unit's own screen renderer, scripted and reproducible. | built | 40 | not declared | `scripts/make-hero-robot-gif.py` | file exists | doc missing |
 | **Script: make-lights.py** | draw the robot's ring colors and tone shapes as small animated SVGs for the docs. | built | 40 | not declared | `scripts/make-lights.py` | file exists | doc missing |
 | **Script: make-mumble-samples.py** | Make the offline mumble samples to listen to: docs/dev/mumble/<lang>.wav (8 kHz, 16 bit, about 3 seconds each) from the reference implementation | built | 40 | not declared | `scripts/make-mumble-samples.py` | file exists | doc missing |
+| **Script: make-object-seed.py** | write the six <language>-object.json seed files from host/maipai_packages/pantry/objects/objects.json (one table of bits, six name lists). | built | 40 | not declared | `scripts/make-object-seed.py` | file exists | doc missing |
 | **Script: make-placeholders.py** | draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image. | built | 40 | not declared | `scripts/make-placeholders.py` | file exists | doc missing |
 | **Script: make-update-vectors.py** | write the signed-update test vectors (host/tests/fixtures/update-signature-vectors.json) from a fixed TEST seed, so the host and | built | 40 | not declared | `scripts/make-update-vectors.py` | file exists | doc missing |
 | **Script: make-vu-screenshots.py** | the screenshots for the user docs come from the virtual unit's golden frames (real LVGL drawing of the unit's own screen code, made by scripts/virtual-unit/scenarios.py and checked by the tests), nev... | built | 40 | not declared | `scripts/make-vu-screenshots.py` | file exists | doc missing |

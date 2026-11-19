@@ -46,7 +46,7 @@ def test_trivia_offers_three_choices_and_one_try(tmp_path):
 def test_adult_records_skipped_and_empty_library_says_so(tmp_path):
     talk, _ = make(tmp_path, [Record("riddle", "en", "adult", "A grown up riddle?", "x")])
     assert talk.line("a", "riddles", "en", "go")[0].startswith("I do not have any more")
-    assert talk.line("a", "twenty_questions", "en", "go") is None
+    assert talk.line("a", "word_chain", "en", "go") is None
 
 
 def test_turn_hook_plays_a_riddle_turn_when_the_model_is_out_of_reach(tmp_path):
@@ -63,7 +63,7 @@ def test_turn_hook_plays_a_riddle_turn_when_the_model_is_out_of_reach(tmp_path):
     play = lambda text: asyncio.run(StackChanTurnBridge._pantry_game_turn(fake, "unit-a", SimpleNamespace(text=text), None, None, None))  # noqa: E731
     assert play("go") is True and "keys" in said[-1]
     assert play("piano") is True and said[-1].startswith("Right") and games.state("unit-a").score == 1
-    games.run(TalkCommand("start", "twenty_questions", "en"), "unit-a")
+    games.run(TalkCommand("start", "word_chain", "en"), "unit-a")
     assert play("a dog") is False  # no library half: the usual offline line follows
 
 

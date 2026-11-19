@@ -10,9 +10,9 @@ import re
 import unicodedata
 from dataclasses import asdict, dataclass
 
-KINDS = ("joke", "riddle", "trivia", "story")
+KINDS = ("joke", "riddle", "trivia", "story", "object")  # object: a twenty questions object (docs/design/twenty-questions-library.md); kind byte 4 on a shelf
 RATINGS = ("kid", "adult")
-TEXT_CAPS = {"joke": 160, "riddle": 140, "trivia": 140, "story": 1600}  # bytes of UTF-8
+TEXT_CAPS = {"joke": 160, "riddle": 140, "trivia": 140, "story": 1600, "object": 24}  # bytes of UTF-8
 ANSWER_CAP = 40
 EXTRA_CAP = 80  # two wrong answers split by "|"
 _PUNCT = re.compile(r"[^\w\s|]", re.UNICODE)
@@ -81,6 +81,11 @@ def check(record: Record) -> Record:
         raise RecordError(f"A {record.kind} needs an answer.")
     if record.kind == "trivia" and record.extra.count("|") != 1:
         raise RecordError("A trivia question needs two wrong answers split by one |.")
+    if record.kind == "object":
+        if record.answer.strip() not in ("animal", "thing"):
+            raise RecordError("An object's answer is its group, animal or thing.")
+        if not re.fullmatch(r"[01]{12}", record.extra.strip()):
+            raise RecordError("An object's extra is the 12 answers to the 12 questions, each 0 or 1.")
     if record.kind in ("joke", "story") and (record.answer or record.extra):
         raise RecordError(f"A {record.kind} has no answer.")
     return Record(record.kind, record.language, record.rating, text, record.answer.strip(), record.extra.strip())

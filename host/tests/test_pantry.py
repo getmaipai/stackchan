@@ -283,9 +283,12 @@ def test_first_run_loads_the_built_in_set_once_and_deleted_records_stay_deleted(
     from maipai_packages.pantry import Pantry
 
     pantry = Pantry(tmp_path, None, languages=("en", "es"))
-    assert pantry.seeded == 420  # 300 English and 120 Spanish records; the other languages were not chosen
+    from maipai_packages.pantry.seed_loader import seed_files, seed_records
+
+    total = sum(len(seed_records(f)) for f in seed_files(("en", "es")))
+    assert pantry.seeded == total > 400  # English and Spanish only; the other languages were not chosen
     view = pantry.view()
-    assert view["built_in"]["state"] == "Built-in set" and view["built_in"]["records"] == 420 and view["rows"][0]["built_in"] is True
+    assert view["built_in"]["state"] == "Built-in set" and view["built_in"]["records"] == total and view["rows"][0]["built_in"] is True
     first = pantry.library.records("joke", "en")[0]
     pantry.delete(first.id_hex)
     again = Pantry(tmp_path, None, languages=("en", "es"))
