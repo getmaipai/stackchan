@@ -109,7 +109,7 @@ class Library:
                 row["counter"] = max(int(row["counter"]), int(entry.get("counter", 0)))
                 row["at"] = int(self._clock())
                 added += 1
-                if entry.get("deny"):
+                if entry.get("deny") or entry.get("denied"):
                     ids = self.refused()
                     ids.add(full)
                     self._write_json("rejected.json", sorted(ids))

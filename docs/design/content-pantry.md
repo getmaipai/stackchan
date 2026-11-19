@@ -149,3 +149,8 @@ The shelf and record format go into the shared spec as `schema/pantry-record.jso
 4. Ratings: `kid` and `adult` only, or add `teen`? A teen robot needs Home, so I left it out.
 5. Quiet window default 02:00 to 05:00: confirm, or use the owner's quiet hours as set.
 6. Decision 24 names a "code-made mumble". No design for it exists in the repo (searched `docs/`, `host/`, `firmware/`). `model-games.md` states what the pantry needs from it.
+
+## Host build status (app track, 2026-11-18)
+
+Built: record, shelf writer and reader (header `MPSH`, matching the firmware reader on `fw/unproven2`), filter, dedupe, generator, library, refill rule, heard intake, dashboard card, and the unit link over `self.pantry.status`, `.heard` and `.deny` (`unit_link.py`), run every five minutes for each connected unit. Not built: installing a shelf. It needs the multi-slot asset transport (`self.assets.install`, `.data`, `.commit` with the `MPAH` header, `docs/plan/installed-set.md` B4), which the host does not speak yet; until then the unit keeps its old shelf and the refill is refused in plain words. The talk games do not read the library yet.
+

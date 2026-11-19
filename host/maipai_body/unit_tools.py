@@ -31,7 +31,8 @@ PROBES: dict[str, tuple[str, dict[str, Any]]] = {
     "look": ("self.look.status", {}),  # who turns the head toward faces: this unit's seeker and its owner lease
     "pages": ("self.pages.status", {}),  # the swipe pages and the control sheet (firmware patches P10 to P13)
     "lock": ("self.lock.status", {}),  # the passcode lock (unit_lock.py); read-only, never returns the code or its hash
-    "remote": ("self.remote.session", {"active": False, "label": ""}),  # the remote cue: glyph, banner, message bubble
+    "remote": ("self.remote.session", {"active": False, "label": ""}),
+    "banner": ("self.banner.set", {"text": "", "kind": "degraded"}),  # a part that needs you, on the unit's banner row (firmware SF97); empty text clears, so asking is harmless  # the remote cue: glyph, banner, message bubble
 }
 
 

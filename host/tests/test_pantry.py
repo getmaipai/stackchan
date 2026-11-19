@@ -229,3 +229,39 @@ def test_the_dashboard_routes_list_delete_refuse_and_refill_and_stay_local(tmp_p
     off = SettingsBackend.__new__(SettingsBackend)
     off.pantry = None
     assert json.loads(off.route_get(PANTRY, "en", True)[2]) == {"enabled": False}
+
+
+def test_the_shelf_header_matches_the_firmware_reader():
+    body = shelf.pack([JOKE])
+    assert body[:4] == b"MPSH" and body[4] == 1 and body[5:7] == b"en" and len(shelf.HEADER.pack(b"MPSH", 1, b"en", 0, 1, 16)) == 16
+    assert int.from_bytes(body[8:10], "little") == 1 and int.from_bytes(body[10:14], "little") == 16
+    with pytest.raises(RecordError, match="MPSH"):
+        shelf.unpack(b"XXXX" + body[4:])
+
+
+def test_the_tool_link_reads_status_and_the_heard_list_in_batches_and_sends_denials():
+    from maipai_packages.pantry.unit_link import ToolUnitLink
+
+    calls = []
+    batches = [{"ok": True, "counter": 5, "more": True, "entries": [{"id": "aabbccdd", "counter": 3, "heard": 1, "denied": 0}]}, {"ok": True, "counter": 9, "more": False, "entries": [{"id": "11223344", "counter": 9, "heard": 1, "denied": 1}]}]
+
+    def call(unit, tool, args):
+        calls.append((tool, args))
+        if tool == "self.pantry.status":
+            return {"ok": True, "shelves": [{"slot": 0, "language": "en", "bytes": 9000, "counts": {"joke": 100, "riddle": 20}, "unheard": {"joke": 90, "riddle": 2}}]}
+        if tool == "self.pantry.heard":
+            return batches.pop(0)
+        return {"ok": True, "denied": 2}
+
+    link = ToolUnitLink(call)
+    assert link.status("u") == [
+        {"kind": "joke", "language": "en", "count": 100, "unheard": 90, "bytes": 9000},
+        {"kind": "riddle", "language": "en", "count": 20, "unheard": 2, "bytes": 9000},
+    ]
+    entries, counter = link.heard_since("u", 0)
+    assert [e["id"] for e in entries] == ["aabbccdd", "11223344"] and counter == 9
+    assert [a for t, a in calls if t == "self.pantry.heard"] == [{"since": 0}, {"since": 5}]
+    assert link.deny("u", [JOKE.id_hex, RIDDLE.id_hex]) is True
+    assert calls[-1][1]["ids"] == ",".join(sorted([JOKE.id_hex[:8], RIDDLE.id_hex[:8]]))
+    assert link.install_shelf("u", "joke", "en", b"x") is False, "no asset transport yet: the old shelf stays"
+    assert ToolUnitLink(call, lambda u, k, l, b: True).install_shelf("u", "joke", "en", b"x") is True

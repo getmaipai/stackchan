@@ -1,6 +1,6 @@
 """The shelf: the bytes of one `pantry` asset item (docs/design/content-pantry.md, section 3): one kind in one language.
 
-Layout: a 16 byte header (format version u8, language 2 bytes, rating ceiling u8, record count u16, index offset u32, 6 reserved), an index of 16 bytes per
+Layout (matches the firmware reader): a 16 byte header (magic "MPSH", format version u8, language 2 bytes, rating ceiling u8, record count u16, index offset u32, 2 reserved), an index of 16 bytes per
 record (id 8, kind 1, rating 1, flags 1, text offset 3, text length 2) and the packed texts. A record's text blob is text, answer and extra split by
 a zero byte. The unit reads the index in place from flash; the host writes it, and reads it back to prove the round trip."""
 
@@ -11,7 +11,8 @@ import struct
 from maipai_packages.pantry.record import KINDS, RATINGS, Record, RecordError, check
 
 VERSION = 1
-HEADER = struct.Struct("<B2sBHI6x")  # 16 bytes
+MAGIC = b"MPSH"
+HEADER = struct.Struct("<4sB2sBHI2x")  # 16 bytes
 INDEX = struct.Struct("<8sBBB3sH")  # 16 bytes
 ITEM_CAP_BYTES = 40_960  # cap per item of the pantry kind (10 sectors)
 SECTOR = 4096
@@ -40,7 +41,7 @@ def pack(records: list[Record], *, rating_ceiling: str = "kid") -> bytes:
         index.append(INDEX.pack(record.id, KINDS.index(record.kind), RATINGS.index(record.rating), 0, offset.to_bytes(3, "little"), len(blob)))
         blobs.append(blob)
         offset += len(blob)
-    body = HEADER.pack(VERSION, language.encode("ascii"), RATINGS.index(rating_ceiling), len(records), HEADER.size) + b"".join(index) + b"".join(blobs)
+    body = HEADER.pack(MAGIC, VERSION, language.encode("ascii"), RATINGS.index(rating_ceiling), len(records), HEADER.size) + b"".join(index) + b"".join(blobs)
     if len(body) > ITEM_CAP_BYTES:
         raise RecordError(f"The shelf is {len(body)} bytes; one item holds {ITEM_CAP_BYTES}. Build it with fewer records.")
     return body
@@ -50,7 +51,9 @@ def unpack(body: bytes) -> list[Record]:
     """The records of a shelf body, checked. A body that is cut short or says one thing and holds another raises RecordError."""
     if len(body) < HEADER.size:
         raise RecordError("The shelf is shorter than its header.")
-    version, language, ceiling, count, index_at = HEADER.unpack_from(body)
+    magic, version, language, ceiling, count, index_at = HEADER.unpack_from(body)
+    if magic != MAGIC:
+        raise RecordError("This is not a pantry shelf (the first four bytes are not MPSH).")
     if version != VERSION:
         raise RecordError(f"The shelf has format {version}; this host reads format {VERSION}.")
     if index_at + INDEX.size * count > len(body):

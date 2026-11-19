@@ -4014,7 +4014,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
         server = SettingsServer(backend, "0.0.0.0" if lan else "127.0.0.1", port, auth=auth)
         _start_coding_companion(backend, voice)
         _start_wake_word_maker(backend)
-        _start_pantry(backend)
+        _start_pantry(backend, voice)
         from maipai_body import service_handover
         from maipai_body.service_cmd import Service
 
@@ -4048,6 +4048,23 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
 
         started = _RUNTIME.get("started") or time.time()
         backend.health = lambda: build_health(supervisor, connected=list(voice._sessions), paired=pairing.paired_devices(), started=started, away=getattr(behavior, "away_notices", None))
+        # A part that needs you is also said on each robot's own screen (degraded_banner.py); a unit without the tool is never sent anything.
+        from maipai_body.degraded_banner import DegradedBanner
+
+        banner = DegradedBanner(
+            health=backend.health,
+            units=lambda: list(voice._sessions),
+            has_tool=lambda unit: getattr(getattr(voice, "polish", None), "probe", None) is not None and voice.polish.probe.has(unit, "banner") is True,
+            send=lambda unit, args: voice.robot.client.for_unit(unit)._call("self.banner.set", args),
+        )
+
+        banner_stop = threading.Event()
+
+        def _banner_loop() -> None:
+            while not banner_stop.wait(10.0):
+                banner.tick()
+
+        service_threads.start(_banner_loop, name="degraded-banner", stop=banner_stop)
         holder = {"server": server}
         bind = "0.0.0.0" if lan else "127.0.0.1"
 
@@ -4888,7 +4905,7 @@ def _start_wake_word_maker(backend) -> None:
     backend.wakeword = WakeWordMaker(WakeStore(folder))
 
 
-def _start_pantry(backend) -> None:
+def _start_pantry(backend, voice=None) -> None:
     """The content pantry's routes and its model, only when it is switched on (nothing is imported otherwise)."""
     try:
         from maipai_body.config import load_config
@@ -4911,6 +4928,27 @@ def _start_pantry(backend) -> None:
     except ValueError:
         ask = None  # no model yet: the page shows the library, and Refill says to choose a brain
     backend.pantry = Pantry(folder, ask, daily_cap=cfg.daily_cap, languages=tuple(cfg.languages), adult_humor=cfg.adult_humor)
+    if voice is None:
+        return
+    # Every five minutes, for each connected unit: take its heard list, send denials, and refill what the rule says (docs/design/content-pantry.md section 5).
+    # Until the multi-slot asset transport is wired the shelf install is refused and the unit keeps its old shelf; the heard list and denials already work.
+    from maipai_packages.pantry.sync import UnitState, run_unit
+    from maipai_packages.pantry.unit_link import ToolUnitLink
+
+    link = ToolUnitLink(lambda unit, tool, args: voice.robot.client.for_unit(unit)._call(tool, args))
+    done_tonight: set[tuple[str, str]] = set()
+    pantry_stop = threading.Event()
+
+    def _pantry_loop() -> None:
+        while not pantry_stop.wait(300.0):
+            for unit in list(voice._sessions):
+                try:
+                    idle = voice._turns_running == 0 and unit not in voice._speaking
+                    run_unit(backend.pantry.library, link, unit, UnitState(idle=idle), nightly_done=done_tonight)
+                except Exception:
+                    logger.debug("pantry sync of one unit failed", exc_info=True)
+
+    service_threads.start(_pantry_loop, name="pantry-sync", stop=pantry_stop)
 
 
 def _start_coding_companion(backend, voice) -> None:
