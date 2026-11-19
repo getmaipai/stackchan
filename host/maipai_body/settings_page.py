@@ -952,7 +952,9 @@ class SettingsBackend:
                 kind, language = str(body.get("kind", "")), str(body.get("language", ""))
                 if not kind or not language:
                     return 400, {"error": "Pick a kind and a language, then press Refill."}
-                return 200, {"ok": True, **pantry.refill(kind, language)}
+                return 200, {"ok": True, **pantry.start_refill(kind, language)}
+            if action == "refill-state":
+                return 200, {"ok": True, **pantry.refill_state(str(body.get("kind", "")), str(body.get("language", "")))}
             return 404, {"error": "not found"}
         if path.startswith(WAKEWORD + "/"):
             if self.wakeword is None:

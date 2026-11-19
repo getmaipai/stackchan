@@ -213,7 +213,15 @@ def test_the_dashboard_routes_list_delete_refuse_and_refill_and_stay_local(tmp_p
     backend.pantry = Pantry(tmp_path, good_model, seed=False)
     backend.language = "en"
     status, payload = backend.route_post(PANTRY + "/refill", {"kind": "joke", "language": "en"}, True)
-    assert status == 200 and payload["added"] == 2
+    assert status == 200 and payload["started"] is True
+    import time
+
+    for _ in range(100):  # the refill runs in a worker; the page polls refill-state
+        _, polled = backend.route_post(PANTRY + "/refill-state", {"kind": "joke", "language": "en"}, True)
+        if polled["state"] != "running":
+            break
+        time.sleep(0.05)
+    assert polled["result"]["added"] == 2
     status, raw_type, raw = backend.route_get(PANTRY, "en", True)
     view = json.loads(raw)
     assert status == 200 and view["total"] == 2
@@ -494,3 +502,30 @@ def test_letters_without_an_ascii_fold_keep_their_own_ids_and_kid_generation_nee
     assert called == [] and "word list" in stopped["stopped"] and stopped["added"] == 0
     generate(library, lambda p: called.append(p) or "[]", "joke", "es", rating="kid")
     assert called, "a language with a word list still asks the model"
+
+
+def test_refill_in_the_background_answers_at_once_and_the_poll_gives_the_result(tmp_path):
+    """Review fix R2-29: the dashboard request does not stay open for the model calls; it starts the refill and polls its state."""
+    import threading
+    import time
+
+    release = threading.Event()
+
+    def slow(prompt: str) -> str:
+        release.wait(5)
+        return ""
+
+    pantry = Pantry(tmp_path / "p", slow, seed=False)
+    first = pantry.start_refill("joke", "en")
+    assert first["started"] is True
+    assert pantry.refill_state("joke", "en")["state"] == "running"
+    again = pantry.start_refill("joke", "en")
+    assert again["started"] is False and again["state"] == "running"
+    release.set()
+    for _ in range(100):
+        state = pantry.refill_state("joke", "en")
+        if state["state"] != "running":
+            break
+        time.sleep(0.05)
+    assert state["state"] == "done" and "added" in state["result"]
+    assert pantry.refill_state("riddle", "en")["state"] == "idle"

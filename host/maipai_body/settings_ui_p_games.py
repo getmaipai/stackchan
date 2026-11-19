@@ -53,7 +53,9 @@ DETAIL['more/games-content']=async v=>{add(v,...detailHead(T('Jokes and games co
  const q=h('input',{class:'tx',type:'search','aria-label':T('Search'),placeholder:T('Search'),oninput:e=>{f.q=e.target.value;load()}});
  const refill=rowEl({label:T('Refill now'),icon:'plus',go:async()=>{if(!f.kind||!f.language){toast(T('Pick a kind and a language first'),'warn');return}
   toast(T('Asking your model. This can take a minute.'));const d=await save('/api/stackchan/pantry/refill',{kind:f.kind,language:f.language},true);
-  if(!d.ok)return;if(d.d.stopped)toast(d.d.stopped,'warn');else toast(T('Added')+' '+(d.d.added||0));load()}});
+  if(!d.ok)return;
+  for(let i=0;i<400;i++){await new Promise(r=>setTimeout(r,1500));const s=await api('/api/stackchan/pantry/refill-state',{kind:f.kind,language:f.language});if(!s.ok||s.d.state!=='running'){const r=(s.d&&s.d.result)||{};if(r.stopped)toast(r.stopped,'warn');else toast(T('Added')+' '+(r.added||0));break}}
+  load()}});
  add(v,grp(null,rowEl({label:T('Kind'),control:kind}),rowEl({label:T('Language'),control:lang}),refill,rowEl({label:T('Used today'),control:used})),moreFold(rowEl({label:T('Search'),control:q})),list);
  load()};
 """

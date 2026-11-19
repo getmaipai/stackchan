@@ -16,7 +16,11 @@ class Pantry:
     """The package's one object: the library plus the actions the dashboard and the sync call."""
 
     def __init__(self, folder: Path, ask=None, *, daily_cap: int = 200, languages: tuple[str, ...] = ("en",), adult_humor: bool = False, seed: bool = True) -> None:
+        import threading
+
         self.library = Library(folder)
+        self._jobs: dict[tuple[str, str], dict] = {}
+        self._jobs_lock = threading.Lock()
         self.ask, self.daily_cap, self.languages, self.adult_humor = ask, daily_cap, languages, adult_humor
         from maipai_packages.pantry.seed_loader import load_seed
 
@@ -59,6 +63,34 @@ class Pantry:
             return generate(self.library, self.ask, kind, language, batches=batches, daily_cap=self.daily_cap, adult_allowed=self.adult_humor)
         finally:
             lock.release()
+
+
+    def start_refill(self, kind: str, language: str) -> dict:
+        """Start a refill in a worker thread and answer at once (the dashboard polls ``refill_state``): no request waits for the model calls."""
+        import threading
+
+        with self._jobs_lock:
+            job = self._jobs.get((kind, language))
+            if job and job["state"] == "running":
+                return {"started": False, "state": "running"}
+            job = {"state": "running", "result": None}
+            self._jobs[(kind, language)] = job
+
+        def work() -> None:
+            try:
+                result = self.refill(kind, language)
+            except Exception as error:  # a failure shows as the result, never a dead poll
+                result = {"added": 0, "stopped": f"The refill stopped: {error}. Try again, or check your model on the Brain page."}
+            with self._jobs_lock:
+                job.update(state="done", result=result)
+
+        threading.Thread(target=work, name=f"pantry-refill-{kind}-{language}", daemon=True).start()
+        return {"started": True, "state": "running"}
+
+    def refill_state(self, kind: str, language: str) -> dict:
+        with self._jobs_lock:
+            job = self._jobs.get((kind, language))
+            return dict(job) if job else {"state": "idle", "result": None}
 
 
 __all__ = ["Library", "Pantry", "Record", "generate"]
