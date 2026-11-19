@@ -107,6 +107,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - [Unit choices audit (decision 20 of 2026-11-18)](unit-choices-audit.md)
 - [Every check that rejects a bad update image (2026-11-18)](update-checks.md)
 - [Flasher and updater](updater.md)
+- [User docs claims audit](user-docs-claims-audit.md)
 - [Does the version page fit with the affiliation notice (patch SF69)? Measured 2026-11-18](version-page-fit.md)
 - [The 3D virtual unit: body, power, axes](virtual-unit-3d.md)
 - [The installed set in the virtual unit](virtual-unit-assets.md)

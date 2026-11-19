@@ -22,15 +22,16 @@ One line per file: path, lines, purpose (first comment or heading).
 - `CONTRIBUTING.md` (33): Contributing
 - `LICENSE` (664): no header
 - `NOTICE` (30): no header
-- `README.md` (45): MaiPai for StackChan
+- `README.md` (47): MaiPai for StackChan
 - `SECURITY.md` (28): Security
 - `SUPPORT.md` (21): Support
 - `THIRD-PARTY.md` (52): Third-party notices
 - `VERIFY.md` (28): Check this project yourself
 - `docs-site/.gitignore` (1): no header
 - `docs-site/EXCLUDED.md` (12): What the docs site does not publish
-- `docs-site/assets/search.js` (21): Filters the page list as you type: every word must appear in the title or summary, or anywhere in the page tex
-- `docs-site/assets/site.css` (154): the 3D viewer */
+- `docs-site/assets/brand/PROVENANCE.md` (19): Brand assets provenance
+- `docs-site/assets/search.js` (139): The search box under the header, on every page. It reads the index file that ships with the site (assets/searc
+- `docs-site/assets/site.css` (174): the search box under the header, on every page */
 - `docs-site/assets/theme-button.js` (22): The Light/dark button: switches the page and remembers the choice on this device only.
 - `docs-site/assets/theme.js` (7): Sets the saved light or dark choice before the page paints. Storage can be blocked: the page then follows the 
 - `docs-site/home-intro.html` (13): no header
@@ -167,6 +168,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/bench-evidence/bench-window9.md` (32): Bench window 9 (2026-11-18, script only)
 - `docs/dev/bench.md` (24): StackChan bench
 - `docs/dev/benchmark-factory-vs-ours.md` (44): Benchmark: factory firmware against MaiPai for StackChan
+- `docs/dev/brand.md` (30): Brand art, sponsor line and the docs-site header
 - `docs/dev/build-from-source.md` (47): Build from source
 - `docs/dev/camera-quality.md` (83): Camera quality: what the CoreS3 StackChan camera can record or stream
 - `docs/dev/choices-rule.md` (15): The choices rule (owner decision 20)
@@ -182,7 +184,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1180): Feature ledger
+- `docs/dev/feature-ledger.md` (1173): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -256,7 +258,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
-- `docs/dev/index.md` (115): MaiPai for StackChan: developer guide
+- `docs/dev/index.md` (117): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/measure-a-game.md` (57): How to measure a game
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
@@ -269,6 +271,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/mumble/pt.wav` (270): no header
 - `docs/dev/mumble/samples.json` (673): no header
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
+- `docs/dev/open-questions.md` (9): Open questions for the owner
 - `docs/dev/overview.md` (50): How MaiPai for StackChan fits together
 - `docs/dev/pantry-seed.md` (11): Pantry seed library
 - `docs/dev/pre-publish-checklist.md` (34): Before the repository goes public
@@ -323,22 +326,23 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/third-party-indirect.md` (100): Third-party packages pulled in by the host
 - `docs/dev/translation-review/README.md` (22): Translation review pack
 - `docs/dev/translation-review/STATUS.md` (18): Translation status
-- `docs/dev/translation-review/cs.csv` (1035): no header
-- `docs/dev/translation-review/da.csv` (1035): no header
-- `docs/dev/translation-review/de.csv` (1035): no header
-- `docs/dev/translation-review/es.csv` (1035): no header
-- `docs/dev/translation-review/fr.csv` (1035): no header
-- `docs/dev/translation-review/it.csv` (1035): no header
-- `docs/dev/translation-review/nb.csv` (1035): no header
-- `docs/dev/translation-review/nl.csv` (1035): no header
-- `docs/dev/translation-review/pl.csv` (1035): no header
-- `docs/dev/translation-review/pt.csv` (1035): no header
+- `docs/dev/translation-review/cs.csv` (1212): no header
+- `docs/dev/translation-review/da.csv` (1212): no header
+- `docs/dev/translation-review/de.csv` (1212): no header
+- `docs/dev/translation-review/es.csv` (1212): no header
+- `docs/dev/translation-review/fr.csv` (1212): no header
+- `docs/dev/translation-review/it.csv` (1212): no header
+- `docs/dev/translation-review/nb.csv` (1212): no header
+- `docs/dev/translation-review/nl.csv` (1212): no header
+- `docs/dev/translation-review/pl.csv` (1212): no header
+- `docs/dev/translation-review/pt.csv` (1212): no header
 - `docs/dev/translation-review/status.json` (74): no header
-- `docs/dev/translation-review/sv.csv` (1035): no header
-- `docs/dev/translation-review/tr.csv` (1035): no header
+- `docs/dev/translation-review/sv.csv` (1212): no header
+- `docs/dev/translation-review/tr.csv` (1212): no header
 - `docs/dev/unit-choices-audit.md` (155): Unit choices audit (decision 20 of 2026-11-18)
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
+- `docs/dev/user-docs-claims-audit.md` (524): User docs claims audit
 - `docs/dev/version-page-fit.md` (18): Does the version page fit with the affiliation notice (patch SF69)? Measured 2026-11-18
 - `docs/dev/virtual-unit-3d.md` (76): The 3D virtual unit: body, power, axes
 - `docs/dev/virtual-unit-assets.md` (15): The installed set in the virtual unit
@@ -537,16 +541,16 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/templates/lane-brief.md` (13): Lane brief: <slice name>
 - `docs/user/about.md` (28): About and legal
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
-- `docs/user/camera.md` (84): Use the camera
+- `docs/user/camera.md` (76): Use the camera
 - `docs/user/character-packs.md` (19): Character packs
 - `docs/user/choose-a-brain.md` (42): Choose a brain
 - `docs/user/coding-companion.md` (38): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
 - `docs/user/face-and-look.md` (128): Change how the robot looks
 - `docs/user/faq.md` (50): Questions people ask
-- `docs/user/features.md` (166): What the robot can do
+- `docs/user/features.md` (162): What the robot can do
 - `docs/user/find-and-remote.md` (79): Find the robot and control it remotely
-- `docs/user/games-and-pet.md` (122): Play games and care for your pet
+- `docs/user/games-and-pet.md` (120): Play games and care for your pet
 - `docs/user/getting-started.md` (84): Getting started with MaiPai for StackChan
 - `docs/user/glossary.md` (21): Glossary
 - `docs/user/hardware-and-models.md` (58): Pick hardware and a model
@@ -563,7 +567,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/memory-notes.md` (32): Memory notes (optional package)
 - `docs/user/more-games.md` (36): New games: what works and what is coming
 - `docs/user/moves-and-moods.md` (91): How the robot reacts
-- `docs/user/music-and-dance.md` (40): Music and dance
+- `docs/user/music-and-dance.md` (38): Music and dance
 - `docs/user/mute-and-camera-off.md` (68): Mute, turn off the camera, or go fully quiet
 - `docs/user/no-stealth.md` (18): The robot never monitors in secret
 - `docs/user/offline-lines.md` (37): What the robot says when it cannot reach home
@@ -574,7 +578,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/release-notes.md` (45): Release notes
 - `docs/user/run-as-a-service.md` (38): Keep the host running
 - `docs/user/security.md` (65): Keep the robot secure
-- `docs/user/settings.md` (120): Change a setting
+- `docs/user/settings.md` (142): Change a setting
 - `docs/user/status-and-health.md` (30): See what is running
 - `docs/user/swipe-pages.md` (97): Swipe pages and the control sheet
 - `docs/user/switch-from-the-factory-firmware.md` (40): Switch from the factory firmware, or go back
@@ -582,15 +586,15 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/troubleshooting.md` (45): Troubleshooting
 - `docs/user/try-the-virtual-robot.md` (30): Try the virtual robot
 - `docs/user/updates.md` (60): Update the robot
-- `docs/user/use-it-anywhere.md` (34): Use the robot away from home
+- `docs/user/use-it-anywhere.md` (32): Use the robot away from home
 - `docs/user/use-your-own-stack.md` (13): Use your own stack
 - `docs/user/voice.md` (87): Talk to the robot
 - `docs/user/wake-word-maker.md` (22): Make your own wake word (optional)
-- `docs/user/watch-and-alerts.md` (79): Watch your room and get alerts
-- `docs/user/watch-the-room.md` (52): Watch the room
+- `docs/user/watch-and-alerts.md` (11): Watch your room and get alerts
+- `docs/user/watch-the-room.md` (23): Watch the room
 - `docs/user/web-flasher.md` (20): Flash the robot from a web page
 - `docs/user/which-setup.md` (48): Which setup is right for me?
-- `docs/user/with-maipai-home.md` (61): Use MaiPai Home as the brain
+- `docs/user/with-maipai-home.md` (63): Use MaiPai Home as the brain
 - `firmware/.gitkeep` (0): no header
 - `firmware/BASE` (5): The pinned upstream bases that firmware/patches/ORDER applies onto (read by scripts/fw-rebuild.sh).
 - `firmware/configs/sdkconfig.aec.defaults` (4): Talk over the robot (patches SF15 and SF29): microphone 1 plus the speaker loopback, the echo canceller on the
@@ -1020,6 +1024,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/app.py` (5618): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/asset_transport.py` (148): ruff: noqa: E501
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
+- `host/maipai_body/assets/brand/PROVENANCE.md` (19): Brand assets provenance
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
 - `host/maipai_body/bench.py` (610): Owner-only local console for exercising a connected StackChan body."""
@@ -1306,7 +1311,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/brain/home.py` (89): Home brain adapter. Existing clients retain transport behavior and timing."""
 - `host/maipai_body/brain/interface.py` (63): Typed interface between the body host and its answering brain."""
 - `host/maipai_body/brain/own_llm.py` (388): Own-LLM brain using owner-configured HTTP services and optional local speech models."""
-- `host/maipai_body/brain_page.py` (99): ruff: noqa: E501
+- `host/maipai_body/brain_page.py` (102): ruff: noqa: E501
 - `host/maipai_body/brain_route.py` (62): ruff: noqa: E501
 - `host/maipai_body/brain_setup/__init__.py` (1): Three ways to get a brain (docs/plan/minimal-stack.md): MaiPai Home, the person's own stack, or a minimal loca
 - `host/maipai_body/brain_setup/catalog.py` (106): The pinned downloads of the minimal local stack (docs/plan/minimal-stack.md).
@@ -1353,8 +1358,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/health.py` (126): One health document for the whole host: what runs, what does not, per unit and per part, in plain words.
 - `host/maipai_body/host_update.py` (168): ruff: noqa: E501
 - `host/maipai_body/hub_host.py` (131): Host launcher for a self-contained MaiPai Bot hub sidecar.
-- `host/maipai_body/i18n.py` (405): ruff: noqa: E501
+- `host/maipai_body/i18n.py` (409): ruff: noqa: E501
 - `host/maipai_body/i18n_character.py` (37): ruff: noqa: E501
+- `host/maipai_body/i18n_dash.py` (1062): ruff: noqa: E501
 - `host/maipai_body/i18n_design.py` (313): ruff: noqa: E501
 - `host/maipai_body/i18n_family.py` (222): ruff: noqa: E501
 - `host/maipai_body/i18n_fill/UNREVIEWED.md` (3): Machine-drafted translations, not reviewed
@@ -1401,7 +1407,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_tier1.py` (58): Tier 1 language packs (owner decision 18): Dutch, Polish, Turkish, Swedish, Danish, Norwegian (Bokmal), Czech.
 - `host/maipai_body/i18n_tier1/cs_1.json` (105): no header
 - `host/maipai_body/i18n_tier1/cs_10.json` (107): no header
-- `host/maipai_body/i18n_tier1/cs_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/cs_11.json` (54): no header
+- `host/maipai_body/i18n_tier1/cs_12.json` (178): no header
 - `host/maipai_body/i18n_tier1/cs_2.json` (105): no header
 - `host/maipai_body/i18n_tier1/cs_3.json` (105): no header
 - `host/maipai_body/i18n_tier1/cs_4.json` (105): no header
@@ -1412,7 +1419,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_tier1/cs_9.json` (119): no header
 - `host/maipai_body/i18n_tier1/da_1.json` (104): no header
 - `host/maipai_body/i18n_tier1/da_10.json` (93): no header
-- `host/maipai_body/i18n_tier1/da_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/da_11.json` (54): no header
+- `host/maipai_body/i18n_tier1/da_12.json` (178): no header
 - `host/maipai_body/i18n_tier1/da_2.json` (104): no header
 - `host/maipai_body/i18n_tier1/da_3.json` (104): no header
 - `host/maipai_body/i18n_tier1/da_4.json` (104): no header
@@ -1423,7 +1431,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_tier1/da_9.json` (104): no header
 - `host/maipai_body/i18n_tier1/nb_1.json` (104): no header
 - `host/maipai_body/i18n_tier1/nb_10.json` (93): no header
-- `host/maipai_body/i18n_tier1/nb_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/nb_11.json` (54): no header
+- `host/maipai_body/i18n_tier1/nb_12.json` (178): no header
 - `host/maipai_body/i18n_tier1/nb_2.json` (104): no header
 - `host/maipai_body/i18n_tier1/nb_3.json` (104): no header
 - `host/maipai_body/i18n_tier1/nb_4.json` (104): no header
@@ -1434,7 +1443,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_tier1/nb_9.json` (104): no header
 - `host/maipai_body/i18n_tier1/nl_1.json` (104): no header
 - `host/maipai_body/i18n_tier1/nl_10.json` (93): no header
-- `host/maipai_body/i18n_tier1/nl_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/nl_11.json` (54): no header
+- `host/maipai_body/i18n_tier1/nl_12.json` (178): no header
 - `host/maipai_body/i18n_tier1/nl_2.json` (104): no header
 - `host/maipai_body/i18n_tier1/nl_3.json` (104): no header
 - `host/maipai_body/i18n_tier1/nl_4.json` (104): no header
@@ -1445,7 +1455,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_tier1/nl_9.json` (104): no header
 - `host/maipai_body/i18n_tier1/pl_1.json` (105): no header
 - `host/maipai_body/i18n_tier1/pl_10.json` (112): no header
-- `host/maipai_body/i18n_tier1/pl_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/pl_11.json` (54): no header
+- `host/maipai_body/i18n_tier1/pl_12.json` (178): no header
 - `host/maipai_body/i18n_tier1/pl_2.json` (105): no header
 - `host/maipai_body/i18n_tier1/pl_3.json` (105): no header
 - `host/maipai_body/i18n_tier1/pl_4.json` (105): no header
@@ -1456,7 +1467,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_tier1/pl_9.json` (110): no header
 - `host/maipai_body/i18n_tier1/sv_1.json` (104): no header
 - `host/maipai_body/i18n_tier1/sv_10.json` (93): no header
-- `host/maipai_body/i18n_tier1/sv_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/sv_11.json` (54): no header
+- `host/maipai_body/i18n_tier1/sv_12.json` (178): no header
 - `host/maipai_body/i18n_tier1/sv_2.json` (104): no header
 - `host/maipai_body/i18n_tier1/sv_3.json` (104): no header
 - `host/maipai_body/i18n_tier1/sv_4.json` (104): no header
@@ -1467,7 +1479,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_tier1/sv_9.json` (104): no header
 - `host/maipai_body/i18n_tier1/tr_1.json` (105): no header
 - `host/maipai_body/i18n_tier1/tr_10.json` (113): no header
-- `host/maipai_body/i18n_tier1/tr_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/tr_11.json` (54): no header
+- `host/maipai_body/i18n_tier1/tr_12.json` (178): no header
 - `host/maipai_body/i18n_tier1/tr_2.json` (105): no header
 - `host/maipai_body/i18n_tier1/tr_3.json` (105): no header
 - `host/maipai_body/i18n_tier1/tr_4.json` (105): no header
@@ -1607,9 +1620,17 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/settings_ui_link.py` (23): ruff: noqa: E501
 - `host/maipai_body/settings_ui_lock.py` (36): ruff: noqa: E501
 - `host/maipai_body/settings_ui_nav.py` (122): ruff: noqa: E501
+- `host/maipai_body/settings_ui_p_behavior.py` (119): ruff: noqa: E501
+- `host/maipai_body/settings_ui_p_games.py` (59): Placement: host dashboard (More > Games in the new look; the old builder BUILDERS.play is the spec for the cal
+- `host/maipai_body/settings_ui_p_lock.py` (42): ruff: noqa: E501
+- `host/maipai_body/settings_ui_p_network.py` (71): ruff: noqa: E501
+- `host/maipai_body/settings_ui_p_packs.py` (136): ruff: noqa: E501
+- `host/maipai_body/settings_ui_p_remote.py` (110): ruff: noqa: E501
+- `host/maipai_body/settings_ui_p_system.py` (53): ruff: noqa: E501
+- `host/maipai_body/settings_ui_p_voice.py` (59): ruff: noqa: E501
 - `host/maipai_body/settings_ui_pages.py` (129): ruff: noqa: E501
 - `host/maipai_body/settings_ui_polish.py` (171): ruff: noqa: E501
-- `host/maipai_body/settings_ui_shell.py` (303): ruff: noqa: E501
+- `host/maipai_body/settings_ui_shell.py` (311): ruff: noqa: E501
 - `host/maipai_body/settings_ui_wakemaker.py` (34): ruff: noqa: E501
 - `host/maipai_body/shell_style.py` (102): ruff: noqa: E501
 - `host/maipai_body/speaker_evidence.py` (119): The one shape of `speaker_evidence` the body puts on a turn.
@@ -2412,6 +2433,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_brain_route.py` (49): The brain route switch of the playground (decision 34): joining hosted writes only the cl_ settings, leaving i
 - `host/tests/test_brain_screens.py` (68): Patches UX19 (the brain step with two equal routes) and UX20 (the Hosted link removed notice), owner decision 
 - `host/tests/test_brain_setup.py` (329): The three ways to get a brain: pinned catalog, installer with a fake downloader, mode writer, address tests, c
+- `host/tests/test_brand_assets.py` (79): Drift test for the brand art copies (never edited, never redrawn; refreshed only by copying again).
 - `host/tests/test_bus_gates_fed.py` (58): The command-bus gates for a child present, a remote cue and a sleeping unit are fed from real state."""
 - `host/tests/test_camera_frame.py` (71): The fixture-backed `Camera.get_frame()` path added alongside
 - `host/tests/test_camera_sweep_table.py` (35): The camera sweep table builder (scripts/camera-sweep-table.py)."""
@@ -2437,6 +2459,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_dice_poker.py` (47): Patch UX18, Dice Poker: the pure core's host test runs here against the patch text (all 7776 hands ranked, rol
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
+- `host/tests/test_docs_site_header.py` (101): The docs site header, search box, favicon, social image and sponsor line, checked on a fresh build (no browser
 - `host/tests/test_e2e_extra.py` (110): ruff: noqa: E501
 - `host/tests/test_e2e_fleet.py` (38): ruff: noqa: E501
 - `host/tests/test_e2e_virtual_unit.py` (33): ruff: noqa: E501
@@ -2673,6 +2696,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_service_handover.py` (118): The "Keep the host running" handover (decision 28): success, and every failure leaves the person with a runnin
 - `host/tests/test_service_startup_pin.py` (58): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
 - `host/tests/test_service_threads.py` (69): Every host service thread ends when its stop event is set (or `stop_all` runs); none of ours remain."""
+- `host/tests/test_settings_p_behavior.py` (100): ruff: noqa: E501
+- `host/tests/test_settings_p_games.py` (65): ruff: noqa: E501
+- `host/tests/test_settings_p_lock.py` (50): ruff: noqa: E501
+- `host/tests/test_settings_p_network.py` (57): The Network page in the new dashboard look (settings_ui_p_network.py)."""
+- `host/tests/test_settings_p_packs.py` (72): ruff: noqa: E501
+- `host/tests/test_settings_p_remote.py` (108): ruff: noqa: E501
+- `host/tests/test_settings_p_system.py` (59): ruff: noqa: E501
+- `host/tests/test_settings_p_voice.py` (60): ruff: noqa: E501
 - `host/tests/test_settings_simplification.py` (39): Patch UX30 (docs/plan/unit-settings-simplification.md): the unit's Settings app has fewer rows, header only. T
 - `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
 - `host/tests/test_settings_ui.py` (460): ruff: noqa: E501
@@ -2837,7 +2868,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_unit_behaviors.py` (186): Per-unit touch handling (docs/plan/per-unit-behavior.md, step 2): a tap on the second unit reaches only the se
 - `host/tests/test_unit_hardware.py` (160): The measurement rows' unit-ready checks: what has to hold on the physical Reachy Mini
 - `host/tests/test_unit_heal.py` (45): Self-heal per unit (docs/plan/per-unit-behavior.md, step 5): each unit after the first has its own restart gua
-- `host/tests/test_unit_lock.py` (470): ruff: noqa: E501
+- `host/tests/test_unit_lock.py` (479): ruff: noqa: E501
 - `host/tests/test_unit_lock_voice.py` (200): ruff: noqa: E501
 - `host/tests/test_unit_polish_routes.py` (272): ruff: noqa: E501
 - `host/tests/test_unit_update_check.py` (298): ruff: noqa: E501
@@ -2922,9 +2953,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
 - `scripts/docs-site/browser_check.js` (30): Headless check of the 3D viewer page over a plain static server. Usage: node browser_check.js URL [screenshot.
-- `scripts/docs-site/build.py` (697): Build the static documentation site into docs-site/out/ (git-ignored).
-- `scripts/docs-site/check-site.py` (227): Check the built documentation site: links, pictures, captions and the phone, dark and print styles.
-- `scripts/docs-site/test_docs_site.py` (248): Offline test of the documentation site build. Usage: python3 scripts/docs-site/test_docs_site.py
+- `scripts/docs-site/build.py` (732): Build the static documentation site into docs-site/out/ (git-ignored).
+- `scripts/docs-site/check-site.py` (231): Check the built documentation site: links, pictures, captions and the phone, dark and print styles.
+- `scripts/docs-site/test_docs_site.py` (260): Offline test of the documentation site build. Usage: python3 scripts/docs-site/test_docs_site.py
 - `scripts/e2e-flake-hunt.sh` (21): find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. Each run's full 
 - `scripts/efuse-check.py` (104): owner decision 14 (2026-11-18): nothing in this project ever burns an eFuse (irreversible): no secure boot key
 - `scripts/exposure-allowed.json` (10): no header
@@ -2999,6 +3030,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/link-key-vector.py` (124): Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
 - `scripts/make-dashboard-screens.py` (71): A screenshot of each host dashboard page at desktop and phone width, kept in docs/dev/dashboard-screens for re
+- `scripts/make-dashboard-shots.py` (43): the docs screenshots of the new dashboard (Home, Robot, Safety, Look and feel) at desktop and phone width, dra
 - `scripts/make-doc-indexes.py` (80): Keep docs/user/index.md and docs/dev/index.md: a hand-written start, then every page of the folder listed by i
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
 - `scripts/make-game-sounds.py` (286): Game sounds, synthesized from nothing: short tones, clacks and noise bursts with attack-decay-sustain-release 
