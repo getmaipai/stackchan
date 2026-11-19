@@ -1,0 +1,47 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.com/maipai/character.json",
+ "title": "Character",
+ "description": "One small file: who the robot is. Persona text, a default face (style recipe, color, background) and voice settings. Under 1,024 bytes as compact UTF-8 (scripts/character-check.py checks it). The face style is named, never embedded: a style is its own asset (kind style, docs/design/face-styles.md).",
+ "type": "object",
+ "additionalProperties": false,
+ "required": ["schema", "id", "name", "lang", "face"],
+ "x-max-bytes": 1024,
+ "properties": {
+  "schema": {"const": "maipai.character/1"},
+  "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,11}$", "description": "Lower-case letters, digits and underscores. The bank's ids are the persona roster of the org standards; a copy chooses its own."},
+  "name": {"type": "string", "minLength": 1, "maxLength": 24},
+  "about": {"type": "string", "maxLength": 80, "description": "One plain sentence for the picker."},
+  "based_on": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,11}$", "description": "The id of the character this one is a copy of, when it is one."},
+  "lang": {"enum": ["en", "es", "fr", "de", "pt", "it"]},
+  "persona": {"type": "string", "maxLength": 480, "description": "Plain text for the language model. Route own-LLM and Home only; hidden for a hosted vendor."},
+  "face": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": ["style"],
+   "properties": {
+    "style": {"enum": ["big_eyes", "stock", "minimal", "classic", "eyes_only", "round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes", "hose", "neon"]},
+    "color": {"type": "string", "pattern": "^(none|mint|sky|amber|rose|lilac|lime|coral|#[0-9a-fA-F]{6})$", "description": "The face color setting."},
+    "background": {"type": "string", "pattern": "^(none|mint|sky|amber|rose|lilac|lime|coral|#[0-9a-fA-F]{6})$", "description": "The screen color behind the face."}
+   }
+  },
+  "voice": {
+   "type": "object",
+   "additionalProperties": false,
+   "description": "Route own-LLM and Home only; hidden for a hosted vendor, whose voice is the vendor's.",
+   "properties": {
+    "speed": {"type": "number", "minimum": 0.75, "maximum": 1.5},
+    "pitch": {"type": "integer", "minimum": -12, "maximum": 12, "description": "Semitones, as speech/pitch.py."},
+    "ids": {
+     "type": "object",
+     "additionalProperties": false,
+     "properties": {
+      "local": {"type": "string", "maxLength": 40, "description": "A voice of the person's own speech engine. Empty or missing: the engine's default."},
+      "home": {"type": "string", "maxLength": 40, "description": "A voice id Home owns, stock or cloned. Empty or missing: Home's default for the language."}
+     }
+    }
+   }
+  },
+  "wake": {"type": "string", "maxLength": 24, "description": "Optional wake phrase. Needs a trained wake model; none ships with a default character."}
+ }
+}
