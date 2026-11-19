@@ -18,11 +18,11 @@ Cost is flash code plus state in PSRAM; nothing here needs internal RAM beyond t
 | 4 | **Breakout** | grid core, timed | drag the paddle, or tilt | 3 KB | 200 B | tick by row, thud, lose | needs a 30 ms tick and redraw only what moves (SF78 does this) |
 | 5 | **Balance** (a ball on a plate; keep it on) | accelerometer | tilt, continuous | 1.5 KB | 40 B | a soft rolling tick that rises in pitch toward the edge, lose | needs the analog tilt feed (below) |
 | 6 | **Maze** (a marble through a labyrinth) | accelerometer | tilt, continuous | 2.5 KB | 150 B (8 by 8 maze from a seed) | tick on a wall, ting at the goal | analog tilt; a maze generator (about 60 lines) |
-| 7 | **Battleship-lite** (6 by 6, one ship set, the unit hides) | grid core | tap a cell | 2.5 KB | 90 B | drop (splash), clack (hit), fanfare | none |
-| 8 | **Flappy-style flyer** (tap to hop through gaps) | grid core, timed | tap | 2 KB | 80 B | tick on a pass, thud, lose | frame cost of a scrolling field: test on the frame table |
+| 7 | **Battleship-lite** (6 by 6, one ship set, the unit hides; built, patch UX23, see `docs/design/battleship-lite.md`) | grid core | tap a cell | 2.5 KB | 90 B | drop (splash), clack (hit), fanfare | none |
+| 8 | **Flappy-style flyer** (tap to hop through gaps; built, patch UX25, see `docs/design/flyer.md`) | grid core, timed | tap | 2 KB | 80 B | tick on a pass, thud, lose | frame cost of a scrolling field: test on the frame table |
 | 9 | **Racing** (three lanes, dodge; steer by tilt) | accelerometer | tilt left and right | 2 KB | 70 B | a rising engine tone, thud, lose | the head's small tilt range: a lane change per clear tilt (the discrete 4-way tilt of UI12 may be enough) |
 | 10 | **Flying** (fly through rings, tilt up and down) | accelerometer | tilt forward and back | 2 KB | 70 B | whoosh, ting per ring | the discrete tilt is enough |
-| 11 | **Pong** (against the unit) | grid core, timed | drag the paddle | 2 KB | 60 B | tick, thud | the unit's paddle speed sets the difficulty |
+| 11 | **Pong** (against the unit; built, patch UX24, see `docs/design/pong.md`) | grid core, timed | drag the paddle | 2 KB | 60 B | tick, thud | the unit's paddle speed sets the difficulty |
 | 12 | **Tetris-lite** (10 by 8, swipe to move, tap to turn) | grid core, timed | swipes, tap | 4 KB | 120 B | clack, drop, a line clear fanfare | the most code of the list |
 | 13 | **Darts** (a moving aim, tap to throw) | data pack | tap on time | 2 KB | 30 B | tick, ting by ring | timing needs the 80 ms engine tick: fine |
 | 14 | **Pool-lite** (aim and flick, three balls) | new engine | drag to aim | 6 KB | 300 B | clack | physics: a fixed-point collision step (about 150 lines) and the frame cost of moving discs; rank last |

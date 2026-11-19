@@ -434,7 +434,7 @@ int main()
             const int steps = atoi(f[1].c_str()), by = atoi(f[2].c_str());
             for (int i = 0; i < steps; i++) { fg.y = by * 16; fg.vy = 0; fl_step(&fg); fg.phase = FL_PLAY; }
             fg.y = by * 16; fg.vy = 0; fg.score = (uint16_t)atoi(f[3].c_str()); fg.phase = (uint8_t)(atoi(f[4].c_str()) ? FL_OVER : FL_PLAY);
-            fls::screen(lv_layer_top(), &fg, f[5] == "es");
+            flys::screen(lv_layer_top(), &fg, f[5] == "es");
             lv_refr_now(nullptr);
 #else
             printf("this firmware tree has no flyer (patch UX25)\n");

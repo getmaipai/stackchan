@@ -1,4 +1,4 @@
-"""Patches UX21 (Higher or Lower) and UX22 (Reversi): each pure core's host test runs here against the patch text; both patches are on ORDER with their header lines and neither file calls the
+"""Patches UX21 to UX25 (Higher or Lower, Reversi, Battleship-lite, Pong, the flyer): each pure core's host test runs here against the patch text; both patches are on ORDER with their header lines and neither file calls the
 hardware. They wait on the branch ux/unproven-games for their bench proof (plain boot first); the tests skip while a patch is not in firmware/patches."""
 import re
 import shutil
@@ -12,6 +12,9 @@ PATCHES = HERE.parents[1] / "firmware" / "patches"
 GAMES = [
     ("UX21-higher-or-lower.patch", "hilo", ["maipai_hilo_core.h", "maipai_hilo.h"]),
     ("UX22-reversi.patch", "reversi", ["maipai_reversi_core.h", "maipai_reversi.h"]),
+    ("UX23-battleship-lite.patch", "battleship", ["maipai_battleship_core.h", "maipai_battleship.h"]),
+    ("UX24-pong.patch", "pong", ["maipai_pong_core.h", "maipai_pong.h"]),
+    ("UX25-flyer.patch", "flyer", ["maipai_flyer_core.h", "maipai_flyer.h"]),
 ]
 
 

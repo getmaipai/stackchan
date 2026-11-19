@@ -132,7 +132,7 @@ new file mode 100644
 +#include <stdio.h>
 +#include "maipai_flyer_core.h"
 +
-+namespace fls {
++namespace flys {
 +
 +inline void rect(lv_layer_t* layer, int x, int y, int w, int h, int radius, uint32_t color, lv_opa_t opa = LV_OPA_COVER)
 +{
@@ -192,6 +192,6 @@ new file mode 100644
 +    return r;
 +}
 +
-+}  // namespace fls
++}  // namespace flys
 +
 +#endif

@@ -53,7 +53,7 @@ int main(void)
         for (int i = 0; i < 120 && w.su == 0 && w.phase == PG_PLAY; i++) pg_step(&w);
         CHECK(w.su == 1 && w.vx < 0 && w.bx == (PG_W / 2 - PG_BALL / 2) * 16);        /* the unit scored and the ball is back in the middle, going toward the loser */
     }
-    { /* an edge hit gives a steeper ball than a centre hit */
+    { /* an edge hit gives a steeper ball than a center hit */
         pg_t a, b;
         pg_init(&a, 3); pg_init(&b, 3);
         a.bx = b.bx = 24 * 16; a.vx = b.vx = -48; a.vy = b.vy = 0; a.by = b.by = 90 * 16;
