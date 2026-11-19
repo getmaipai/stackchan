@@ -379,13 +379,17 @@ def _merge_reviewed() -> None:
 
 _merge_more()
 _merge_fill()
+from maipai_body import i18n_tier1 as _tier1  # noqa: E402  Dutch, Polish, Turkish, Swedish, Danish, Norwegian, Czech: machine drafts
+
+_tier1.register(CATALOG)
+ALL_LANGUAGES = SUPPORTED + _tier1.CODES  # SUPPORTED stays the six complete languages (the per-module word tables); tier 1 drafts are added here
 _merge_reviewed()
 
 
 def normalize(lang: str | None) -> str:
     """Return a supported language code; unknown or empty values give English."""
     code = (lang or "").strip().lower().replace("_", "-").split("-")[0]
-    return code if code in SUPPORTED else DEFAULT
+    return code if code in ALL_LANGUAGES else DEFAULT
 
 
 def t(lang: str | None, key: str, **values: object) -> str:

@@ -47,7 +47,7 @@ def test_the_export_has_every_catalog_string_the_robot_screen_words_the_packs_an
     assert set(i18n.CATALOG["en"]) <= keys
     assert any(k.startswith("unit.screen.") for k in keys) and "pack.weekdays" in keys and any(k.startswith("doc.title.") for k in keys)
     assert all(r["status"] in ("machine draft", "missing", "reviewed") for r in rows)
-    assert (tmp_path / "out" / "STATUS.md").read_text().count("nobody yet") == 5
+    assert (tmp_path / "out" / "STATUS.md").read_text().count("nobody yet") == 12  # the five complete languages and the seven tier 1 drafts
 
 
 def test_the_checks_catch_what_would_break_the_page_or_the_robot(pack, tmp_path):

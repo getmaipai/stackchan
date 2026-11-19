@@ -52,6 +52,7 @@ host/tests/test_vu_tools_*.py :: [Cc]olour
 
 # Machine-drafted translations in other languages: the English spelling rule does not apply (réinitialisation, Passwort-Initialisierung and the like).
 host/maipai_body/i18n_fill/* :: *
+host/maipai_body/i18n_tier1/* :: *
 
 # The translator review pack and reviewed translations: text in other languages (Licence, initialisation and the like); the English spelling rule does not apply.
 docs/dev/translation-review/*.csv :: *

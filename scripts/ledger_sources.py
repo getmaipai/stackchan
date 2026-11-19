@@ -128,6 +128,7 @@ def games() -> list[dict]:
 
 
 NAMES = {"es": "Spanish", "fr": "French", "de": "German", "pt": "Portuguese", "it": "Italian", "en": "English"}
+NAMES.update({"nl": "Dutch", "pl": "Polish", "tr": "Turkish", "sv": "Swedish", "da": "Danish", "nb": "Norwegian (Bokmal)", "cs": "Czech"})   # tier 1, machine drafts (host/maipai_body/i18n_tier1.py)
 
 
 def moods() -> list[str]:
