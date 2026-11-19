@@ -352,6 +352,10 @@ STROKES = {  # letter: (advance, strokes) in a box one capital high; the product
     '8': (0.7, [arc(0.32, 0.76, 0.22, 0.24, 0, 360, 10), arc(0.32, 0.27, 0.27, 0.27, 0, 360, 10)]),
     'C': (0.75, [arc(0.4, 0.5, 0.36, 0.5, 55, 305, 10)]),
     '.': (0.3, [[(0.1, 0.0), (0.1, 0.12)]]),
+    '-': (0.6, [[(0.08, 0.45), (0.5, 0.45)]]),
+    '+': (0.7, [[(0.06, 0.45), (0.6, 0.45)], [(0.33, 0.18), (0.33, 0.72)]]),
+    'G': (0.8, [arc(0.4, 0.5, 0.36, 0.5, 50, 320, 12) + [(0.76, 0.46), (0.46, 0.46)]]),
+    'B': (0.7, [[(0.06, 0.0), (0.06, 1.0), (0.4, 1.0), (0.56, 0.88), (0.56, 0.64), (0.4, 0.52), (0.06, 0.52)], [(0.4, 0.52), (0.6, 0.4), (0.6, 0.14), (0.42, 0.0), (0.06, 0.0)]]),
     ' ': (0.45, []),
     'P': (0.7, [[(0.05, 0.0), (0.05, 1.0), (0.4, 1.0), (0.58, 0.86), (0.58, 0.64), (0.4, 0.5), (0.05, 0.5)]]),
     'M': (1.1, [[(0.05, 0.0), (0.05, 1.0), (0.52, 0.25), (1.0, 1.0), (1.0, 0.0)]]),
@@ -740,9 +744,19 @@ def assemble():
                     board_parts['port_metal'] += at(left, down + sg * (h / 2 - ends / 2), w, ends, 0.0, t + 0.02)
         if framed:
             board_7p['silk'] += frame(left, down, w, h)
-    board_parts = {'chip': [], 'conn': [], 'cap_tan': [], 'pin_gold': [], 'port_metal': [], 'ribbon': []}
+    board_parts = {'chip': [], 'conn': [], 'cap_tan': [], 'pin_gold': [], 'port_metal': [], 'ribbon': [], 'servo': []}
     # sockets along the top edge, under the ring board
-    board_parts['chip'] += at(0.8, 2.1, 10.0, 4.2, 0.0, 3.0)                    # the black housing the eight-wire cable plugs into
+    board_parts['chip'] += at(0.8, 1.9, 10.0, 3.8, 0.0, 3.0)                    # a black housing under the ring board
+    # The ribbon cable's own connector (owner's four close photos): a low white connector in a bright metal shield, lying across the
+    # board below that housing, with a row of letters printed above it. The wires leave it pointing away from the board.
+    board_parts['port_metal'] += at(-1.0, 7.4, 9.6, 2.9, 0.0, 1.5)
+    board_parts['conn'] += at(-1.0, 7.5, 8.9, 1.9, 1.5, 2.0)
+    board_7p['silk'] += text('V-+GSMB', 3.4, 5.6, 0.75, 0.11)
+    part('servo', -4.6, 11.6, 3.8, 3.8, 1.9, framed=True)                      # a square coil in a white frame, under the loop
+    board_7p['silk'] += text('2', -3.6, 12.0, 0.9, 0.13, c=1.92) + text('2', -5.0, 12.0, 0.9, 0.13, c=1.92)
+    part('chip', -4.4, 16.0, 3.6, 3.4, 0.7)                                     # a chip with a row of bright dots along its top
+    for k8 in range(8):
+        board_parts['port_metal'] += at(-6.0 + 0.45 * k8, 14.0, 0.2, 0.2, 0.0, 0.2)
     for k4 in range(4):                                                        # the pins of the black top connector beside it
         board_parts['port_metal'] += at(-7.2 - 2.0 * k4, 4.9, 0.7, 1.3, 0.0, 0.6)
     board_parts['conn'] += at(-15.9, 0.9, 5.0, 1.8, 0.0, 1.4)                   # the flat cable's socket: a pale body with a dark latch
@@ -754,8 +768,7 @@ def assemble():
     board_parts['conn'] += tube(onboard, post, 0.0, 2.6) + band(onboard, post, moved(circle(0.6, 16), 18.1, ring_under - 0.9), 2.6)
     board_parts['chip'] += flat(onboard, moved(circle(0.6, 16), 18.1, ring_under - 0.9), 2.55)
     # left of the cable: the print 7P, a square chip, two capacitors, a row of tiny parts, a three-legged part
-    board_7p['silk'] += text('7P', 8.4, 8.4, 0.95, 0.14)
-    board_parts['cap_tan'] += at(5.0, 7.9, 1.3, 2.2, 0.0, 0.25)                 # a strip of tan tape at the cable's side
+    board_7p['silk'] += text('7P', 8.4, 7.0, 0.95, 0.14)
     part('chip', 11.5, 12.0, 3.4, 3.2, 0.75, framed=True)
     for sg in (-1, 1):                                                          # the chip's legs: a row of bright dashes on two sides
         for k5 in range(5):
@@ -773,7 +786,6 @@ def assemble():
     part('cap_tan', -8.6, 8.8, 1.4, 2.6, 0.8, ends=0.5, framed=True)
     for dn in (11.2, 12.75, 14.3):
         part('cap_tan', -8.6, dn, 2.3, 1.15, 0.8, ends=0.5, framed=True)
-    part('conn', -4.8, 12.7, 1.5, 1.5, 0.5)
     part('chip', -5.6, 9.2, 0.7, 1.0, 0.35, ends=0.22)
     part('chip', -6.7, 15.6, 1.0, 0.6, 0.35, ends=0.25)
     # the left edge: two rows of paired holes with rings, and two lone holes above them
@@ -790,7 +802,7 @@ def assemble():
     board_7p['trace'] += line([(21.6, 6.0), (21.6, 18.5)], 0.12) + line([(16.4, 6.0), (16.4, 18.5)], 0.12)   # the frame lines round the hole rows
     # the board's own lines: traces fanning from the cable socket and the chip, drawn a shade lighter than the board
     for k6 in range(6):
-        board_7p['trace'] += line([(3.6 - 0.32 * k6, 4.6), (3.6 - 0.32 * k6, 5.4), (9.6 + 0.35 * k6, 7.2 - 0.25 * k6), (14.5, 7.2 - 0.25 * k6)], 0.11)
+        board_7p['trace'] += line([(3.9, 6.6 + 0.3 * k6), (5.4, 6.6 + 0.3 * k6), (9.6 + 0.35 * k6, 9.6 - 0.25 * k6), (14.5, 9.6 - 0.25 * k6)], 0.11)
     for k5 in range(5):
         board_7p['trace'] += line([(-4.4 - 0.3 * k5, 4.9), (-4.4 - 0.3 * k5, 6.2 + 0.2 * k5), (-6.6 - 0.3 * k5, 7.6 + 0.2 * k5), (-11.5, 7.6 + 0.2 * k5)], 0.11)
     board_7p['trace'] += line([(13.2, 13.6), (14.6, 13.6), (15.4, 12.8), (15.4, 9.6)], 0.14) + line([(9.8, 12.9), (9.1, 12.9)], 0.3)
@@ -843,21 +855,27 @@ def assemble():
     for k, material in enumerate(('chip', 'wire_red', 'conn')):
         servo_wires[material] += abox(ax - 18.0, ax - 17.3, ay - 1.5 + k, ay - 0.6 + k, -10.0, 3.0)             # beside the pan servo
         servo_wires[material] += abox(ax + 1.0 + k, ax + 1.9 + k, ay + 17.2, ay + 17.9, 3.3, 14.0)              # behind the tilt servo
-    cable = []                                                # the same ribbon of eight black wires where it runs over the back of the holder (path assumed)
-    path = [(-300.4, 9.0), (-299.6, 12.5), (-299.4, 15.5), (-300.4, 18.0), (-302.5, 19.6), (-305.4, 20.4), (-308.5, 20.7)]   # (assembly y, z)
-    for wire in range(8):
-        wx = ax - 0.3 + 3.71 - 1.06 * wire
-        rings = []
-        for n, (py, pz) in enumerate(path):
-            a0, a1 = path[max(0, n - 1)], path[min(len(path) - 1, n + 1)]
-            ty, tz = a1[0] - a0[0], a1[1] - a0[1]
-            tl = math.hypot(ty, tz)
-            ny, nz = -tz / tl, ty / tl
-            rings.append([world((wx + 0.4 * math.cos(2 * math.pi * q / 12), py + 0.4 * math.sin(2 * math.pi * q / 12) * ny, pz + 0.4 * math.sin(2 * math.pi * q / 12) * nz)) for q in range(12)])
-        for r0, r1 in zip(rings, rings[1:]):
-            for q in range(12):
-                a, b, c2, d = r0[q], r0[(q + 1) % 12], r1[(q + 1) % 12], r1[q]
-                cable += both([a + b + c2, a + c2 + d])
+    def wires(ring_at, pts, radius=0.4):
+        """Eight round wires along a path; ring_at(wire x, point, sideways offset, offset across the bend) gives a model point."""
+        out = []
+        for wire in range(8):
+            wx = -1.0 + 3.71 - 1.06 * wire
+            rings = []
+            for n, pt in enumerate(pts):
+                a0, a1 = pts[max(0, n - 1)], pts[min(len(pts) - 1, n + 1)]
+                t0, t1 = a1[0] - a0[0], a1[1] - a0[1]
+                tl = math.hypot(t0, t1)
+                n0, n1 = -t1 / tl, t0 / tl
+                rings.append([ring_at(wx + radius * math.cos(2 * math.pi * q / 12), (pt[0] + radius * math.sin(2 * math.pi * q / 12) * n0, pt[1] + radius * math.sin(2 * math.pi * q / 12) * n1)) for q in range(12)])
+            for r0, r1 in zip(rings, rings[1:]):
+                for q in range(12):
+                    a, b, c2, d = r0[q], r0[(q + 1) % 12], r1[(q + 1) % 12], r1[q]
+                    out += both([a + b + c2, a + c2 + d])
+        return out
+    cable = []                                                # the ribbon where it lands on top of the holder and lies flat, running back (owner's photos)
+    holder_top = 49.75                                                     # top of the holder's cover behind the board (cover file)
+    lie = holder_top + 0.42
+    cable += wires(lambda x, pt: (x, pt[0], pt[1]), [(ring_under - 15.0, zb - 4.4), (ring_under - 15.8, zb - 4.9), (lie + 0.35, zb - 6.0), (lie, zb - 7.6), (lie, zb - 12.0), (lie, 0.0), (lie, -4.0)])
     screen_c = (0.0, cy - SCREEN_DROP_MM, face + 0.03)
 
     def screw(f, u, v, r, c0, c1, socket=False):
@@ -1080,26 +1098,19 @@ def assemble():
     b7 = (0.0, cy + 1.0, front - 1.1)
     g.node('board_7p', head, sub(b7, PITCH_O), g.mesh('board_7p', many(board_7p, b7)),
            {'what': 'the upright board behind the controller, with its white print (7P beside the seven-pin socket)', 'basis': 'assumed', 'note': "print seen in the owner's photo and in the maker's back picture"})
-    # The black cable (owner's close photo): eight round wires side by side, 8.5 mm across. They leave the socket, arch away from the
-    # board, come back down to a taped band, and go on as a flat ribbon toward the holder. It rides on the head.
-    coil, coil_c = [], (-0.3, ring_under - 11.0, zb - 2.0)
-    arch = [(4.6, 0.9), (5.4, 1.8), (6.6, 2.6), (8.2, 3.1), (10.2, 3.3), (12.2, 3.1), (13.8, 2.6), (15.0, 2.0), (16.0, 1.6), (17.4, 1.5), (19.4, 1.5)]   # (down, out of the board): the arch, then on down as the same eight wires
-    for wire in range(8):
-        wx = coil_c[0] + 3.71 - 1.06 * wire
-        rings = []
-        for n, (dn, cc) in enumerate(arch):
-            a0, a1 = arch[max(0, n - 1)], arch[min(len(arch) - 1, n + 1)]
-            tv, tc = -(a1[0] - a0[0]), a1[1] - a0[1]
-            tl = math.hypot(tv, tc)
-            nv, nc = -tc / tl, tv / tl                                           # across the wire, in the plane it bends in
-            rings.append([onboard(wx + 0.4 * math.cos(2 * math.pi * q / 12), ring_under - dn + 0.4 * math.sin(2 * math.pi * q / 12) * nv, cc + 0.4 * math.sin(2 * math.pi * q / 12) * nc) for q in range(12)])
-        for r0, r1 in zip(rings, rings[1:]):
-            for q in range(12):
-                a, b, c2, d = r0[q], r0[(q + 1) % 12], r1[(q + 1) % 12], r1[q]
-                coil += both([a + b + c2, a + c2 + d])
-    coil += slab(onboard, coil_c[0] - 4.3, coil_c[0] + 4.3, ring_under - 16.5, ring_under - 15.7, 1.0, 2.14)      # the narrow band where the wires are bonded together
-    g.node('coil', head, sub(coil_c, PITCH_O), g.mesh('coil', [g.primitive(coil, coil_c, 'ribbon')]),
-           {'what': 'black cable of eight round wires from its socket on the upright board: a ribbon of eight black wires that arches away from the board, is bonded in a narrow band, and goes on down toward the holder', 'basis': 'assumed', 'note': "laid out from the owner's close photo of the open back; it flexes as the head nods, drawn at rest"})
+    # The ribbon cable (owner's four close photos): eight round black wires side by side. They leave the connector pointing away from the
+    # board, curl up and back in a loop, come down behind the board through a short braided band, and land on top of the holder (the
+    # rest of the run is the node `cable`, on the holder). This part rides on the head; it is drawn at rest and flexes as the head nods.
+    coil, coil_c = [], (-1.0, ring_under - 9.5, zb - 5.0)
+    # Seen from the side the wires make a letter C that opens toward the board: its top end is in the connector, it bulges 7 mm away from
+    # the board, and its bottom end comes back toward the board, where the braided band is; below the band the ribbon goes to the holder.
+    loop = [(7.4, 1.7), (7.2, 3.3), (7.5, 5.0), (8.5, 6.4), (10.0, 7.2), (11.6, 7.1), (12.8, 6.3), (13.6, 5.3), (14.4, 4.4), (15.0, 4.4)]   # (down, away from the board)
+
+    coil += wires(lambda x, pt: onboard(x, ring_under - pt[0], pt[1]), loop)
+    bc = onboard(coil_c[0], ring_under - 13.6, 5.3)                                  # the short woven band round the wires, on the slant at the foot of the C
+    braid = obox(bc, (4.4, 0.0, 0.0), (0.0, -0.8 * 0.66, 0.9 * 0.66 * 1.25), (0.0, 0.75 * 0.62, 0.66 * 0.62))
+    g.node('coil', head, sub(coil_c, PITCH_O), g.mesh('coil', [g.primitive(coil, coil_c, 'ribbon'), g.primitive(braid, coil_c, 'servo_case')]),
+           {'what': 'ribbon cable of eight black wires: out of its connector on the upright board, a loop away from the board, a braided band, down toward the holder', 'basis': 'assumed', 'note': "route from the owner's four close photos; it flexes as the head nods and is drawn at rest, so near full tilt the drawn loop passes through the holder"})
     low = {'flex': [], 'flex_ink': []}                           # a second flat cable, white with blue print, low on the board (owner's photo from below)
     low['flex'] += slab(lambda u, v, c: (u, v, zb - c), -13.0, -2.0, cy - 16.0, cy - 12.6, 0.0, 0.2)
     for k7 in range(7):

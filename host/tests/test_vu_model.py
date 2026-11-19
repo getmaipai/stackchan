@@ -519,11 +519,15 @@ def test_the_heads_board_is_laid_out_from_the_owners_close_photo():
     by = nodes_by_name(j)
     mat = lambda name: {j["materials"][p["material"]]["name"] for p in j["meshes"][by[name][1]["mesh"]]["primitives"]}
     assert {"chip", "conn", "cap_tan", "port_metal"} <= mat("board_parts"), "the cable socket, the flat cable socket, tan capacitors, solder ends and pins"
-    assert mat("coil") == {"ribbon"} and mat("cable") == {"ribbon"}, "the black cable, on the head and over the holder"
+    assert mat("coil") == {"ribbon", "servo_case"} and mat("cable") == {"ribbon"}, "the ribbon cable with its braided band on the head, and its run on the holder"
+    coil_node, cable_node, board = by["coil"][1], by["cable"][1], by["board_7p"][1]
+    assert coil_node["translation"][2] < board["translation"][2] - 0.003, "the loop stands away from the board, toward the back"
+    cable_acc = j["accessors"][j["meshes"][cable_node["mesh"]]["primitives"][0]["attributes"]["POSITION"]]
+    assert cable_acc["max"][2] - cable_acc["min"][2] > 0.012, "on the holder the ribbon lies flat and runs back for more than 12 mm"
     assert {"flex", "flex_ink"} <= mat("flex_cable_ring") and {"silk", "trace"} <= mat("board_7p"), "print on the flat cable; print and traces on the board"
     assert {"port_metal"} <= mat("board_parts"), "solder ends and pins"
     src = (VU / "model" / "make_body.py").read_text()
-    assert "for wire in range(8):" in src and "text('AWM'" in src, "eight round wires, and the flat cable's own print"
+    assert "for wire in range(8):" in src and "text('AWM'" in src and "text('V-+GSMB'" in src, "eight round wires, the flat cable's print, the letters above the ribbon's connector"
     flex, coil, green = (by[n][1]["translation"][0] for n in ("flex_cable_ring", "coil", "green_connector"))
     assert flex < coil < green, "seen from behind: the blue connector on the robot's left, the black cable in the middle, the white flat cable on its right"
     assert abs(by["cable"][1]["translation"][0]) < 0.002, "the cable over the holder is in the middle, under the one on the head"
