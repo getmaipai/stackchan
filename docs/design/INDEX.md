@@ -10,14 +10,21 @@ One line per file: path, lines, purpose (first comment or heading).
 - `.githooks/commit-msg` (2): no header
 - `.githooks/pre-commit` (2): no header
 - `.github/FUNDING.yml` (20): Staged, not live. GitHub reads this file only from the default branch of the public repo, and the public
+- `.github/ISSUE_TEMPLATE/bug_report.yml` (53): no header
+- `.github/ISSUE_TEMPLATE/config.yml` (5): no header
+- `.github/ISSUE_TEMPLATE/feature_request.yml` (38): no header
 - `.gitignore` (13): model beside the maker's pictures: third-party images, made locally by render_previews.py
 - `.gitleaks.toml` (19): Source-level secret rules for this repo. The image-level check is scripts/check-no-keys.py (patch 156).
 - `AGENTS.md` (56): MaiPai StackChan
+- `CHANGELOG.md` (24): Changelog
 - `CLAUDE.md` (1): no header
+- `CODE_OF_CONDUCT.md` (25): Code of conduct
+- `CONTRIBUTING.md` (33): Contributing
 - `LICENSE` (664): no header
 - `NOTICE` (30): no header
 - `README.md` (45): MaiPai for StackChan
 - `SECURITY.md` (28): Security
+- `SUPPORT.md` (21): Support
 - `THIRD-PARTY.md` (50): Third-party notices
 - `VERIFY.md` (28): Check this project yourself
 - `docs-site/.gitignore` (1): no header
@@ -43,7 +50,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/clock-styles.md` (66): Clock styles, the tap and the sleep sign
 - `docs/design/config.md` (24): Host configuration
 - `docs/design/consolidation-2026-11-16.md` (79): One consolidated image, 2026-11-16
-- `docs/design/content-pantry.md` (151): Content pantry: jokes, riddles, trivia and stories the unit keeps (design, 2026-11-18)
+- `docs/design/content-pantry.md` (158): Content pantry: jokes, riddles, trivia and stories the unit keeps (design, 2026-11-18)
 - `docs/design/core-extras-modules.md` (35): Host modules: core or extras
 - `docs/design/dance-ladder-2026-11-17.md` (53): Music dance ladder and the movement limiter, 2026-11-17
 - `docs/design/decisions.md` (115): Owner decisions and corrections
@@ -160,7 +167,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1139): Feature ledger
+- `docs/dev/feature-ledger.md` (1142): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -236,7 +243,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/index.md` (107): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
-- `docs/dev/model-previews/joints.gif` (1480): Binary file docs/dev/model-previews/joints.gif matches
+- `docs/dev/model-previews/joints.gif` (1487): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/mumble/de.wav` (281): no header
 - `docs/dev/mumble/en.wav` (243): Binary file docs/dev/mumble/en.wav matches
 - `docs/dev/mumble/es.wav` (259): no header
@@ -246,7 +253,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/mumble/samples.json` (673): no header
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
 - `docs/dev/overview.md` (50): How MaiPai for StackChan fits together
-- `docs/dev/pre-publish-checklist.md` (10): Before the repository goes public
+- `docs/dev/pantry-seed.md` (9): Pantry seed library
+- `docs/dev/pre-publish-checklist.md` (34): Before the repository goes public
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
@@ -255,7 +263,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/screens-contact-sheets.md` (38): Screens contact sheets
 - `docs/dev/second-robot-adapter.md` (16): Adding a second robot behind the seam
 - `docs/dev/seek-cue-policy.md` (38): The face-turning seeker and the camera-on cue: why the cue is lit most of the time, and a quieter policy
-- `docs/dev/settings-justification.md` (53): Settings justification (owner decision 20)
+- `docs/dev/settings-justification.md` (54): Settings justification (owner decision 20)
 - `docs/dev/software-only-protection.md` (50): Protecting the lock code, tokens and link key with software only (owner decision 14: no eFuse, ever)
 - `docs/dev/stackchan-anywhere-network-2026-11-14.md` (207): StackChan anywhere network: the robot joins the tailnet itself, and keeps a list of Wi-Fi networks
 - `docs/dev/stackchan-away-trip-and-permanent-2026-11-14.md` (148): StackChan away from home: the trip stopgap and the permanent design (2026-11-14)
@@ -305,7 +313,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
 - `docs/dev/version-page-fit.md` (18): Does the version page fit with the affiliation notice (patch SF69)? Measured 2026-11-18
-- `docs/dev/virtual-unit-3d.md` (75): The 3D virtual unit: body, power, axes
+- `docs/dev/virtual-unit-3d.md` (76): The 3D virtual unit: body, power, axes
 - `docs/dev/virtual-unit-assets.md` (15): The installed set in the virtual unit
 - `docs/dev/virtual-unit-dance.md` (44): The dance in the virtual unit
 - `docs/dev/virtual-unit-fidelity.md` (35): Virtual unit fidelity: handlers against the firmware lambdas (2026-11-18)
@@ -422,7 +430,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/optimization.md` (122): Optimization: the image diet, the patch series cleanup, and the host side
 - `docs/plan/pantry-reader-firmware.md` (38): Content pantry on the unit: the reader, the size budget and the heard list (firmware track, 2026-11-18)
 - `docs/plan/parent-view.md` (32): Parent view on the settings page (plan step 7)
-- `docs/plan/per-unit-behavior.md` (33): Per-unit behavior (decision 16, many robots)
+- `docs/plan/per-unit-behavior.md` (34): Per-unit behavior (decision 16, many robots)
 - `docs/plan/physics-playground.md` (24): Physics playground (plan and status, 2026-11-18)
 - `docs/plan/playground-live.md` (33): The host API for a live playground (owner decision 21)
 - `docs/plan/privacy-sentence.md` (13): One privacy sentence for the settings page and the robot's first-run screen
@@ -935,7 +943,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5475): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5588): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/asset_transport.py` (148): ruff: noqa: E501
 - `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -1176,7 +1185,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/meeting_faces.py` (37): Small host-side face choices for explicit person meeting events."""
 - `host/maipai_body/bodies/stackchan/motion_limit.py` (157): The unit's movement limiter as the host sees it (firmware patch ML01).
 - `host/maipai_body/bodies/stackchan/music_dance.py` (1098): The StackChan music dance: hear clear music, show a small "I like this", dance if it goes on.
-- `host/maipai_body/bodies/stackchan/music_dance_wiring.py` (483): Wire the music dance (music_dance.py) to a running StackChan service.
+- `host/maipai_body/bodies/stackchan/music_dance_wiring.py` (485): Wire the music dance (music_dance.py) to a running StackChan service.
 - `host/maipai_body/bodies/stackchan/music_identify.py` (460): Capture and name one short song clip during a StackChan music session."""
 - `host/maipai_body/bodies/stackchan/orientation.py` (336): How the robot reacts when its orientation changes.
 - `host/maipai_body/bodies/stackchan/owner_levels.py` (109): Persist the household owner's preferred StackChan speaker and screen levels."""
@@ -1202,7 +1211,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/talk_games.py` (429): ruff: noqa: E501
 - `host/maipai_body/bodies/stackchan/timers.py` (332): On-unit timers and alarms, the host side (firmware patches 090 to 094).
 - `host/maipai_body/bodies/stackchan/tool_parity.py` (30): The unit tool names the host sends that no firmware patch defines, each with a stated status.
-- `host/maipai_body/bodies/stackchan/turn.py` (2397): StackChan audio turn bridge to the existing hub speech clients."""
+- `host/maipai_body/bodies/stackchan/turn.py` (2421): StackChan audio turn bridge to the existing hub speech clients."""
 - `host/maipai_body/bodies/stackchan/updater.py` (297): Flasher and updater: check a signed release, then flash it or push it over the air.
 - `host/maipai_body/bodies/stackchan/uplink_stats.py` (108): Uplink statistics the self-test can read: hearing (frames, bytes, peak)
 - `host/maipai_body/bodies/stackchan/vision_bridge.py` (423): Host-side StackChan camera tracking and consent-gated face recognition."""
@@ -1223,10 +1232,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/brain/home.py` (89): Home brain adapter. Existing clients retain transport behavior and timing."""
 - `host/maipai_body/brain/interface.py` (63): Typed interface between the body host and its answering brain."""
 - `host/maipai_body/brain/own_llm.py` (377): Own-LLM brain using owner-configured HTTP services and optional local speech models."""
-- `host/maipai_body/brain_page.py` (80): ruff: noqa: E501
+- `host/maipai_body/brain_page.py` (99): ruff: noqa: E501
+- `host/maipai_body/brain_route.py` (62): ruff: noqa: E501
 - `host/maipai_body/brain_setup/__init__.py` (1): Three ways to get a brain (docs/plan/minimal-stack.md): MaiPai Home, the person's own stack, or a minimal loca
 - `host/maipai_body/brain_setup/catalog.py` (106): The pinned downloads of the minimal local stack (docs/plan/minimal-stack.md).
-- `host/maipai_body/brain_setup/controller.py` (126): The Brain page's one object: what is set now, the test buttons, applying a mode, and the local stack's install
+- `host/maipai_body/brain_setup/controller.py` (145): The Brain page's one object: what is set now, the test buttons, applying a mode, and the local stack's install
 - `host/maipai_body/brain_setup/installer.py` (288): Install, stop and remove the minimal local stack. The downloader is injected, so tests never touch the network
 - `host/maipai_body/brain_setup/modes.py` (102): Apply one of the three modes to robot.toml with a small line editor that keeps the rest of the file (comments 
 - `host/maipai_body/brain_setup/runner.py` (112): Start and stop the local model server (llama.cpp `llama-server`) and time one test turn. Both are injectable f
@@ -1242,6 +1252,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/dashboard/server.py` (498): The dashboard's stdlib HTTP server: a page, a JSON API, and a server-sent-event feed."""
 - `host/maipai_body/dashboard/telemetry.py` (128): The dashboard's view of a body: the latest state frame plus presence, as one JSON snapshot."""
 - `host/maipai_body/dashboard_shell.py` (51): ruff: noqa: E501
+- `host/maipai_body/degraded_banner.py` (63): ruff: noqa: E501
 - `host/maipai_body/expression/__init__.py` (21): The expression package: the primitive vocabulary, rendered on a body's HAL seam.
 - `host/maipai_body/expression/cue.py` (99): The typed cue and the phase-to-primitive mapping (``dev.md`` section 5).
 - `host/maipai_body/expression/engine.py` (389): The expression engine: one cue in, one primitive rendered or withheld.
@@ -1486,7 +1497,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/static/index.html` (94): The offline ladder: the text is built on the robot from real
 - `host/maipai_body/supervisor.py` (211): Workers under a watchdog: a dead or silent worker is restarted alone, with back-off, and a worker that keeps f
 - `host/maipai_body/swipe_pages.py` (352): ruff: noqa: E501
-- `host/maipai_body/unit_behaviors.py` (162): ruff: noqa: E501
+- `host/maipai_body/unit_behaviors.py` (170): ruff: noqa: E501
 - `host/maipai_body/unit_device.py` (138): ruff: noqa: E501
 - `host/maipai_body/unit_extras.py` (930): ruff: noqa: E501
 - `host/maipai_body/unit_lock.py` (266): ruff: noqa: E501
@@ -1494,7 +1505,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/unit_prefs.py` (248): ruff: noqa: E501
 - `host/maipai_body/unit_remote.py` (420): ruff: noqa: E501
 - `host/maipai_body/unit_settings.py` (265): ruff: noqa: E501
-- `host/maipai_body/unit_tools.py` (93): ruff: noqa: E501
+- `host/maipai_body/unit_tools.py` (95): ruff: noqa: E501
 - `host/maipai_body/units.py` (275): ruff: noqa: E501
 - `host/maipai_body/vision/__init__.py` (6): The still-image call's bot-side half (design-vision-still-image-
 - `host/maipai_body/vision/align.py` (142): SFace's own 112x112 five-point alignment.
@@ -1530,8 +1541,28 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/pantry/library.py` (157): The master library (docs/design/content-pantry.md, section 6): plain files in the host's data folder, one JSON
 - `host/maipai_packages/pantry/model.py` (27): The owner's own model as a plain function ``ask(prompt) -> text`` for the pantry (an OpenAI-style chat address
 - `host/maipai_packages/pantry/record.py` (86): The pantry record (docs/design/content-pantry.md, section 2): one thing the robot can say, with the rules that
-- `host/maipai_packages/pantry/shelf.py` (81): The shelf: the bytes of one `pantry` asset item (docs/design/content-pantry.md, section 3): one kind in one la
+- `host/maipai_packages/pantry/seed/de-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/de-riddle.json` (42): no header
+- `host/maipai_packages/pantry/seed/de-trivia.json` (42): no header
+- `host/maipai_packages/pantry/seed/en-joke.json` (102): no header
+- `host/maipai_packages/pantry/seed/en-riddle.json` (102): no header
+- `host/maipai_packages/pantry/seed/en-trivia.json` (102): no header
+- `host/maipai_packages/pantry/seed/es-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/es-riddle.json` (42): no header
+- `host/maipai_packages/pantry/seed/es-trivia.json` (42): no header
+- `host/maipai_packages/pantry/seed/fr-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/fr-riddle.json` (42): no header
+- `host/maipai_packages/pantry/seed/fr-trivia.json` (42): no header
+- `host/maipai_packages/pantry/seed/it-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/it-riddle.json` (42): no header
+- `host/maipai_packages/pantry/seed/it-trivia.json` (42): no header
+- `host/maipai_packages/pantry/seed/pt-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/pt-riddle.json` (42): no header
+- `host/maipai_packages/pantry/seed/pt-trivia.json` (42): no header
+- `host/maipai_packages/pantry/shelf.py` (84): The shelf: the bytes of one `pantry` asset item (docs/design/content-pantry.md, section 3): one kind in one la
 - `host/maipai_packages/pantry/sync.py` (120): Sync (docs/design/content-pantry.md, section 5): when to refill a unit's shelves, how a shelf is built, and ho
+- `host/maipai_packages/pantry/talk_fallback.py` (117): ruff: noqa: E501
+- `host/maipai_packages/pantry/unit_link.py` (68): The unit link over the firmware's pantry tools (firmware patches on fw/unproven2: `self.pantry.status`, `.hear
 - `host/maipai_packages/wake_word_maker/__init__.py` (10): Make your own wake word on this computer: record clips on the settings page, train a small model, check it, in
 - `host/maipai_packages/wake_word_maker/engine/__init__.py` (1): The small local wake-word trainer (features, dataset, training, checking). Copied from scripts/wakeword with o
 - `host/maipai_packages/wake_word_maker/engine/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
@@ -1543,7 +1574,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/personas/cooking.en.txt` (9): no header
 - `host/personas/cooking.es.txt` (9): no header
 - `host/pyproject.toml` (161): Named to match the entry point (`maipai_bot`, registered below), not
-- `host/robot.example.toml` (92): Select "llm" to run without Home, or "home" to use the Home adapter.
+- `host/robot.example.toml` (94): Select "llm" to run without Home, or "home" to use the Home adapter.
 - `host/scripts/link_ladder_unit_check.py` (108): LINK-STATE-01: run the offline ladder's body cues on the real unit.
 - `host/scripts/make_kws_fixtures.py` (107): Rung 1 fixtures: SYNTHESIZED speech for the keyword spotter's tests. Not recordings.
 - `host/scripts/measure_expr01.py` (146): M-R2's simulator rows: cue to first state-feed delta, amplitude, peak velocity,
@@ -2166,6 +2197,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_ambient_vision.py` (242): BOT-SC-VISION-01: silent ambient capture, opt-in policy, text note only."""
 - `host/tests/test_app.py` (608): The app's real boot path: hold neutral until paired, log state
 - `host/tests/test_app_link_ladder.py` (107): LINK-STATE-01 in the app: the page's state frame, the setting and the wiring."""
+- `host/tests/test_asset_transport.py` (97): The asset transport (firmware SF89 and SF90): the header bytes, the order of the calls, abort on any failure, 
 - `host/tests/test_assets.py` (97): Signed, ranged, cacheable asset delivery: the manifest is signed and checks out, ranges answer correctly, a un
 - `host/tests/test_attention.py` (170): S-EXPR-04: attention glue, driven from presence observations."""
 - `host/tests/test_audio_config.py` (167): The sim and `--no-media` daemon answers 503 on the audio routes: not a lost body."""
@@ -2182,7 +2214,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_brain_fake.py` (8): no header
 - `host/tests/test_brain_home.py` (43): no header
 - `host/tests/test_brain_interface.py` (45): no header
-- `host/tests/test_brain_setup.py` (285): The three ways to get a brain: pinned catalog, installer with a fake downloader, mode writer, address tests, c
+- `host/tests/test_brain_setup.py` (329): The three ways to get a brain: pinned catalog, installer with a fake downloader, mode writer, address tests, c
 - `host/tests/test_bus_gates_fed.py` (58): The command-bus gates for a child present, a remote cue and a sleeping unit are fed from real state."""
 - `host/tests/test_camera_frame.py` (71): The fixture-backed `Camera.get_frame()` path added alongside
 - `host/tests/test_camera_sweep_table.py` (35): The camera sweep table builder (scripts/camera-sweep-table.py)."""
@@ -2203,6 +2235,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_cross_review_open_bugs_3.py` (63): ruff: noqa: E501
 - `host/tests/test_dance_session.py` (135): A ladder session with no music (the dance buttons and tools): the climb follows the ladder rule at the dance's
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
+- `host/tests/test_degraded_banner.py` (70): The degraded banner (firmware SF97): one short line on the unit while a part needs you, repeated inside the un
 - `host/tests/test_dice_poker.py` (47): Patch UX18, Dice Poker: the pure core's host test runs here against the patch text (all 7776 hands ranked, rol
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
@@ -2250,7 +2283,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_firmware_update_signature.py` (60): An image from Home is served to the unit only when its detached signature verifies."""
 - `host/tests/test_firmware_y_patches.py` (67): The 2026-11-16 reliability patches (Y01 to Y04): listed in ORDER, documented, and the plain-C rules compile an
 - `host/tests/test_first_run_core.py` (23): The first-run step rules (maipai_firstrun_core.h, patches UX05a and UX11) run by their C test on the replayed 
-- `host/tests/test_first_run_name.py` (87): The name picked on the robot's first run reaches the host (firmware patches SF09 and UX11, host/maipai_body/fi
+- `host/tests/test_first_run_name.py` (95): The name picked on the robot's first run reaches the host (firmware patches SF09 and UX11, host/maipai_body/fi
 - `host/tests/test_flasher_page.py` (53): The web flasher's logic (flasher/flasher-core.js) runs under Node: manifest checks, hash checks, nothing writt
 - `host/tests/test_flasher_release_parity.py` (52): ruff: noqa: E501
 - `host/tests/test_fleet_isolation.py` (75): A turn's face goes only to the unit that asked; many turns at once are not starved by the default thread pool.
@@ -2371,7 +2404,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_packs.py` (308): ruff: noqa: E501
 - `host/tests/test_packs_languages_phrases.py` (689): ruff: noqa: E501, F811
 - `host/tests/test_pair_code_persistence.py` (69): A pair code made by `stackchan pair` survives the CLI process."""
-- `host/tests/test_pantry.py` (231): The content pantry (docs/design/content-pantry.md): record, shelf round trip, filter, dedupe, generator, libra
+- `host/tests/test_pantry.py` (267): The content pantry (docs/design/content-pantry.md): record, shelf round trip, filter, dedupe, generator, libra
+- `host/tests/test_pantry_seed.py` (71): The built-in pantry seed library (docs/dev/pantry-seed.md): every file parses, every record passes the shape r
+- `host/tests/test_pantry_talk.py` (67): Riddles and trivia from the pantry library with no model (talk_fallback.py)."""
 - `host/tests/test_phase4_config.py` (50): no header
 - `host/tests/test_phase4_pairing_cli.py` (47): no header
 - `host/tests/test_phone_pairing_path.py` (84): No-terminal pairing and the phone path, end to end through the real settings server.
@@ -2619,7 +2654,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vision_yunet.py` (184): JPEG decoding and the YuNet runner, without OpenCV or the Reachy SDK."""
 - `host/tests/test_voice_server.py` (226): VOICE-01: the speech process served over the shared voice contract."""
 - `host/tests/test_voiceprint.py` (191): SPEAK-01: voice evidence in the body. Fake embedders only; no real model."""
-- `host/tests/test_vu_model.py` (529): Virtual unit 3D model: the rigged glb's node names and hierarchy, joint limits, byte-identical rebuild, source
+- `host/tests/test_vu_model.py` (537): Virtual unit 3D model: the rigged glb's node names and hierarchy, joint limits, byte-identical rebuild, source
 - `host/tests/test_vu_tools_apps.py` (113): Shape and state checks for the virtual unit apps tools."""
 - `host/tests/test_vu_tools_audio.py` (116): Coverage for the virtual unit audio and adjacent tool group."""
 - `host/tests/test_vu_tools_banner_screen.py` (47): Behavior checks for virtual banner and screen tools."""
@@ -2633,7 +2668,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vu_tools_pages_filler_mood.py` (57): no header
 - `host/tests/test_vu_tools_user_only.py` (30): Behavior checks for the virtual unit user-only tools."""
 - `host/tests/test_vu_view_live.py` (146): The virtual unit view's Simulation or Live picker (owner decision 21) and the battery drain switch, under a re
-- `host/tests/test_vu_view_pointer.py` (441): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
+- `host/tests/test_vu_view_pointer.py` (458): The virtual unit view under a real pointer: a browser is driven through its own input pipeline (mouse press, m
 - `host/tests/test_wake.py` (104): G2's own acceptance: the wake state machine, driven by a fake engine."""
 - `host/tests/test_wake_engine_real_model.py` (128): G2's real-model acceptance: `OpenWakeWordEngine` against the actual
 - `host/tests/test_wake_models.py` (91): Wake-word asset pins resolve through the paired hub cache."""
@@ -2792,7 +2827,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/dance_sim.py` (605): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
 - `scripts/virtual-unit/e2e.py` (706): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
-- `scripts/virtual-unit/e2e_fleet.py` (742): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
+- `scripts/virtual-unit/e2e_fleet.py` (779): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
 - `scripts/virtual-unit/e2e_hostile.py` (337): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
@@ -2811,7 +2846,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/MATCH.md` (223): Does the model match the owner's unit?
 - `scripts/virtual-unit/model/README.md` (78): Robot 3D model
 - `scripts/virtual-unit/model/SOURCE.md` (34): Source of the model geometry
-- `scripts/virtual-unit/model/make_body.py` (1337): Build the rigged body model of the unit from the official structure files in source/.
+- `scripts/virtual-unit/model/make_body.py` (1357): Build the rigged body model of the unit from the official structure files in source/.
 - `scripts/virtual-unit/model/render_previews.py` (224): Render the preview pictures of stackchan.glb: six views of the outside and both joints through their ranges.
 - `scripts/virtual-unit/model/softrender.py` (170): A small software renderer for the body model previews: standard library only.
 - `scripts/virtual-unit/model/source/LICENSE` (20): no header
@@ -2825,9 +2860,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/source/StackChan-ServoBody.stl` (557): Binary file scripts/virtual-unit/model/source/StackChan-ServoBody.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoCover.stl` (111): Binary file scripts/virtual-unit/model/source/StackChan-ServoCover.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoSideCover.stl` (61): no header
-- `scripts/virtual-unit/model/stackchan.glb` (10204): no header
+- `scripts/virtual-unit/model/stackchan.glb` (10873): no header
 - `scripts/virtual-unit/model/stackchan.params.json` (791): no header
-- `scripts/virtual-unit/model/stackchan.web.glb` (8001): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
+- `scripts/virtual-unit/model/stackchan.web.glb` (8268): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
 - `scripts/virtual-unit/model/validate.sh` (18): check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is up
 - `scripts/virtual-unit/mumble.py` (205): The offline mumble, reference implementation (patch UX16, spec docs/design/offline-mumble.md): one short note 
 - `scripts/virtual-unit/overlay-skip.txt` (1): no header
@@ -2845,6 +2880,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
+- `scripts/virtual-unit/restart-preview.sh` (27): bring this checkout to origin/main and restart the virtual unit view on one port, then prove the page serves t
 - `scripts/virtual-unit/scenarios.py` (441): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
@@ -2873,7 +2909,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/version_page_fit.cc` (69): Measures the version page of the More screen (patches U05, NX02, SF69) with the real LVGL layout: the same roo
 - `scripts/virtual-unit/view.html` (331): app{display:flex;height:100%}
 - `scripts/virtual-unit/view.py` (498): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
-- `scripts/virtual-unit/view3d.js` (497): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
+- `scripts/virtual-unit/view3d.js` (535): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
 - `scripts/virtual-unit/vunit.py` (361): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc
 - `scripts/virtual-unit/wasm/build.sh` (96): build the virtual robot's browser pieces with Emscripten: the face (Spike A: the unit's real LVGL face code) a
 - `scripts/virtual-unit/wasm/bundle.py` (63): pack the virtual unit's Python, unchanged, with the data files it reads and the adapter layer into one zip the
