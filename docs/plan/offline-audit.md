@@ -95,3 +95,15 @@ Host modules (298), scripts and tools (82), tool protocol (35), the patch series
 
 - Rows 12, 18, 24, 26 are unknown until the files named in the note are read or the bench is run.
 - This audit did not run a unit. Rank 10 turns it into measured results.
+
+## Host-side status (app track, 2026-11-18)
+
+The host rows this audit lists as gaps, and where they stand now:
+
+| Gap | Host state |
+|---|---|
+| The content pantry (jokes, riddles, trivia, stories) | Host half built: `host/maipai_packages/pantry/` (record, shelf writer with a round-trip test, filter, dedupe, generator with a daily cap, library, refill rule, heard-list intake, dashboard card). Off until `[packages.pantry]` is on. Needs the unit's shelf reader and `self.pantry.*` tools (firmware) before the robot tells from it. |
+| Mumble voice with no host voice | Host half built: `XiaozhiServer.send_mumble` sends a text-only `tts` line with `"mumble": true`, only to a unit whose hello announces `mumble`. Needs the firmware to announce it and draw the tones. |
+| A model that is down while the host is up (S1) | The host keeps the library, so a telling can come from it through the normal speech path. Not wired into the talk games yet (model-games design, step for the app track). |
+| Several robots on one host | A second and third unit now have their own touch, reactions, orientation, rest, ring light, self-heal and voice alarms (docs/plan/per-unit-behavior.md). Music dance per unit is open. |
+| Quiet hours | Off until a person sets them; a schedule and Quiet now on the dashboard (decision 26). |

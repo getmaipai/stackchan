@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 887 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 893 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 52 items, 6 measured, 19 estimated, 27 placeholders or not built. 83 of 887 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 52 items, 6 measured, 19 estimated, 27 placeholders or not built. 83 of 893 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
-| Everyday user | 3 | 18 | 29 | 259 | 8 | 51 | 368 | 64 |
-| Maker and tech | 0 | 0 | 70 | 389 | 60 | 0 | 519 | 69 |
+| Everyday user | 3 | 18 | 29 | 264 | 8 | 51 | 373 | 64 |
+| Maker and tech | 0 | 0 | 70 | 390 | 60 | 0 | 520 | 69 |
 
 ## Everyday user
 
@@ -131,7 +131,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Change a setting: Face** ![Change a setting: Face](docs/images/vu-clock.png) | (see Change how the robot looks): face style, face color, captions, the clock style and the night schedule. The same changes work from a terminal: stackchan face set UNIT --style big_eyes --color mint --captions on. | proven virtual | 55 | not declared | `FI05-captions-default-off.patch`<br>`091-timers-device.patch`<br>`F03-face-time-of-day.patch` | average of the 4 patch(es) that share words with this row: FI05, 091, F03, R03 | [docs/user/settings.md#what-goes-on-the-settings-page](../user/settings.md#what-goes-on-the-settings-page) |
 | **Change a setting: Pictures** ![Change a setting: Pictures](docs/images/vu-games.png) | , Reactions, People, Games, Privacy, System and Units pages. | proven virtual | 70 | not declared | `V23-face-pictures-for-eyes-and-mouth.patch`<br>`L07-privacy-source-and-touch-debounce.patch`<br>`NX08-wall-tiles-with-pictures-colors-and-big-titles.patch` | average of the 4 patch(es) that share words with this row: V23, L07, NX08, GM01 | [docs/user/settings.md#what-goes-on-the-settings-page](../user/settings.md#what-goes-on-the-settings-page) |
 
-### Games (25)
+### Games (30)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -159,6 +159,11 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **"Play memory" (or another game's name)** | Starts that game. | proven virtual | 62 | not declared | `NX02-info-tab-shows-every-row-no-ten-taps.patch`<br>`K10-pack-types-phrase-and-cache-format-2.patch`<br>`G03-game-touch-voice-and-menu.patch` | average of the 4 patch(es) that share words with this row: NX02, K10, G03, SF75 | [docs/user/games-and-pet.md#ask-for-a-game-by-voice](../user/games-and-pet.md#ask-for-a-game-by-voice) |
 | **"What games do you have?"** !["What games do you have?"](docs/images/vu-games.png) | Lists the games on this robot, out loud and on its screen. | proven virtual | 66 | not declared | `host/maipai_body/bodies/stackchan/games.py`<br>`host/maipai_body/bodies/stackchan/talk_games.py` | `bench-b9.md`, `bench-window6.md` | [docs/user/games-and-pet.md#ask-for-a-game-by-voice](../user/games-and-pet.md#ask-for-a-game-by-voice) |
 | **Play games and care for your pet: "Stop"** ![Play games and care for your pet: "Stop"](docs/images/vu-games.png) | Stops the game. | proven virtual | 55 | not declared | `SF75-bench-grid-frame-recorder.patch`<br>`SF02-hello-gate-switches-banner-and-light-safety.patch`<br>`host/maipai_body/bodies/stackchan/games.py` | average of the 2 patch(es) that share words with this row: SF75, SF02 | [docs/user/games-and-pet.md#ask-for-a-game-by-voice](../user/games-and-pet.md#ask-for-a-game-by-voice) |
+| **Jokes and games content (optional package): Shape** ![Jokes and games content (optional package): Shape](docs/images/vu-games.png) | The right fields, short enough to fit the robot's screen, in the right language. | proven virtual | 70 | not declared | `GM04-games-icon-shape-ceil-action-and-xlarge-text.patch`<br>`TB02-pack-loader-and-flash-cache.patch`<br>`GM05-games-draw-icons-pop-and-bump.patch` | average of the 4 patch(es) that share words with this row: GM04, TB02, GM05, UX12 | [docs/user/jokes-and-games-content.md#what-it-keeps](../user/jokes-and-games-content.md#what-it-keeps) |
+| **Jokes and games content (optional package): Kids** ![Jokes and games content (optional package): Kids](docs/images/vu-games.png) | A word list, then a second question to the model: is this fine for a six year old. Anything that is not a clear yes is dropped, never edited. | proven virtual | 70 | not declared | `LK03-lock-enforcement-and-more-screen-lock-button.patch`<br>`UX12-first-run-skip-brain-question-and-next-steps.patch`<br>`host/maipai_body/bodies/stackchan/games.py` | average of the 2 patch(es) that share words with this row: LK03, UX12 | [docs/user/jokes-and-games-content.md#what-it-keeps](../user/jokes-and-games-content.md#what-it-keeps) |
+| **Jokes and games content (optional package): Facts** ![Jokes and games content (optional package): Facts](docs/images/vu-games.png) | For trivia, the model must answer the question the same way. Questions about "the latest" or "current" things are dropped. | proven virtual | 60 | not declared | `GM02-game-drag-bar-dismisses-the-game.patch`<br>`G01-game-engine-core.patch`<br>`SF65-bench-head-read-probe.patch` | average of the 3 patch(es) that share words with this row: GM02, G01, SF65 | [docs/user/jokes-and-games-content.md#what-it-keeps](../user/jokes-and-games-content.md#what-it-keeps) |
+| **Jokes and games content (optional package): Riddles** ![Jokes and games content (optional package): Riddles](docs/images/vu-games.png) | A riddle with a second good answer is dropped. | proven virtual | 70 | not declared | `SF26-bench-slot-firstrun-tool.patch`<br>`G01-game-engine-core.patch`<br>`GM02-game-drag-bar-dismisses-the-game.patch` | `bench-window6.md`, `bench-window7.md` | [docs/user/jokes-and-games-content.md#what-it-keeps](../user/jokes-and-games-content.md#what-it-keeps) |
+| **Jokes and games content (optional package): Copies** ![Jokes and games content (optional package): Copies](docs/images/vu-games.png) | The same line twice, or the same idea in other words, is kept once. | proven virtual | 62 | not declared | `UX15-shared-game-over-screen.patch`<br>`GM02-game-drag-bar-dismisses-the-game.patch`<br>`N02-banner-row-messages.patch` | average of the 4 patch(es) that share words with this row: UX15, GM02, N02, UX14b | [docs/user/jokes-and-games-content.md#what-it-keeps](../user/jokes-and-games-content.md#what-it-keeps) |
 | **Someone with the robot in hand can read its memory over USB** | Reset the robot before you give it away. | proven virtual | 70 | not declared | `SF26-bench-slot-firstrun-tool.patch`<br>`TC03-boot-internal-ram.patch`<br>`SF65-bench-head-read-probe.patch` | `bench-window6.md`, `bench-window7.md` | [docs/user/security.md#known-gaps](../user/security.md#known-gaps) |
 
 ### Languages (11)
@@ -874,7 +879,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Hostile peer scenarios** | A peer with no credentials and one with a stolen token try malformed frames, floods and replays against the real host. | built | 40 | not declared | `scripts/virtual-unit/e2e_hostile.py` | files exist | [docs/dev/fuzzing-and-hostile-peer.md](../dev/fuzzing-and-hostile-peer.md) |
 | **Sanitizer fuzz of the unit's parsers** | Thirteen parsers of the firmware cores built with address and undefined behavior sanitizers and fed mutated input. | proven virtual | 70 | not declared | `scripts/fuzz-cores.sh`<br>`scripts/fuzz/core_fuzz.c` | files exist, a test names it | [docs/dev/fuzzing-and-hostile-peer.md](../dev/fuzzing-and-hostile-peer.md) |
 
-### Packages and extension (8)
+### Packages and extension (9)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -885,6 +890,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: coding_companion** | The coding companion: the robot shows what a coding agent on this computer is doing. | proven virtual | 70 | not declared | `host/maipai_packages/coding_companion` | package exists; a test names it | doc missing |
 | **Package: home_assistant** | Home Assistant voice and camera snapshots, as an optional local package (off by default). | proven virtual | 70 | not declared | `host/maipai_packages/home_assistant` | package exists; a test names it | doc missing |
 | **Package: memory_notes** | Local memory for several adults as plain per-person notes files. | proven virtual | 70 | not declared | `host/maipai_packages/memory_notes` | package exists; a test names it | doc missing |
+| **Package: pantry** | Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the owner's model, filters, dedupes and keeps, and the unit keeps a small shelf of. | proven virtual | 70 | not declared | `host/maipai_packages/pantry` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
 ### Scripts and tools (85)
@@ -1063,7 +1069,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 ## Decisions
 
-The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 9 not started.
+The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a status worked out from the files that exist: 8 built, 10 in progress, 11 not started.
 
 | # | Decision | Status | Evidence |
 |---|---|---|---|
@@ -1094,6 +1100,8 @@ The owner decisions of 2026-11-18 (`docs/design/decisions.md`), each with a stat
 | 25 | **A measured Hardware reference** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 | 26 | **Quiet hours default OFF until set** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 | 27 | **Model-powered games on top of the pantry** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 28 | **First-run service button (app track recommendation, 2026-11-18, taken at the coordinator's instruction)** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
+| 29 | **The content pantry host half is a package (app track, 2026-11-18)** | not started | a new decision: the ledger has no files to check for it yet (add it to DECISION_EVIDENCE in scripts/ledger_decisions.py), so it counts as not started |
 
 ## Scrapped (9)
 

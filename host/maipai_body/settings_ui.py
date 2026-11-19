@@ -714,6 +714,19 @@ BUILDERS.play=async(p,u)=>{const id=u.device_id,g=await api(unitPath(id,'games')
  const bp=g.ok&&g.d.by_person&&g.d.by_person.length?card(T('Best scores by person'),T('Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.'),...g.d.by_person.map(x=>{const who=x.person==='Someone'?T('Someone'):x.person;
   return h('div',{class:'item'},h('div',{class:'grow'},h('b',{},who),...x.games.map(gm=>{const t=(g.d.games.find(q=>q.id===gm.id)||{title:gm.id});return h('div',{class:'hint'},t.title+': '+gm.scores.join(', '))})),
    h('button',{type:'button',class:'btn bad',onclick:async()=>{if(!(await ask(T('Delete scores')+' - '+who+'?',T('Delete scores'))))return;const r=await save(unitPath(id,'forget-scores'),{person:x.person},true);if(r.ok){BUILT.play=false;p.querySelectorAll(':scope>:not(h1)').forEach(n=>n.remove());go('play',true)}else toast(r.d.error,'bad')}},T('Delete scores')))})):null;
+ const pn=await api('/api/stackchan/pantry');
+ const pantryCard=pn.ok&&pn.d.enabled?(()=>{const kinds=['joke','riddle','trivia','story'],f={kind:'',language:'',q:''},list=h('div',{class:'list'}),note=h('p',{class:'hint',role:'status'});
+  const load=async()=>{const r=await fetch('/api/stackchan/pantry/list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(f)}).then(x=>x.json()).catch(()=>null);list.replaceChildren();if(!r||!r.rows){list.append(h('div',{class:'banner'},T('net_error')));return}
+   if(!r.rows.length)list.append(h('div',{class:'empty'},T('Nothing here yet. Press Refill now and your model will write some.')));
+   for(const x of r.rows)list.append(h('div',{class:'item',style:'min-height:56px'},h('div',{class:'grow'},h('b',{},x.text.replace('|',' ')),x.answer?h('div',{class:'hint'},x.answer):null,h('div',{class:'hint'},x.kind+' · '+x.language)),
+    h('div',{class:'btns'},h('button',{type:'button',class:'btn',onclick:async()=>{const d=await save('/api/stackchan/pantry/delete',{id:x.id},true);if(d.ok)load()}},T('Delete')),
+    h('button',{type:'button',class:'btn bad',onclick:async()=>{if(!(await ask(T('Never again')+'?',T('Never again'))))return;const d=await save('/api/stackchan/pantry/never-again',{id:x.id},true);if(d.ok)load()}},T('Never again')))));
+   note.textContent=(r.total+' · '+T('Used today')+' '+r.calls_today+'/'+r.daily_cap)};
+  const kind=h('select',{'aria-label':T('Kind'),onchange:e=>{f.kind=e.target.value;load()}},h('option',{value:''},T('Kind')),...kinds.map(k=>h('option',{value:k},k)));
+  const lang=h('select',{'aria-label':T('Language'),onchange:e=>{f.language=e.target.value;load()}},h('option',{value:''},T('Language')),...['en','es','fr','de','pt','it'].map(k=>h('option',{value:k},k)));
+  const q=h('input',{type:'search','aria-label':T('Search'),placeholder:T('Search'),oninput:e=>{f.q=e.target.value;load()}});
+  const refill=h('button',{type:'button',class:'btn pri',onclick:async()=>{if(!f.kind||!f.language){toast(T('Kind')+' + '+T('Language'),'warn');return}note.textContent=T('Asking your model. This can take a minute.');const d=await save('/api/stackchan/pantry/refill',{kind:f.kind,language:f.language},true);if(!d.ok)toast(d.d.error,'bad');else if(d.d.stopped)toast(d.d.stopped,'warn');load()}},T('Refill now'));
+  load();return card(T('Jokes and games content'),null,h('div',{class:'grid2'},kind,lang),q,h('div',{class:'btns'},refill),note,list)})():null;
  const tk=g.d&&g.d.talk,talkCard=tk?card(tk.title,tk.help,h('div',{class:'list'},...tk.games.map(x=>h('div',{class:'item'},h('div',{class:'grow'},h('b',{},x.title),h('div',{class:'hint'},x.hint)))))):null;
  const decor=card(S['settings.extra'],null);let pickd=null;
  const view=window.__faceviews||(window.__faceviews={});
@@ -721,7 +734,7 @@ BUILDERS.play=async(p,u)=>{const id=u.device_id,g=await api(unitPath(id,'games')
   const pills=h('div',{class:'pills'});for(const n of fv.choices.decorators){const b=h('button',{class:'pill',type:'button','aria-pressed':'false',onclick:async()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));face.set({decor:n});save(unitPath(id,'decorate'),{name:n,seconds:6},true)}},S['settings.decor.'+n]||pretty(n));pills.append(b)}
   decor.append(h('div',{class:'screen'},cv),pills,h('div',{class:'btns'},h('button',{class:'btn',type:'button',onclick:()=>{pills.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));face.set({decor:'none'});save(unitPath(id,'decorate'),{name:'none'},true)}},S['settings.extra.stop'])))}
  else decor.append(h('div',{class:'banner'},fv.error||T('net_error')));
- p.append(h('div',{class:'grid'},games,...(bp?[bp]:[]),...(talkCard?[talkCard]:[]),decor))};
+ p.append(h('div',{class:'grid'},games,...(bp?[bp]:[]),...(pantryCard?[pantryCard]:[]),...(talkCard?[talkCard]:[]),decor))};
 
 /* ---- SYSTEM ---- */
 BUILDERS.system=async(p,u)=>{const id=u.device_id;

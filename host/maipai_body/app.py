@@ -3690,6 +3690,34 @@ def _wire_brain_page(backend) -> None:
     backend.brain_setup = setup
     if setup.start_if_enabled():
         logger.info("The local model server is running on this computer.")
+        from maipai_body import service_threads
+
+        supervisor = service_threads.SUPERVISOR
+        if supervisor is not None:  # watched like every other part: it is restarted if it dies, and reported if it keeps failing
+            from maipai_body.supervisor import Worker as _ModelWorker
+
+            class _ModelHandle:
+                @staticmethod
+                def is_alive() -> bool:
+                    return setup.llama.running()
+
+            def restart_model():
+                if not setup.start_if_enabled():
+                    raise RuntimeError("the local model server did not start")
+                return _ModelHandle()
+
+            worker = supervisor.add(
+                _ModelWorker(
+                    "local model",
+                    restart_model,
+                    plain="the local model",
+                    advice="Open the Brain page and press Install again, or pick the small model. Then run `stackchan service logs`.",
+                ),
+                start_now=False,
+            )
+            worker.handle = _ModelHandle()
+            worker.state, worker.last_start, worker.last_beat = "ok", time.monotonic(), time.monotonic()
+            worker.kill = setup.llama.stop  # the chaos hook: the model server stops; the watchdog starts it again
     elif setup.needs_choice():
         logger.info("No brain is set yet. Open the settings page on this computer at /brain to choose one of three ways.")
 
@@ -3952,6 +3980,7 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
         server = SettingsServer(backend, "0.0.0.0" if lan else "127.0.0.1", port, auth=auth)
         _start_coding_companion(backend, voice)
         _start_wake_word_maker(backend)
+        _start_pantry(backend)
         backend.pair_code = pairing.create_pair_code
         backend.pair_exchange = voice
         backend.phone_link = lambda: {
@@ -4814,6 +4843,31 @@ def _start_wake_word_maker(backend) -> None:
 
     folder = Path(cfg.folder) if cfg.folder else default_pairing_path().parent / "wakeword"
     backend.wakeword = WakeWordMaker(WakeStore(folder))
+
+
+def _start_pantry(backend) -> None:
+    """The content pantry's routes and its model, only when it is switched on (nothing is imported otherwise)."""
+    try:
+        from maipai_body.config import load_config
+
+        config = load_config()
+        cfg = config.packages.pantry
+    except Exception:
+        return
+    if not cfg.enabled:
+        return
+    from pathlib import Path
+
+    from maipai_body.bodies.stackchan.xiaozhi.pairing import default_pairing_path
+    from maipai_packages.pantry import Pantry
+    from maipai_packages.pantry.model import chat_function
+
+    folder = Path(cfg.folder) if cfg.folder else default_pairing_path().parent / "pantry"
+    try:
+        ask = chat_function(config.llm.url, getattr(config.llm, "model", "") or "", getattr(config.llm, "api_key_env", "") or "")
+    except ValueError:
+        ask = None  # no model yet: the page shows the library, and Refill says to choose a brain
+    backend.pantry = Pantry(folder, ask, daily_cap=cfg.daily_cap, languages=tuple(cfg.languages), adult_humor=cfg.adult_humor)
 
 
 def _start_coding_companion(backend, voice) -> None:

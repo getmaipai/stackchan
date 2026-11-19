@@ -32,6 +32,13 @@ language = "en"
 # people = ["alex", "sam"]        # lowercase names of the adults who have notes
 # default_person = "alex"         # whose notes a turn uses when nobody was identified
 
+[packages.pantry]
+# Jokes, riddles, trivia and stories your own model writes for the robot to keep. Off unless you turn it on.
+# enabled = true
+# languages = ["en"]              # one shelf per language
+# daily_cap = 200                 # model calls a day the pantry may use
+# adult_humor = false             # off: everything is for kids
+
 [packages.home_assistant]
 # Home Assistant voice and camera snapshots. Say "home assistant, turn off the kitchen light".
 # The token goes in the environment variable named here, never in this file. Off unless you turn it on.

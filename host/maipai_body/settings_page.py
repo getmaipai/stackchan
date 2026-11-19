@@ -77,6 +77,7 @@ class SettingsBackend:
         self.brain_setup: Any = None  # brain_setup.controller.BrainSetup: the Brain page (set by the host)
         self.pair_code: Callable[[], str] | None = None  # mints a pairing code (set by the host)
         self.pair_exchange: Any = None  # the voice server (waiting_exchanges, approve_exchange); set by the host
+        self.pantry: Any = None  # the content pantry package (set by the host only when switched on)
         self.wakeword: Any = None  # the wake word maker package (set by the host only when switched on)
         self.phone_link: Callable[[], dict[str, Any]] | None = None  # {"lan", "base", "token"} for the phone login link
         self._link = link  # the encrypted robot link's policy (xiaozhi/link_security.py); no keys leave it
@@ -796,6 +797,13 @@ class SettingsBackend:
                 return 200, JSON, json.dumps(self.wakeword.state(word)).encode()
             except ValueError as error:
                 return 400, JSON, json.dumps({"error": str(error)}).encode()
+        if path == PANTRY:
+            pantry = getattr(self, "pantry", None)
+            if pantry is None:
+                return 200, JSON, json.dumps({"enabled": False}).encode()
+            if local_admin is not True:
+                return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
+            return 200, JSON, json.dumps(pantry.view()).encode()
         if (path == INSTALLED_PAGE or path == INSTALLED or path.startswith(INSTALLED + "/")) and self.installed is not None:
             if local_admin is not True:
                 return 403, JSON, json.dumps({"error": t(lang, "settings.local_only")}).encode()
@@ -898,6 +906,24 @@ class SettingsBackend:
         The update route checks the release and changes nothing unless the body says
         ``"confirm": true``."""
         prefix = "/api/stackchan/settings/"
+        if path.startswith(PANTRY + "/") and getattr(self, "pantry", None) is not None:
+            if local_admin is not True:
+                return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
+            action, pantry = path[len(PANTRY) + 1 :], self.pantry
+            if action in ("delete", "never-again"):
+                rid = body.get("id")
+                if not isinstance(rid, str) or not rid:
+                    return 400, {"error": "Say which one. Pick a row and try again."}
+                return 200, {"ok": True, "removed": pantry.delete(rid) if action == "delete" else pantry.never_again(rid), "message": "Done."}
+            if action == "list":  # the filter row: kind, language, a search word, a unit (for heard or not)
+                one = lambda key: str(body.get(key) or "") or None  # noqa: E731
+                return 200, pantry.view(kind=one("kind"), language=one("language"), query=one("q") or "", unit=one("unit"))
+            if action == "refill":
+                kind, language = str(body.get("kind", "")), str(body.get("language", ""))
+                if not kind or not language:
+                    return 400, {"error": "Pick a kind and a language, then press Refill."}
+                return 200, {"ok": True, **pantry.refill(kind, language)}
+            return 404, {"error": "not found"}
         if path.startswith(WAKEWORD + "/"):
             if self.wakeword is None:
                 return None
@@ -995,6 +1021,7 @@ HEALTH = "/api/stackchan/health"
 HEALTH_PAGE = "/health"
 ABOUT_PAGE = "/about"
 WAKEWORD = "/api/stackchan/wakeword"
+PANTRY = "/api/stackchan/pantry"
 
 
 def render_page(lang: str | None) -> bytes:

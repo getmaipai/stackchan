@@ -404,6 +404,22 @@ def build(data_dir: Path, *, language: str = "en", next_unit: bool = False) -> t
     for person, game, score in (("nadia", "memory", 9), ("nadia", "memory", 6), ("nadia", "bopit", 7), ("atlas", "memory", 5), ("atlas", "rps", 2), ("Someone", "memory", 3)):
         book.record(KITCHEN, person, game, score)
     backend.score_book = book
+    from maipai_packages.pantry import Pantry
+    from maipai_packages.pantry.record import Record
+
+    def demo_model(prompt: str) -> str:  # the stand-in model: says yes to kid checks and writes one new joke
+        if "suitable for a six year old" in prompt:
+            return "Yes"
+        return '[{"text": "What do you call a bear with no teeth? | A gummy bear."}]'
+
+    pantry = Pantry(data_dir / "pantry", demo_model)
+    pantry.library.add([
+        Record("joke", "en", "kid", "Why did the cat sit on the computer? | To keep an eye on the mouse."),
+        Record("joke", "en", "kid", "What do you call a sleeping bull? | A bulldozer."),
+        Record("riddle", "en", "kid", "What has hands but cannot clap?", "a clock"),
+        Record("trivia", "en", "kid", "What is the largest planet in our solar system?", "Jupiter", "Mars|Venus"),
+    ])
+    backend.pantry = pantry
     return backend, units
 
 
