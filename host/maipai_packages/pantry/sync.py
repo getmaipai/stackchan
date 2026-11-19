@@ -36,6 +36,39 @@ class UnitState:
     on_power_or_over_half: bool = True
     in_game: bool = False
     free_bytes: int = shelf.ITEM_CAP_BYTES
+    known: bool = True  # False when the unit did not answer one of the state questions: nothing is installed
+
+
+def read_unit_state(call: Callable[[str, str, dict], object], unit: str, *, idle: bool) -> UnitState:
+    """What the unit says about its battery, privacy switches, game and free room (`self.battery.get_status`, `self.privacy.get`, `self.game.list`, `self.assets.list`).
+
+    ``idle`` is the host's own view (no turn running, nothing being said). A question the unit does not answer, or answers without the field, makes the
+    state unknown, and an unknown state installs nothing: the heard list is still read, the shelves wait for the next pass."""
+    from maipai_packages.pantry.unit_link import _dict
+
+    def ask(tool: str) -> dict:
+        try:
+            return _dict(call(unit, tool, {}))
+        except Exception:
+            return {}
+
+    battery, privacy, games, assets = (ask(t) for t in ("self.battery.get_status", "self.privacy.get", "self.game.list", "self.assets.list"))
+    percent, charging = battery.get("percent"), battery.get("charging")
+    free = assets.get("free_bytes")
+    ints = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (percent, free))
+    known = (
+        battery.get("ok") is not False and ints and isinstance(charging, bool)
+        and "muted" in privacy and games.get("ok") is True and "playing" in games and assets.get("ok") is True
+    )
+    if not known:
+        return UnitState(idle=idle, known=False)
+    return UnitState(
+        idle=idle,
+        muted_for_other_than_night=bool(privacy.get("muted") or privacy.get("quiet")),
+        on_power_or_over_half=bool(charging) or percent > 50,
+        in_game=bool(games.get("playing")),
+        free_bytes=int(free),
+    )
 
 
 def _hour(now: float) -> int:
@@ -51,7 +84,7 @@ def in_window(now: float, start: float = 2, end: float = 5) -> bool:
 
 def plan(shelves: list[dict], state: UnitState, now: float, *, window: tuple[float, float] = (2, 5), nightly_done: set[tuple[str, str]] = frozenset()) -> list[tuple[str, str, str]]:
     """The shelves to refill now, at most three, as (kind, language, why). Nightly in the quiet window, or at once when stock is low; never while busy."""
-    if not (state.idle and not state.in_game and not state.muted_for_other_than_night and state.on_power_or_over_half):
+    if not (state.known and state.idle and not state.in_game and not state.muted_for_other_than_night and state.on_power_or_over_half):
         return []
     out = []
     for item in shelves:
