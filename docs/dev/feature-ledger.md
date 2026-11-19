@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 916 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 918 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 59 items, 6 measured, 26 estimated, 27 placeholders or not built. 84 of 916 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,640 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 59 items, 6 measured, 26 estimated, 27 placeholders or not built. 84 of 918 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,640 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 33 | 269 | 8 | 51 | 382 | 63 |
-| Maker and tech | 0 | 0 | 78 | 396 | 60 | 0 | 534 | 69 |
+| Maker and tech | 0 | 0 | 77 | 399 | 60 | 0 | 536 | 69 |
 
 ## Everyday user
 
@@ -906,7 +906,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Package: pantry** | Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the owner's model, filters, dedupes and keeps, and the unit keeps a small shelf of. | proven virtual | 70 | not declared | `host/maipai_packages/pantry` | package exists; a test names it | doc missing |
 | **Package: wake_word_maker** | Make your own wake word on this computer: record clips on the settings page, train a small model, check it, install it. | proven virtual | 70 | not declared | `host/maipai_packages/wake_word_maker` | package exists; a test names it | doc missing |
 
-### Scripts and tools (90)
+### Scripts and tools (92)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
@@ -941,13 +941,14 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: fw-pictures.py** | Bench: send made-up pictures to the unit over the USB cable and look at what its face draws (bench builds only). | built | 40 | not declared | `scripts/fw-pictures.py` | file exists | doc missing |
 | **Script: fw-power-run.py** | Chain self.bench.power_log calls into one battery run and write a CSV (bench images only; | proven virtual | 70 | not declared | `scripts/fw-power-run.py` | file exists, a test names it | doc missing |
 | **Script: fw-rebuild.sh** | rebuild the firmware tree from this repo alone: the pinned upstream bases (firmware/BASE), then every patch of | proven virtual | 70 | not declared | `scripts/fw-rebuild.sh` | file exists, a test names it | doc missing |
-| **Script: fw-ref-tree.sh** | ONE canonical firmware reference tree for main: ~/esp/stackchan-rebuild/main-ref is a clean replay of origin/main's firmware/patches/ORDER, with build-bench/config present | built | 40 | not declared | `scripts/fw-ref-tree.sh` | file exists | doc missing |
+| **Script: fw-ref-tree.sh** | ONE canonical firmware reference tree for main: ~/esp/stackchan-rebuild/main-ref is a clean replay of origin/main's firmware/patches/ORDER, with build-bench/config present | proven virtual | 70 | not declared | `scripts/fw-ref-tree.sh` | file exists, a test names it | doc missing |
 | **Script: fw-serial.py** | Bench helper for the unit on the USB cable (bench builds only; | proven virtual | 70 | not declared | `scripts/fw-serial.py` | file exists, a test names it | doc missing |
 | **Script: fw-stress.py** | Memory gate stress run for the unit on the USB cable, with the memory line on. | proven on unit | 100 | not declared | `scripts/fw-stress.py` | `bench-b15.md`, `bench-b9.md` | doc missing |
 | **Script: fw-tailnet.sh** | download the pinned private-network client (firmware/tailnet/PIN) into a folder outside the firmware tree, | proven virtual | 70 | not declared | `scripts/fw-tailnet.sh` | file exists, a test names it | doc missing |
 | **Script: fw-voice-bench.py** | Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 and L06). | proven on unit | 100 | not declared | `scripts/fw-voice-bench.py` | `bench-b9.md`, `bench-window9.md` | doc missing |
 | **Script: game-pack.py** | compile a game table description (JSON) into the binary pack the unit's game engine plays (firmware patch G01, | proven virtual | 70 | not declared | `scripts/game-pack.py` | file exists, a test names it | doc missing |
 | **Script: gate-check.py** | Frame time and spoken-turn latency gate numbers, checked from what the bench agent measured (the memory numbers are checked by fw-stress.py). | proven virtual | 70 | not declared | `scripts/gate-check.py` | file exists, a test names it | doc missing |
+| **Script: golden-stamp.py** | The renderer goldens (host/tests/golden) are made for one firmware/patches/ORDER, and host/tests/golden/golden-order.sha1 holds that ORDER's hash. | proven virtual | 70 | not declared | `scripts/golden-stamp.py` | file exists, a test names it | doc missing |
 | **Script: host-footprint.py** | Report the host's footprint: source and environment size, import time, the pages' weight, docs and flasher assets, caches and logs, and (with --run) idle memory and CPU. | built | 40 | not declared | `scripts/host-footprint.py` | file exists | doc missing |
 | **Script: hygiene-check.sh** | block British spellings (American only), any mention of projects we studied (private word list), em dashes and filler words in | proven virtual | 70 | not declared | `scripts/hygiene-check.sh` | file exists, a test names it | doc missing |
 | **Script: i18n-gaps.py** | List the host strings that are still English in fr, de, pt and it, and write translation chunks for lane briefs. | built | 40 | not declared | `scripts/i18n-gaps.py` | file exists | doc missing |
@@ -979,6 +980,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: patch-replay.sh** | A repository script. | built | 40 | not declared | `scripts/patch-replay.sh` | file exists | doc missing |
 | **Script: psram-stack-lint.py** | Fail when a task whose stack is in PSRAM can reach flash or saved settings (patches TC02 and FM05). | proven virtual | 70 | not declared | `scripts/psram-stack-lint.py` | file exists, a test names it | doc missing |
 | **Script: readiness.py** | First-release readiness: the friend test as a checklist, made from the state of the repository. | proven virtual | 70 | not declared | `scripts/readiness.py` | file exists, a test names it | doc missing |
+| **Script: ref-tree.py** | Prints the firmware tree the renderer goldens and the unit checks run against. | proven virtual | 70 | not declared | `scripts/ref-tree.py` | file exists, a test names it | doc missing |
 | **Script: regen-core-tables.py** | Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patches/ORDER: | built | 40 | not declared | `scripts/regen-core-tables.py` | file exists | doc missing |
 | **Script: release-report.py** | One markdown page per firmware build: image sizes per slot, memory numbers from a stress log, frame cost per screen from the | proven virtual | 70 | not declared | `scripts/release-report.py` | file exists, a test names it | doc missing |
 | **Script: release.sh** | turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a detached signature | proven virtual | 70 | not declared | `scripts/release.sh` | file exists, a test names it | doc missing |

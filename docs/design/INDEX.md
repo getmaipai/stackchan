@@ -181,7 +181,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1157): Feature ledger
+- `docs/dev/feature-ledger.md` (1159): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -2153,7 +2153,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/spec-vendor/spec/vocab/robot-api.json` (55): no header
 - `host/spec-vendor/spec/voice/fixtures/normalize-for-speech.json` (52): no header
 - `host/spec-vendor/spec/voice/py/normalize_for_speech.py` (482): Speech normalization, the Python twin of spec/voice/ts/normalizeForSpeech.ts
-- `host/tests/conftest.py` (122): Shared fixtures: the deterministic suite runs against the fake always, and
+- `host/tests/conftest.py` (126): Shared fixtures: the deterministic suite runs against the fake always, and
 - `host/tests/eyes_fakes.py` (58): A pty standing in for the Reachy Eyes USB serial port.
 - `host/tests/firmware/accel_analog_core_test.c` (62): Host test of the analog tilt core (patch SF107): the properties of docs/design/accelerometer-games.md section 
 - `host/tests/firmware/apps_core_test.c` (344): Host test for the Apps wall, the Timers and Alarms apps and the tabbed Settings layout (patch UI16):
@@ -2360,6 +2360,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/update-header-vectors.json` (104): no header
 - `host/tests/fixtures/update-signature-vectors.json` (79): no header
 - `host/tests/golden/face-known.json` (1): no header
+- `host/tests/golden/golden-order.sha1` (1): no header
 - `host/tests/golden/pack_games_digests.json` (509): no header
 - `host/tests/golden/tolerance.json` (110): no header
 - `host/tests/kinematic_double.py` (106): A command-driven test double for the state feed.
@@ -2627,6 +2628,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_profile.py` (131): Tests named for the promises RM-01 makes about the Reachy Mini profile."""
 - `host/tests/test_psram_stack_lint.py` (218): ruff: noqa: E501
 - `host/tests/test_qa_screens.py` (48): Patch UX17, the question and answer game screens: the pure core is plain C and its host test runs here against
+- `host/tests/test_reference_tree.py` (71): The default firmware tree of the renderer tools is main's reference tree (scripts/ref-tree.py), never some oth
 - `host/tests/test_release_and_update_vectors.py` (179): The release script dry run, the signed update vectors, and the Home-driven update path (host side)."""
 - `host/tests/test_release_gate.py` (52): The release gate (decision 23): a failed check, scan, exposure step or test stops the release before anything 
 - `host/tests/test_release_package.py` (33): The StackChan release package carries no Reachy body, and no recorded-moves package."""
@@ -2902,7 +2904,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/camera-sweep-table.py` (64): turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the o
 - `scripts/captions-check.py` (25): every image in README.md, docs/user, docs/playground and docs/dev has a visible caption: a standalone image is
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (42): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (43): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/choices-check.py` (44): Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices
 - `scripts/dev-dashboard.sh` (37): run the host settings dashboard against seeded demo data (two stand-in units, no hardware, no real data) so it
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
@@ -2968,6 +2970,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-voice-bench.py` (266): Voice path bench for a BENCH image on the USB cable (needs the serial tools and trace points of patches V01 an
 - `scripts/game-pack.py` (557): ruff: noqa: E501
 - `scripts/gate-check.py` (124): Frame time and spoken-turn latency gate numbers, checked from what the bench agent measured (the memory number
+- `scripts/golden-stamp.py` (27): The renderer goldens (host/tests/golden) are made for one firmware/patches/ORDER, and host/tests/golden/golden
 - `scripts/host-footprint.py` (126): Report the host's footprint: source and environment size, import time, the pages' weight, docs and flasher ass
 - `scripts/hygiene-check.sh` (47): block British spellings (American only), any mention of projects we studied (private word list), em dashes and
 - `scripts/i18n-gaps.py` (46): List the host strings that are still English in fr, de, pt and it, and write translation chunks for lane brief
@@ -3001,6 +3004,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/patch-replay.sh` (53): Identify genuinely added files separately from missing existing paths.
 - `scripts/psram-stack-lint.py` (188): Fail when a task whose stack is in PSRAM can reach flash or saved settings (patches TC02 and FM05).
 - `scripts/readiness.py` (188): First-release readiness: the friend test as a checklist, made from the state of the repository.
+- `scripts/ref-tree.py` (46): Prints the firmware tree the renderer goldens and the unit checks run against. MAIPAI_FW_TREE_ROOT wins when i
 - `scripts/regen-core-tables.py` (26): Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patche
 - `scripts/release-report.py` (205): One markdown page per firmware build: image sizes per slot, memory numbers from a stress log, frame cost per s
 - `scripts/release.sh` (136): turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a det
@@ -3028,7 +3032,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/backends.py` (163): The playground's backends: the Simulation (a virtual unit on this computer) or one registered robot through it
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/brain_route.py` (44): The brain route of the virtual unit (owner decision 34): hosted (route A, the vendor's servers) or custom (rou
-- `scripts/virtual-unit/build-face.sh` (20): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
+- `scripts/virtual-unit/build-face.sh` (21): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (40): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
@@ -3100,7 +3104,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
 - `scripts/virtual-unit/restart-preview.sh` (27): bring this checkout to origin/main and restart the virtual unit view on one port, then prove the page serves t
-- `scripts/virtual-unit/scenarios.py` (523): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (526): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la

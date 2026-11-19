@@ -64,6 +64,7 @@ def body_client(request):
 import os  # noqa: E402
 import shutil  # noqa: E402
 import subprocess  # noqa: E402
+import sys  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -95,9 +96,12 @@ def _renderer_is_current() -> bool:
 
 def _build_renderers() -> str:
     """Builds the face and screens renderers when MAIPAI_BUILD_RENDERER=1 and a firmware tree is on this Mac. Returns a reason when it cannot."""
-    tree = Path(os.environ.get("MAIPAI_FW_TREE_ROOT", Path.home() / "esp" / "stackchan-rebase" / "final15"))
+    ref = subprocess.run([sys.executable, str(_REPO / "scripts" / "ref-tree.py")], capture_output=True, text=True)   # MAIPAI_FW_TREE_ROOT, else main's reference tree
+    if ref.returncode != 0:
+        return ref.stderr.strip()
+    tree = Path(ref.stdout.strip())
     if shutil.which("clang") is None or not (tree / "firmware" / "managed_components").exists():
-        return f"needs clang and a built firmware tree (set MAIPAI_FW_TREE_ROOT; looked at {tree})"
+        return f"needs clang and a built firmware tree (looked at {tree})"
     face_build = _REPO / "scripts" / "fw-face-render" / "build.sh"
     for cmd in (["bash", str(_REPO / "scripts" / "virtual-unit" / "build-face.sh"), str(tree)], ["bash", str(_REPO / "scripts" / "virtual-unit" / "build-screens.sh")]):
         run = subprocess.run(cmd, cwd=_REPO, capture_output=True, text=True)

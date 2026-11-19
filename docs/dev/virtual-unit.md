@@ -7,7 +7,7 @@ A headless StackChan on this Mac: the unit's own LVGL drawing code behind the sa
 
 ## Build (once per firmware change)
 
-Needs `clang` and a built firmware tree (default `~/esp/stackchan-rebase/final15`, or `MAIPAI_FW_TREE_ROOT`).
+Needs `clang` and a built firmware tree: `MAIPAI_FW_TREE_ROOT` when it is set, otherwise main's reference tree `~/esp/stackchan-rebuild/main-ref`, made by `bash scripts/fw-ref-tree.sh`. `scripts/ref-tree.py` picks it and says plainly when it is missing or older than `firmware/patches/ORDER`; no other tree is chosen for you. The goldens in `host/tests/golden` are made against that tree, and `host/tests/golden/golden-order.sha1` holds the hash of the `ORDER` they were made for: `scripts/check.sh` fails when `ORDER` changed and the goldens were not regenerated in the same landing (`scripts/golden-stamp.py`).
 
 1. `bash scripts/virtual-unit/build-face.sh` makes the overlay tree (the tree plus the UX patches listed in the script) and the face renderer.
 2. `bash scripts/virtual-unit/build-screens.sh` builds the screens, lock and cover renderers from it.

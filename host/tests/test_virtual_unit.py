@@ -211,16 +211,16 @@ def test_first_run_flow_by_taps_ends_with_the_answers():
     with vu.VirtualUnit(profile="screens") as u:
         u.raw("frun start")
         u.advance(600)
-        for tap in ((56, 98), (56, 98)):  # language English, name Astro
+        for tap in ((56, 98), (56, 138)):  # language English, name Astro (the finger-size layout, UX13d: the name list starts under the StackChan bar)
             u.tap(*tap)
             u.advance(300)
         u.raw("frun wifi")  # the Wi-Fi cover reports done
         u.advance(300)
         for tap in (
-            (160, 70),
-            (160, 220),
             (160, 190),
-        ):  # MaiPai Home (the first of the three ways), a tap on the privacy "Got it" button
+            (160, 82),
+            (160, 203),
+        ):  # Custom (route B, UX19), MaiPai Home (the first of the three ways), a tap on the privacy "Got it" button
             u.tap(*tap)
             u.advance(300)
         u.advance(2500)  # "All set!" closes itself after 2 s
