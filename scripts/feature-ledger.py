@@ -281,7 +281,7 @@ def user_rows(ev: Evidence) -> list[dict]:
     add("face", "Anime big-eyes face with chunky mouth", "The default face: big anime-style eyes with a chunky mouth that follows the voice.", "Faces and moods", image="docs/images/unit-face-big-eyes.png", where=["firmware/patches/V10-face-design-shapes.patch", "firmware/patches/V12-chunky-mouth-on-anime-eyes.patch"],
         percent=100, status="proven on unit", bench=[f for f in ev.bench if "mouth" in ev.bench[f].lower()][:2], rule="a real photo-grade screenshot from the flashed robot exists (unit-face-big-eyes.png) and the bench saw the mouth open and close", doc="docs/user/face-and-look.md")
     for c in src.face_colors():
-        add("face", f"Face color: {c}", f"Tint the face {c}.", "Faces and moods", image="docs/images/face-colors.svg", doc="docs/user/face-and-look.md", percent=70, status="proven virtual", rule="the virtual unit's face config accepts and draws it", where=["scripts/virtual-unit/tools/face2.py"])
+        add("face", f"Face color: {c}", f"Tint the face {c}.", "Faces and moods", image="docs/images/face-colors.png", doc="docs/user/face-and-look.md", percent=70, status="proven virtual", rule="the virtual unit's face config accepts and draws it", where=["scripts/virtual-unit/tools/face2.py"])
     elems, combos = src.overlays()
     for o in dict.fromkeys(elems):
         add("face", f"Overlay: {o}", f"A {o} effect drawn over the face.", "Overlays", doc="docs/user/face-and-look.md", rule="built and drawn by the overlay engine; nobody has seen it on a robot", person=True, where=["firmware/patches/O01-overlay-engine-bigger-shapes-and-combined.patch", "host/maipai_body/overlays.py"])

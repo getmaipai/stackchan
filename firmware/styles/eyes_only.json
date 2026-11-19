@@ -1,0 +1,19 @@
+{
+ "name": "eyes_only",
+ "title": "Eyes only",
+ "about": "Two eyes and no mouth; they pulse with the voice.",
+ "eye_d": 80,
+ "eye_x": 70,
+ "eye_y": 0,
+ "mouth_y": 56,
+ "mouth_w": 0,
+ "mouth_t": 0,
+ "ew": 76,
+ "eh": 80,
+ "mouth": "none",
+ "r_pct": 55,
+ "pupil": 0,
+ "brows": 0,
+ "drift": 6,
+ "blw": 0
+}

@@ -1,0 +1,21 @@
+{
+ "name": "cat",
+ "title": "Cat",
+ "about": "Slit pupils, pointed ears and three whiskers a side.",
+ "eye_d": 64,
+ "eye_x": 62,
+ "eye_y": 10,
+ "mouth_y": 56,
+ "mouth_w": 30,
+ "mouth_t": 5,
+ "ew": 62,
+ "eh": 64,
+ "mouth": "cute",
+ "r_pct": 100,
+ "pupil": 0,
+ "brows": 0,
+ "drift": 6,
+ "blw": 5,
+ "look": "slit",
+ "extras": "cat"
+}

@@ -1,0 +1,21 @@
+{
+ "name": "hose",
+ "title": "Rubber hose",
+ "about": "A 1930s cartoon look: tall pie eyes, a wide grin, round cheeks and a tuft.",
+ "eye_d": 60,
+ "eye_x": 58,
+ "eye_y": -12,
+ "mouth_y": 56,
+ "mouth_w": 64,
+ "mouth_t": 9,
+ "ew": 52,
+ "eh": 84,
+ "mouth": "cute",
+ "r_pct": 100,
+ "pupil": 0,
+ "brows": 1,
+ "drift": 4,
+ "blw": 6,
+ "look": "pie",
+ "extras": "hose"
+}

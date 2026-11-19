@@ -1,0 +1,19 @@
+{
+ "name": "classic",
+ "title": "Classic",
+ "about": "The earlier rounder eyes.",
+ "eye_d": 72,
+ "eye_x": 70,
+ "eye_y": -18,
+ "mouth_y": 56,
+ "mouth_w": 42,
+ "mouth_t": 6,
+ "ew": 56,
+ "eh": 72,
+ "mouth": "cute",
+ "r_pct": 90,
+ "pupil": 0,
+ "brows": 1,
+ "drift": 7,
+ "blw": 5
+}
