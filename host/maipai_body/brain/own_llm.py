@@ -71,6 +71,17 @@ def _wav_bytes(samples: np.ndarray, sample_rate: int) -> bytes:
     return output.getvalue()
 
 
+def _handle_for_unit(handler, text: str, speaker, unit: str):
+    """Handlers that keep per-robot state (the notes) get the unit; older ones keep the two-argument call."""
+    import inspect
+
+    try:
+        takes_unit = "unit" in inspect.signature(handler.handle).parameters
+    except (TypeError, ValueError):
+        takes_unit = False
+    return handler.handle(text, speaker, unit=unit) if takes_unit else handler.handle(text, speaker)
+
+
 class OwnLLMBrain:
     """OpenAI-compatible turn client with bounded in-memory conversation history."""
 
@@ -144,7 +155,7 @@ class OwnLLMBrain:
             return
         speaker = (request.speaker_evidence or {}).get("person_id") if (self.memory or self.handlers) else None
         for handler in self.handlers:
-            spoken = handler.handle(request.text, speaker)
+            spoken = _handle_for_unit(handler, request.text, speaker, request.conversation_id or "")
             if spoken is not None:  # a package answered (notes, Home Assistant): no model call
                 yield TurnEvent(reply_text=spoken, delta_text=spoken, delta_whole=True)
                 return

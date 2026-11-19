@@ -28,6 +28,7 @@ FAILED = (
 
 class _Handler(BaseHTTPRequestHandler):
     server: SettingsServer
+    timeout = 10  # a client that sends headers and no body is dropped after ten seconds (review fix)
 
     def log_message(self, *_args: object) -> None:
         return

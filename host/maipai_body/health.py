@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import html
 import json
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -41,10 +42,14 @@ def build_health(supervisor: Supervisor | None, *, connected: list[str], paired:
     else:
         summary = "Everything is running."
         state = "ok"
+    advice = [p["advice"] for p in bad if p["advice"]][:3]
+    notes_store = sys.modules.get("maipai_packages.memory_notes.store")  # only when the notes package is switched on
+    if notes_store is not None:
+        advice += notes_store.recent_lockout_notices(now=now)[-3:]
     return {
         "state": state, "summary": summary, "uptime_s": max(0, int(now - started)),
         "parts": [p for p in parts if not p["unit"]], "units": units,
-        "advice": [p["advice"] for p in bad if p["advice"]][:3],
+        "advice": advice,
     }
 
 

@@ -50,8 +50,8 @@ def request_is_local(peer: str, headers: Mapping[str, str]) -> bool:
 
 
 COOKIE = "maipai_settings"
-TOKEN_TRIES = 10  # wrong tokens in a window lock the login (for everyone, the right token included)
-TOKEN_TRIES_TOTAL = 200  # wrong tokens from all addresses together in a window
+TOKEN_TRIES = 10  # wrong tokens from one address in a window lock that address only
+TOKEN_TRIES_TOTAL = 200  # wrong tokens from all addresses together in a window lock every address that has not logged in before
 TOKEN_WINDOW_S = 60.0
 
 
@@ -66,6 +66,7 @@ class SettingsAuth:
         self._path, self._clock = Path(path), clock
         self._fails: dict[str, list[float]] = {}
         self._total: list[float] = []
+        self._known: set[str] = set()  # addresses that logged in with the right token: the spray lock does not apply to them
         self._lock = threading.Lock()
         self.token = self._load()
 
@@ -73,6 +74,11 @@ class SettingsAuth:
         try:
             value = self._path.read_text().strip()
             if len(value) >= 32:
+                try:
+                    if self._path.stat().st_mode & 0o077:  # made by hand or restored from a backup: tighten it (review fix)
+                        self._path.chmod(0o600)
+                except OSError:
+                    pass
                 return value
         except OSError:
             pass
@@ -101,7 +107,7 @@ class SettingsAuth:
     def valid(self, headers: Mapping[str, str], query: str, source: str = "") -> bool:
         """True when a token in the request is the right one. Wrong tries are counted per source address (ten a
         minute locks that address, so one device guessing never blocks the owner's phone) and in total (a spray from
-        many addresses locks the page for a minute)."""
+        many addresses locks the page for a minute for addresses that never logged in; an address that has logged in keeps its own budget)."""
         given = self.candidate(headers, query)
         if not given:
             return False
@@ -109,11 +115,14 @@ class SettingsAuth:
         with self._lock:
             self._total = [t for t in self._total if now - t < TOKEN_WINDOW_S]
             mine = [t for t in self._fails.get(source, []) if now - t < TOKEN_WINDOW_S]
-            if len(self._total) >= TOKEN_TRIES_TOTAL or len(mine) >= TOKEN_TRIES:
+            spray = len(self._total) >= TOKEN_TRIES_TOTAL and source not in self._known
+            if spray or len(mine) >= TOKEN_TRIES:
                 self._fails[source] = mine
                 return False
             if hmac.compare_digest(given.encode("utf-8", "replace"), self.token.encode("utf-8")):
                 self._fails[source] = mine
+                if source and len(self._known) < 256:
+                    self._known.add(source)
                 return True
             mine.append(now)
             self._fails[source] = mine

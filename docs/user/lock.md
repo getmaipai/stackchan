@@ -30,7 +30,7 @@ After several wrong codes in a row the robot makes you wait before you can try a
 Pick an **Auto lock** time: off (the default), 1 or 15 minutes without a touch, a wake word or a remote action. A robot that saved 5, 30 or 60 minutes earlier keeps that value until you change it.
 
 ## What the lock stops
-A locked robot keeps its saved Wi-Fi networks: nothing can add or remove one until it is unlocked. Your voice model can never set or change the code.
+A locked robot closes its Wi-Fi screen, and touch cannot open it until the robot is unlocked. Changes to saved networks made from your own computer are not blocked by the lock yet. Your voice model can never set or change the code.
 
 ## If you forget the code
 The code cannot be read back. The two-step physical reset on the robot erases the code along with all other data.

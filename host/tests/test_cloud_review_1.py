@@ -95,7 +95,6 @@ def test_a_tipped_unit_is_noticed_while_the_head_keeps_moving(tmp_path, tmp_path
     assert run.returncode == 0, run.returncode
 
 
-@bug
 def test_forget_of_one_common_word_keeps_notes_that_only_share_it(tmp_path):
     """owner: app (memory_notes/store.py Notes.handle + NotesStore.forget; a spoken "forget it" removes every note that holds the word "it")."""
     from maipai_packages.memory_notes import Notes, NotesStore
@@ -108,7 +107,6 @@ def test_forget_of_one_common_word_keeps_notes_that_only_share_it(tmp_path):
     assert len(notes.store.read("sam")) >= 2
 
 
-@bug
 def test_notes_unlock_state_is_kept_per_unit():
     """owner: app (memory_notes/store.py; one Notes object serves every unit, and handle(text, speaker) has no unit, so a passphrase spoken to one robot opens the notes on every robot)."""
     from maipai_packages.memory_notes import Notes
@@ -117,9 +115,125 @@ def test_notes_unlock_state_is_kept_per_unit():
     assert {"unit", "device_id"} & set(params)
 
 
-@bug
 def test_the_settings_page_drops_a_client_that_sends_half_a_request():
     """owner: app (settings_server.py _Handler: no socket timeout, so a stalled client holds a thread for good; the coding companion has one)."""
     from maipai_body.settings_server import _Handler
 
     assert getattr(_Handler, "timeout", None)
+
+
+def test_forget_asks_before_removing_more_than_one_note(tmp_path):
+    from maipai_packages.memory_notes import Notes, NotesStore
+
+    notes = Notes(NotesStore(tmp_path), ["sam"], default_person="sam")
+    notes.store.add("sam", "coffee with oat milk")
+    notes.store.add("sam", "coffee beans live in the red tin")
+    notes.store.add("sam", "the dentist is on Friday")
+    assert "matches 2 notes" in notes.handle("forget coffee", None)
+    assert len(notes.store.read("sam")) == 3  # nothing removed yet
+    assert notes.handle("no", None) == "Okay, I kept everything."
+    assert len(notes.store.read("sam")) == 3
+    notes.handle("forget coffee", None)
+    assert notes.handle("yes", None).startswith("Done. I forgot 2")
+    assert [r[2] for r in notes.store.read("sam")] == ["the dentist is on Friday"]
+    assert notes.handle("forget dentist", None).startswith("Done. I forgot 1")  # one match needs no question
+
+
+def test_forget_with_only_filler_words_is_refused(tmp_path):
+    from maipai_packages.memory_notes import Notes, NotesStore
+
+    notes = Notes(NotesStore(tmp_path), ["sam"], default_person="sam")
+    notes.store.add("sam", "my birthday is in May")
+    for said in ("forget it", "forget that", "forget this one", "forget them"):
+        assert "a little more" in notes.handle(said, None), said
+    assert len(notes.store.read("sam")) == 1
+
+
+def test_a_yes_at_another_robot_does_not_confirm_a_forget(tmp_path):
+    from maipai_packages.memory_notes import Notes, NotesStore
+
+    notes = Notes(NotesStore(tmp_path), ["sam"], default_person="sam")
+    for text in ("coffee one", "coffee two"):
+        notes.store.add("sam", text)
+    notes.handle("forget coffee", None, unit="a")
+    assert notes.handle("yes", None, unit="b") is None  # robot b has nothing waiting: ordinary chat
+    assert len(notes.store.read("sam")) == 2
+
+
+def test_a_passphrase_opens_notes_at_that_robot_only(tmp_path):
+    from maipai_packages.memory_notes import Notes, NotesStore
+
+    notes = Notes(NotesStore(tmp_path), ["sam", "lee"], default_person="")
+    notes.store.add("sam", "private thing")
+    assert notes.passphrases.set("sam", "blue river stone").startswith("Okay")
+    assert notes.handle("this is sam, passphrase blue river stone", None, unit="a").startswith("Okay, I will use Sam")
+    assert notes.person_for(None, unit="a") == "sam"
+    assert notes.person_for(None, unit="b") == ""
+
+
+def test_notes_rewrite_is_atomic_and_private(tmp_path):
+    import os
+    import stat
+
+    from maipai_packages.memory_notes import NotesStore
+
+    store = NotesStore(tmp_path)
+    store.add("sam", "alpha note here")
+    store.add("sam", "beta note here")
+    assert store.forget("sam", "alpha") == 1
+    path = tmp_path / "sam.md"
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_passphrase_guesses_at_one_robot_do_not_lock_the_others_and_the_owner_hears(tmp_path):
+    from maipai_packages.memory_notes.store import Passphrases
+
+    clock = [0.0]
+    p = Passphrases(tmp_path, lambda: clock[0])
+    p.set("sam", "blue river stone")
+    for _ in range(5):
+        assert p.check("sam", "wrong wrong", "kids-room") is False
+    assert p.check("sam", "blue river stone", "kids-room") is False  # that robot is locked for ten minutes
+    assert p.check("sam", "blue river stone", "kitchen") is True  # the others still work
+    assert p.lockouts and p.lockouts[-1]["unit"] == "kids-room" and p.lockouts[-1]["person"] == "sam"
+    clock[0] = 601.0
+    assert p.check("sam", "blue river stone", "kids-room") is True
+
+
+def test_token_file_with_open_permissions_is_tightened_on_load(tmp_path):
+    import os
+    import stat
+
+    from maipai_body.local_guard import SettingsAuth
+
+    path = tmp_path / "token"
+    path.write_text("x" * 40 + "\n")
+    path.chmod(0o644)
+    SettingsAuth(path)
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+
+
+def test_a_spray_from_many_addresses_does_not_lock_an_address_that_already_logged_in(tmp_path):
+    from maipai_body import local_guard
+    from maipai_body.local_guard import SettingsAuth
+
+    auth = SettingsAuth(tmp_path / "token")
+    headers = {"Authorization": f"Bearer {auth.token}"}
+    assert auth.valid(headers, "", "phone")
+    for i in range(local_guard.TOKEN_TRIES_TOTAL + 5):
+        auth.valid({"Authorization": "Bearer nope"}, "", f"spray{i}")
+    assert auth.valid(headers, "", "phone") is True
+    assert auth.valid(headers, "", "stranger") is False  # an address that never logged in is held by the spray lock
+
+
+def test_the_dashboard_health_tells_the_owner_about_a_passphrase_lockout(tmp_path):
+    from maipai_body.health import build_health
+    from maipai_packages.memory_notes.store import Passphrases
+
+    p = Passphrases(tmp_path)
+    p.set("sam", "blue river stone")
+    for _ in range(5):
+        p.check("sam", "wrong wrong", "kids-room")
+    doc = build_health(None, connected=[], paired={}, started=0.0)
+    assert any("Sam" in line and "kids-room" in line for line in doc["advice"])
