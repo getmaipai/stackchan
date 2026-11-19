@@ -875,7 +875,12 @@ def assemble():
     cable = []                                                # the ribbon where it lands on top of the holder and lies flat, running back (owner's photos)
     holder_top = 49.75                                                     # top of the holder's cover behind the board (cover file)
     lie = holder_top + 0.42
-    cable += wires(lambda x, pt: (x, pt[0], pt[1]), [(ring_under - 15.0, zb - 4.4), (ring_under - 15.8, zb - 4.9), (lie + 0.35, zb - 6.0), (lie, zb - 7.6), (lie, zb - 12.0), (lie, 0.0), (lie, -4.0)])
+    # One cable in three stretches: the C on the head (`coil`), the flat run on the holder (`cable`), and between them a short stretch that
+    # bends as the head nods (`ribbon_bridge`). The file holds the bridge as it lies with the head level; a view redraws it for the
+    # head's angle from the two ends recorded on the node, so the ribbon never shows as two cables.
+    bridge_from, bridge_to = (ring_under - 15.0, zb - 4.4), (lie, zb - 7.6)          # (height, depth): the foot of the C, and where the flat run starts
+    bridge = wires(lambda x, pt: (x, pt[0], pt[1]), [bridge_from, (ring_under - 15.8, zb - 4.9), (lie + 0.35, zb - 6.0), bridge_to])
+    cable += wires(lambda x, pt: (x, pt[0], pt[1]), [bridge_to, (lie, zb - 12.0), (lie, 0.0), (lie, -4.0)])
     screen_c = (0.0, cy - SCREEN_DROP_MM, face + 0.03)
 
     def screw(f, u, v, r, c0, c1, socket=False):
@@ -1055,6 +1060,14 @@ def assemble():
     for name, parts, what in inside:
         c = [round(v, 3) for v in [(a0 + b0) / 2.0 for a0, b0 in zip(*bounds([t for m in parts.values() for t in m]))]]
         g.node(name, yaw, sub(c, YAW_O), g.mesh(name, many(parts, c)), {'what': what, 'basis': 'assumed'})
+    bc0 = (-1.0, bridge_from[0], bridge_from[1])
+    g.node('ribbon_bridge', yaw, sub(bc0, YAW_O), g.mesh('ribbon_bridge', [g.primitive(bridge, bc0, 'ribbon')]),
+           {'what': 'the stretch of the ribbon cable between the head and the holder, which bends as the head nods; stored as it lies with the head level',
+            'basis': 'assumed', 'bridge': {
+                'wires': 8, 'pitch_m': mm(1.06), 'radius_m': mm(0.4), 'center_x_m': mm(-1.0),
+                'from': {'frame': 'pitch_joint', 'point_m': [mm(v) for v in sub((-1.0, bridge_from[0], bridge_from[1]), PITCH_O)], 'direction': [0.0, -1.0, 0.0]},
+                'to': {'frame': 'yaw_joint', 'point_m': [mm(v) for v in sub((-1.0, bridge_to[0], bridge_to[1]), YAW_O)], 'direction': [0.0, 0.0, -1.0]},
+                'note': 'a view draws a smooth curve from `from` (which turns with the head) to `to` (fixed on the holder), leaving each end along its direction'}})
     n_lo, n_hi = bounds([t for m in geo['neck'].values() for t in m])
     g.node('col_neck', yaw, (0.0, (n_lo[1] + n_hi[1]) / 2.0 - YAW_O[1], 0.0),
            extras={'collider': {'shape': 'cylinder', 'radius': 0.023, 'height': mm(n_hi[1] - n_lo[1])}})
@@ -1110,7 +1123,7 @@ def assemble():
     bc = onboard(coil_c[0], ring_under - 13.6, 5.3)                                  # the short woven band round the wires, on the slant at the foot of the C
     braid = obox(bc, (4.4, 0.0, 0.0), (0.0, -0.8 * 0.66, 0.9 * 0.66 * 1.25), (0.0, 0.75 * 0.62, 0.66 * 0.62))
     g.node('coil', head, sub(coil_c, PITCH_O), g.mesh('coil', [g.primitive(coil, coil_c, 'ribbon'), g.primitive(braid, coil_c, 'servo_case')]),
-           {'what': 'ribbon cable of eight black wires: out of its connector on the upright board, a loop away from the board, a braided band, down toward the holder', 'basis': 'assumed', 'note': "route from the owner's four close photos; it flexes as the head nods and is drawn at rest, so near full tilt the drawn loop passes through the holder"})
+           {'what': 'ribbon cable of eight black wires: out of its connector on the upright board, a loop away from the board, a braided band, down toward the holder', 'basis': 'assumed', 'note': "route from the owner's four close photos; it flexes as the head nods and is drawn at rest, a view joins it to the holder's run through ribbon_bridge at every head angle"})
     low = {'flex': [], 'flex_ink': []}                           # a second flat cable, white with blue print, low on the board (owner's photo from below)
     low['flex'] += slab(lambda u, v, c: (u, v, zb - c), -13.0, -2.0, cy - 16.0, cy - 12.6, 0.0, 0.2)
     for k7 in range(7):

@@ -524,6 +524,9 @@ def test_the_heads_board_is_laid_out_from_the_owners_close_photo():
     assert coil_node["translation"][2] < board["translation"][2] - 0.003, "the loop stands away from the board, toward the back"
     cable_acc = j["accessors"][j["meshes"][cable_node["mesh"]]["primitives"][0]["attributes"]["POSITION"]]
     assert cable_acc["max"][2] - cable_acc["min"][2] > 0.012, "on the holder the ribbon lies flat and runs back for more than 12 mm"
+    br = by["ribbon_bridge"][1]["extras"]["bridge"]
+    assert br["wires"] == 8 and br["from"]["frame"] == "pitch_joint" and br["to"]["frame"] == "yaw_joint", "one cable: the stretch between head and holder names both ends"
+    assert "ribbon_bridge" in descendants(j, by["yaw_joint"][0]) and "ribbon_bridge" not in descendants(j, by["head"][0])
     assert {"flex", "flex_ink"} <= mat("flex_cable_ring") and {"silk", "trace"} <= mat("board_7p"), "print on the flat cable; print and traces on the board"
     assert {"port_metal"} <= mat("board_parts"), "solder ends and pins"
     src = (VU / "model" / "make_body.py").read_text()

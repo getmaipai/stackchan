@@ -422,6 +422,23 @@ def test_a_still_screen_is_put_on_the_robots_screen_and_goes_away(page):
     assert page.until("ST.still === ''", 14), "and the running screen comes back by itself"
 
 
+def test_the_ribbon_is_one_cable_at_every_head_angle(page):
+    if not page.until("window.ROBOT && ROBOT.model && ROBOT.model.ready", 12):
+        pytest.skip("the 3D drawing did not start here (it needs the pinned three.js from the network and a graphics context)")
+    assert page.js("!!ROBOT.model.bridge && !ROBOT.model.nodes.ribbon_bridge.children.find(c => c.isMesh).visible"), "the view draws the bending stretch itself"
+    gaps = """(() => { const M = ROBOT.model, B = M.bridge, n = B.SIDES, last = (B.SEG) * n * 3;
+      const mid = o => { let y = 0, z = 0; for (let q = 0; q < n; q++) { y += B.pos[o + q * 3 + 1]; z += B.pos[o + q * 3 + 2]; } return [y / n, z / n]; };
+      const a = mid(0), b = mid(last), from = B.from.clone().applyQuaternion(M.pitch.quaternion).add(M.pitch.position);
+      return [Math.hypot(a[0] - from.y, a[1] - from.z), Math.hypot(b[0] - B.to.y, b[1] - B.to.z)].map(v => +(v * 1000).toFixed(3)); })()"""
+    for pitch in (3, 30, 60, 87):
+        page.js(f"fetch('/call', {{method: 'POST', body: JSON.stringify({{name: 'self.robot.set_head_angles', arguments: {{yaw: 0, pitch: {pitch}}}}})}}).then(r => r.json())")
+        assert page.until(f"Math.abs(ST.head.pitch - {pitch}) < 1", 12)
+        time.sleep(0.6)
+        head_end, holder_end = page.js(gaps)
+        assert head_end < 0.05 and holder_end < 0.05, f"at pitch {pitch} the ribbon's bending stretch is {head_end} mm from the head's part and {holder_end} mm from the holder's"
+    page.js("fetch('/call', {method: 'POST', body: JSON.stringify({name: 'self.robot.set_head_angles', arguments: {yaw: 0, pitch: 10}})}).then(r => r.json())")
+
+
 def test_the_small_web_copy_of_the_model_loads_and_works_the_same(page):
     if not page.js("!!(window.ROBOT && ROBOT.model && ROBOT.model.ready)"):
         pytest.skip("the 3D drawing did not start here (it needs the pinned three.js from the network and a graphics context)")

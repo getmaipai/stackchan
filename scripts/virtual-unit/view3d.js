@@ -148,6 +148,21 @@ function initRobot(THREE, canvas, hooks) {
     }
     M.gaps = ['top_gap_left', 'top_gap_right'].map(name => { const node = N[name], m = node && node.children.find(c => c.isMesh); if (!m) return null;
       m.material = new THREE.MeshBasicMaterial({color: 0x050505}); M.leds.push(m); return {m, sp: halo(node, 0.008), px: node.userData.lights || []}; }).filter(Boolean);   // the unsealed slits behind the top connectors
+    // The ribbon cable is one cable: its C rides on the head, its flat run on the holder, and the stretch between them bends as the head
+    // nods. The model stores that stretch for a level head; here it is redrawn for the head's angle so the cable never looks like two.
+    const br = N.ribbon_bridge && N.ribbon_bridge.userData.bridge;
+    if (br) {
+      const still = N.ribbon_bridge.children.find(c => c.isMesh), SEG = 12, SIDES = 6, W = br.wires;
+      const geo = new THREE.BufferGeometry(), pos = new Float32Array(W * (SEG + 1) * SIDES * 3), idx = [];
+      for (let w = 0; w < W; w++) for (let k = 0; k < SEG; k++) for (let q = 0; q < SIDES; q++) {
+        const a = (w * (SEG + 1) + k) * SIDES + q, b = (w * (SEG + 1) + k) * SIDES + (q + 1) % SIDES, c = a + SIDES, d = b + SIDES;
+        idx.push(a, b, d, a, d, c);
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx);
+      const mesh = new THREE.Mesh(geo, still.material); mesh.frustumCulled = false; M.yaw.add(mesh); still.visible = false;
+      M.bridge = {mesh, pos, SEG, SIDES, W, br, key: null, from: new THREE.Vector3().fromArray(br.from.point_m), to: new THREE.Vector3().fromArray(br.to.point_m),
+                  d0: new THREE.Vector3().fromArray(br.from.direction), d1: new THREE.Vector3().fromArray(br.to.direction)};
+    }
     M.glowLights = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]].map(px => {
       // a spot aimed down, inward and a little to the back: it colors the inside of the shell and the holder, and nothing ahead of the
       // ring board, so no light falls on the controller or its screen (the real unit leaks none there)
@@ -396,6 +411,27 @@ function initRobot(THREE, canvas, hooks) {
     }
     M.screen.material.transparent = inside; M.screen.material.opacity = inside ? 0.35 : 1; M.screen.renderOrder = inside ? 3 : 0;
   }
+  function drawBridge() {   // a smooth curve, in the holder's frame, from the foot of the C on the head to the flat run on the holder
+    const B = M.bridge, key = M.pitch.quaternion.x.toFixed(4) + M.pitch.quaternion.w.toFixed(4); if (key === B.key) return; B.key = key;
+    const p0 = B.from.clone().applyQuaternion(M.pitch.quaternion).add(M.pitch.position), t0 = B.d0.clone().applyQuaternion(M.pitch.quaternion);
+    const p3 = B.to, len = Math.max(0.0015, p0.distanceTo(p3) * 0.4);
+    const p1 = p0.clone().addScaledVector(t0, len), p2 = p3.clone().addScaledVector(B.d1, -len);
+    const pt = new THREE.Vector3(), tan = new THREE.Vector3(), r = B.br.radius_m; B.ends = [p0.clone(), p3.clone()];
+    for (let k = 0; k <= B.SEG; k++) {
+      const u = k / B.SEG, v = 1 - u;
+      pt.set(0, 0, 0).addScaledVector(p0, v * v * v).addScaledVector(p1, 3 * v * v * u).addScaledVector(p2, 3 * v * u * u).addScaledVector(p3, u * u * u);
+      tan.set(0, 0, 0).addScaledVector(p0, -3 * v * v).addScaledVector(p1, 3 * v * v - 6 * v * u).addScaledVector(p2, 6 * v * u - 3 * u * u).addScaledVector(p3, 3 * u * u).normalize();
+      const ny = -tan.z, nz = tan.y;   // across the wire, in the plane it bends in (the head nods about the x axis)
+      for (let w = 0; w < B.W; w++) {
+        const wx = B.br.center_x_m + (B.W - 1) / 2 * B.br.pitch_m - w * B.br.pitch_m;
+        for (let q = 0; q < B.SIDES; q++) {
+          const a = 2 * Math.PI * q / B.SIDES, o = ((w * (B.SEG + 1) + k) * B.SIDES + q) * 3;
+          B.pos[o] = wx + r * Math.cos(a); B.pos[o + 1] = pt.y + r * Math.sin(a) * ny; B.pos[o + 2] = pt.z + r * Math.sin(a) * nz;
+        }
+      }
+    }
+    B.mesh.geometry.attributes.position.needsUpdate = true; B.mesh.geometry.computeVertexNormals();
+  }
   const v3 = new THREE.Vector3();
   function placeLabels(show) {
     const w = cv.clientWidth, h = cv.clientHeight;
@@ -437,6 +473,7 @@ function initRobot(THREE, canvas, hooks) {
       // the joints turn about the axes stored in the model, held inside the range where its parts do not touch
       M.yaw.quaternion.setFromAxisAngle(M.yawAxis, clamp(cy, M.yawLim[0], M.yawLim[1]) * Math.PI / 180);   // positive yaw turns the head toward the robot's right (unverified against the unit)
       M.pitch.quaternion.setFromAxisAngle(M.pitchAxis, clamp(cp, M.pitchLim[0], M.pitchLim[1]) * Math.PI / 180);   // positive pitch looks up
+      if (M.bridge) drawBridge();
       if (yawPointer) yawPointer.position.copy(yawPoint(cy, yawArcR));
       if (pitchPointer) { const p = pitchPointer.userData.pp(cp, pitchArcR); pitchPointer.position.copy(p); }
       const on = st.hw.on, leds = st.leds || [];
