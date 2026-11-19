@@ -360,7 +360,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/images/game-memory.svg` (1): no header
 - `docs/images/game-whack.svg` (1): no header
 - `docs/images/hero-playground.gif` (6264): Binary file docs/images/hero-playground.gif matches
-- `docs/images/hero-robot.gif` (597): no header
+- `docs/images/hero-robot.gif` (744): no header
 - `docs/images/hero.svg` (1): no header
 - `docs/images/light-alert.svg` (1): no header
 - `docs/images/light-amber.svg` (1): no header
@@ -2924,7 +2924,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/make-doc-screenshots.py` (141): make the user-doc screenshots by script from the simulated units (settings_sim) and from the real commands, ne
 - `scripts/make-game-sounds.py` (286): Game sounds, synthesized from nothing: short tones, clacks and noise bursts with attack-decay-sustain-release 
 - `scripts/make-hero-playground-gif.mjs` (74): Make docs/images/hero-playground.gif: a scripted screen recording of the playground (view.py: 3D model, the un
-- `scripts/make-hero-robot-gif.py` (80): Make docs/images/hero-robot.gif from the virtual unit: the unit's own screen renderer, scripted and reproducib
+- `scripts/make-hero-robot-gif.py` (86): Make docs/images/hero-robot.gif from the virtual unit: the unit's own screen renderer, scripted and reproducib
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 - `scripts/make-mumble-samples.py` (38): Make the offline mumble samples to listen to: docs/dev/mumble/<lang>.wav (8 kHz, 16 bit, about 3 seconds each)
 - `scripts/make-object-seed.py` (32): write the six <language>-object.json seed files from host/maipai_packages/pantry/objects/ (core.json: group, b

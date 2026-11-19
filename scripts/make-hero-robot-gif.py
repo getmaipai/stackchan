@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Make docs/images/hero-robot.gif from the virtual unit: the unit's own screen renderer, scripted and reproducible.
 Usage: python3 scripts/make-hero-robot-gif.py [--keep-frames DIR]
-Cycles five scenes at 10 frames a second (talking, dancing, rain, the games wall, then Four in a Row in play with a winning four), then loops. Needs the screens renderer
+Cycles six scenes and the game end at 10 frames a second (talking, dancing, rain, the three clock styles, the games wall, Four in a Row in play with a winning four, then the game-over screen), then loops. Needs the screens renderer
 (bash scripts/virtual-unit/build-screens.sh) and ffmpeg. Placement: host-side development tool; no firmware change. Upstream: none."""
 import importlib.util
 import shutil
@@ -25,12 +25,14 @@ SCENES = [
     ("talking", 20, BAR + [("call", "self.face.bench_emotion", {"emotion": "happy"}), ("advance", 400)], lambda i: [("raw", "speak %d" % SYLLABLES[i % 10])]),
     ("dancing", 20, [("call", "self.robot.dance", {"name": "happy"}), ("advance", 5600)], lambda i: []),
     ("weather", 15, BAR + [("call", "self.face.bench_emotion", {"emotion": "neutral"}), ("raw", "overlay rain 3 0"), ("advance", 800)], lambda i: []),
+    ("clock styles", 24, BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pshow clock"), ("advance", 600)], lambda i: [("raw", "pclick 20 60"), ("advance", 100)] if i in (6, 14) else []),   # a tap on the clock cycles its three styles (patches UX14, UX14b)
     ("games wall", 15, BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 160 156"), ("advance", 500)], lambda i: []),
 ]
 # Four in a Row in play, drawn by the unit's own grid-game code (scripts/fw-face-render/grid_render.cc): the person (yellow) and the unit (red) have dropped discs;
 # the last unit disc falls, then the person's winning disc, then the four pulse and stay lit.
 GAME_PREFILL = ["game c4", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700"]
 GAME_FRAMES = 30
+OVER_FRAMES = 14   # then the shared game-over screen (patch UX15): the face pops, the score and best appear
 GAME_AT = {0: "drop 4 2", 8: "drop 3 1"}
 GRID = ROOT / ".runs" / "vu-screens" / "grid" / "grid_render"
 
@@ -64,6 +66,10 @@ def main():
         for i in range(GAME_FRAMES):
             if i in GAME_AT:
                 script.append(GAME_AT[i])
+            script += ["advance %d" % (1000 // FPS), "snap %s" % (tmp / f"f{n:04d}.png")]
+            n += 1
+        script.append("over won|Won in 7 moves|Best 9 moves|1|en")
+        for i in range(OVER_FRAMES):
             script += ["advance %d" % (1000 // FPS), "snap %s" % (tmp / f"f{n:04d}.png")]
             n += 1
         subprocess.run([str(GRID)], input="\n".join(script) + "\n", text=True, check=True, capture_output=True)
