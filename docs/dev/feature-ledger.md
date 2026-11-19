@@ -570,8 +570,8 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
-| **Host: asset_transport** | A pantry shelf: the same name takes the same slot with a higher version (the unit refuses a lower one); | proven virtual | 70 | not declared | `host/maipai_body/asset_transport.py` | file exists, a test names it | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | not declared | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
+| **Host: asset_transport** | A pantry shelf: the same name takes the same slot with a higher version (the unit refuses a lower one); | proven virtual | 70 | not declared | `host/maipai_body/asset_transport.py` | file exists, a test names it | doc missing |
 | **Host: assets** | Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack when it needs it and keeps only the active one. | proven on unit | 100 | not declared | `host/maipai_body/assets.py` | `bench-b9.md` | doc missing |
 | **Host: banner_shapes** | The banner functions with the table of the core filled in. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/banner_shapes.py` | file exists, a test names it | doc missing |
 | **Host: bench** | Owner-only local console for exercising a connected StackChan body. | proven on unit | 100 | not declared | `host/maipai_body/bench.py` | `bench-b15.md`, `bench-b19.md` | doc missing |
