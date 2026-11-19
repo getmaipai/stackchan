@@ -172,7 +172,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1149): Feature ledger
+- `docs/dev/feature-ledger.md` (1156): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -308,13 +308,20 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/test-speed.md` (13): Suite speed (2026-11-18)
 - `docs/dev/third-party-indirect.md` (100): Third-party packages pulled in by the host
 - `docs/dev/translation-review/README.md` (22): Translation review pack
-- `docs/dev/translation-review/STATUS.md` (11): Translation status
-- `docs/dev/translation-review/de.csv` (990): no header
-- `docs/dev/translation-review/es.csv` (990): no header
-- `docs/dev/translation-review/fr.csv` (990): no header
-- `docs/dev/translation-review/it.csv` (990): no header
-- `docs/dev/translation-review/pt.csv` (990): no header
-- `docs/dev/translation-review/status.json` (32): no header
+- `docs/dev/translation-review/STATUS.md` (18): Translation status
+- `docs/dev/translation-review/cs.csv` (1035): no header
+- `docs/dev/translation-review/da.csv` (1035): no header
+- `docs/dev/translation-review/de.csv` (1035): no header
+- `docs/dev/translation-review/es.csv` (1035): no header
+- `docs/dev/translation-review/fr.csv` (1035): no header
+- `docs/dev/translation-review/it.csv` (1035): no header
+- `docs/dev/translation-review/nb.csv` (1035): no header
+- `docs/dev/translation-review/nl.csv` (1035): no header
+- `docs/dev/translation-review/pl.csv` (1035): no header
+- `docs/dev/translation-review/pt.csv` (1035): no header
+- `docs/dev/translation-review/status.json` (74): no header
+- `docs/dev/translation-review/sv.csv` (1035): no header
+- `docs/dev/translation-review/tr.csv` (1035): no header
 - `docs/dev/unit-choices-audit.md` (155): Unit choices audit (decision 20 of 2026-11-18)
 - `docs/dev/update-checks.md` (30): Every check that rejects a bad update image (2026-11-18)
 - `docs/dev/updater.md` (96): Flasher and updater
@@ -423,6 +430,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/installed-set.md` (401): The installed set: slots, signed assets, language and font packs (design, 2026-11-18)
 - `docs/plan/ir-and-nfc-hardware.md` (59): Does the base StackChan have infrared and NFC hardware?
 - `docs/plan/ir-and-nfc.md` (127): Infrared and NFC for the StackChan: what is verified, what we could build, how to probe safely
+- `docs/plan/lang-tier1-report.md` (21): Tier 1 language report (machine drafts)
+- `docs/plan/languages-tiers.md` (33): Language tiers
 - `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
 - `docs/plan/m5stack-cloud-research.md` (202): M5Stack cloud and Xiaozhi service: research paper
 - `docs/plan/memory-budget-model.md` (36): The memory budget as data (decision 15): the agreement between the firmware track and the playground track
@@ -1302,7 +1311,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/health.py` (126): One health document for the whole host: what runs, what does not, per unit and per part, in plain words.
 - `host/maipai_body/host_update.py` (168): ruff: noqa: E501
 - `host/maipai_body/hub_host.py` (131): Host launcher for a self-contained MaiPai Bot hub sidecar.
-- `host/maipai_body/i18n.py` (401): ruff: noqa: E501
+- `host/maipai_body/i18n.py` (405): ruff: noqa: E501
 - `host/maipai_body/i18n_character.py` (37): ruff: noqa: E501
 - `host/maipai_body/i18n_design.py` (313): ruff: noqa: E501
 - `host/maipai_body/i18n_family.py` (222): ruff: noqa: E501
@@ -1347,6 +1356,84 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/i18n_pictures.py` (71): ruff: noqa: E501
 - `host/maipai_body/i18n_polish.py` (456): ruff: noqa: E501
 - `host/maipai_body/i18n_remote.py` (100): ruff: noqa: E501
+- `host/maipai_body/i18n_tier1.py` (58): Tier 1 language packs (owner decision 18): Dutch, Polish, Turkish, Swedish, Danish, Norwegian (Bokmal), Czech.
+- `host/maipai_body/i18n_tier1/cs_1.json` (105): no header
+- `host/maipai_body/i18n_tier1/cs_10.json` (107): no header
+- `host/maipai_body/i18n_tier1/cs_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/cs_2.json` (105): no header
+- `host/maipai_body/i18n_tier1/cs_3.json` (105): no header
+- `host/maipai_body/i18n_tier1/cs_4.json` (105): no header
+- `host/maipai_body/i18n_tier1/cs_5.json` (105): no header
+- `host/maipai_body/i18n_tier1/cs_6.json` (105): no header
+- `host/maipai_body/i18n_tier1/cs_7.json` (105): no header
+- `host/maipai_body/i18n_tier1/cs_8.json` (105): no header
+- `host/maipai_body/i18n_tier1/cs_9.json` (119): no header
+- `host/maipai_body/i18n_tier1/da_1.json` (104): no header
+- `host/maipai_body/i18n_tier1/da_10.json` (93): no header
+- `host/maipai_body/i18n_tier1/da_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/da_2.json` (104): no header
+- `host/maipai_body/i18n_tier1/da_3.json` (104): no header
+- `host/maipai_body/i18n_tier1/da_4.json` (104): no header
+- `host/maipai_body/i18n_tier1/da_5.json` (104): no header
+- `host/maipai_body/i18n_tier1/da_6.json` (104): no header
+- `host/maipai_body/i18n_tier1/da_7.json` (104): no header
+- `host/maipai_body/i18n_tier1/da_8.json` (104): no header
+- `host/maipai_body/i18n_tier1/da_9.json` (104): no header
+- `host/maipai_body/i18n_tier1/nb_1.json` (104): no header
+- `host/maipai_body/i18n_tier1/nb_10.json` (93): no header
+- `host/maipai_body/i18n_tier1/nb_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/nb_2.json` (104): no header
+- `host/maipai_body/i18n_tier1/nb_3.json` (104): no header
+- `host/maipai_body/i18n_tier1/nb_4.json` (104): no header
+- `host/maipai_body/i18n_tier1/nb_5.json` (104): no header
+- `host/maipai_body/i18n_tier1/nb_6.json` (104): no header
+- `host/maipai_body/i18n_tier1/nb_7.json` (104): no header
+- `host/maipai_body/i18n_tier1/nb_8.json` (104): no header
+- `host/maipai_body/i18n_tier1/nb_9.json` (104): no header
+- `host/maipai_body/i18n_tier1/nl_1.json` (104): no header
+- `host/maipai_body/i18n_tier1/nl_10.json` (93): no header
+- `host/maipai_body/i18n_tier1/nl_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/nl_2.json` (104): no header
+- `host/maipai_body/i18n_tier1/nl_3.json` (104): no header
+- `host/maipai_body/i18n_tier1/nl_4.json` (104): no header
+- `host/maipai_body/i18n_tier1/nl_5.json` (104): no header
+- `host/maipai_body/i18n_tier1/nl_6.json` (104): no header
+- `host/maipai_body/i18n_tier1/nl_7.json` (104): no header
+- `host/maipai_body/i18n_tier1/nl_8.json` (104): no header
+- `host/maipai_body/i18n_tier1/nl_9.json` (104): no header
+- `host/maipai_body/i18n_tier1/pl_1.json` (105): no header
+- `host/maipai_body/i18n_tier1/pl_10.json` (112): no header
+- `host/maipai_body/i18n_tier1/pl_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/pl_2.json` (105): no header
+- `host/maipai_body/i18n_tier1/pl_3.json` (105): no header
+- `host/maipai_body/i18n_tier1/pl_4.json` (105): no header
+- `host/maipai_body/i18n_tier1/pl_5.json` (105): no header
+- `host/maipai_body/i18n_tier1/pl_6.json` (105): no header
+- `host/maipai_body/i18n_tier1/pl_7.json` (105): no header
+- `host/maipai_body/i18n_tier1/pl_8.json` (105): no header
+- `host/maipai_body/i18n_tier1/pl_9.json` (110): no header
+- `host/maipai_body/i18n_tier1/sv_1.json` (104): no header
+- `host/maipai_body/i18n_tier1/sv_10.json` (93): no header
+- `host/maipai_body/i18n_tier1/sv_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/sv_2.json` (104): no header
+- `host/maipai_body/i18n_tier1/sv_3.json` (104): no header
+- `host/maipai_body/i18n_tier1/sv_4.json` (104): no header
+- `host/maipai_body/i18n_tier1/sv_5.json` (104): no header
+- `host/maipai_body/i18n_tier1/sv_6.json` (104): no header
+- `host/maipai_body/i18n_tier1/sv_7.json` (104): no header
+- `host/maipai_body/i18n_tier1/sv_8.json` (104): no header
+- `host/maipai_body/i18n_tier1/sv_9.json` (104): no header
+- `host/maipai_body/i18n_tier1/tr_1.json` (105): no header
+- `host/maipai_body/i18n_tier1/tr_10.json` (113): no header
+- `host/maipai_body/i18n_tier1/tr_11.json` (50): no header
+- `host/maipai_body/i18n_tier1/tr_2.json` (105): no header
+- `host/maipai_body/i18n_tier1/tr_3.json` (105): no header
+- `host/maipai_body/i18n_tier1/tr_4.json` (105): no header
+- `host/maipai_body/i18n_tier1/tr_5.json` (105): no header
+- `host/maipai_body/i18n_tier1/tr_6.json` (105): no header
+- `host/maipai_body/i18n_tier1/tr_7.json` (105): no header
+- `host/maipai_body/i18n_tier1/tr_8.json` (105): no header
+- `host/maipai_body/i18n_tier1/tr_9.json` (117): no header
 - `host/maipai_body/i18n_wake.py` (15): ruff: noqa: E501
 - `host/maipai_body/i18n_wakemaker.py` (42): ruff: noqa: E501
 - `host/maipai_body/indicator/__init__.py` (9): EYES-02: what the eyes show, decided in one place.
@@ -1360,7 +1447,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/installed_page.py` (54): ruff: noqa: E501
 - `host/maipai_body/installed_set.py` (238): The installed set of one robot (decision 17): a few slots per kind, chosen on the dashboard, sent to the unit 
 - `host/maipai_body/installed_set_legacy.py` (34): The reconciler's transport over the pack tools a unit has today (`self.pack.*`, one pack per kind)."""
-- `host/maipai_body/language_packs.py` (170): ruff: noqa: E501
+- `host/maipai_body/language_packs.py` (313): ruff: noqa: E501
 - `host/maipai_body/legal.py` (52): ruff: noqa: E501
 - `host/maipai_body/link/__init__.py` (17): G4: the robot's own hub link - discovery, pairing, and the persisted
 - `host/maipai_body/link/address_walk.py` (220): LINK-STATE-01: walk the hub's addresses, the LAN first and the tailnet next.
@@ -2353,6 +2440,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_http_follows_link.py` (47): On an encrypted link the unit is told encrypted web addresses; a required unit is refused on the plain port.""
 - `host/tests/test_hub_host.py` (183): Parser accepts the string; main reports the actionable validation error.
 - `host/tests/test_i18n_fill.py` (41): Machine-drafted translations (host/maipai_body/i18n_fill): shape checks that do not need a native speaker."""
+- `host/tests/test_i18n_tier1.py` (138): Tier 1 languages (nl, pl, tr, sv, da, nb, cs): machine drafts, shape checks that need no native speaker.
 - `host/tests/test_idle.py` (119): S-EXPR-04: idle policy rules on a manual clock."""
 - `host/tests/test_indicator_director.py` (219): EYES-02: the director turns the funnel's shown state plus the capture
 - `host/tests/test_indicator_live.py` (254): EYES-02: LiveCaptureTap wraps the real AudioIO and Camera seam objects, so
@@ -2820,7 +2908,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/ledger_memory.py` (82): The Memory column of the feature ledger (owner decision 15): each feature row that loads something names the d
 - `scripts/ledger_render.py` (193): Rendering for the feature ledger: the markdown page and the one self-contained HTML page (data embedded as JSO
 - `scripts/ledger_rules.py` (118): The rules of the feature ledger: how a row's status and percent are worked out from evidence the repository ho
-- `scripts/ledger_sources.py` (215): Miners for the feature ledger (scripts/feature-ledger.py): everything here only reads the repository and retur
+- `scripts/ledger_sources.py` (216): Miners for the feature ledger (scripts/feature-ledger.py): everything here only reads the repository and retur
 - `scripts/license-check.py` (62): licenses stay honest. (1) every host dependency in host/pyproject.toml is named in THIRD-PARTY.md, and every o
 - `scripts/link-key-vector.py` (124): Reference for the link key exchange in docs/plan/link-key-exchange.md (standard library only).
 - `scripts/link-psk-vector.py` (71): Print the encrypted-link PSK for a pairing secret and a device id (for firmware and Home tests).
@@ -2856,7 +2944,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/sounds-demo.py` (87): A page to listen to the robot's sounds: the game sounds (the unit's own tone clips and the sketches) and the o
 - `scripts/spec-dir.sh` (4): no header
 - `scripts/spec-drift-check.sh` (32): the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. Fails when a vendored file diff
-- `scripts/spelling-allow.txt` (62): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
+- `scripts/spelling-allow.txt` (63): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
 - `scripts/spelling-check.py` (98): fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere).
 - `scripts/stackchan-egress-proof.sh` (66): no header
 - `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.
@@ -2864,7 +2952,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/test-fast.sh` (6): the host suite without the slow tests (the end to end on the virtual unit and the sanitizer fuzz, marked `slow
 - `scripts/test-sharded.py` (75): Run the host suite in N pytest processes at once, one group of test files each (no plugin needed). Files are d
 - `scripts/third-party-indirect.py` (86): write docs/dev/third-party-indirect.md, the license of every package in host/uv.lock that host/pyproject.toml 
-- `scripts/translation-pack.py` (336): The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and
+- `scripts/translation-pack.py` (342): The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and
 - `scripts/virtual-unit/assets_sim.py` (302): The installed set in the virtual unit (owner decision 17; docs/plan/installed-set.md B1 to B5): slots per kind
 - `scripts/virtual-unit/backends.py` (163): The playground's backends: the Simulation (a virtual unit on this computer) or one registered robot through it
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
