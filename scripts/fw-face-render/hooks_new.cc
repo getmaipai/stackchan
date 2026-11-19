@@ -11,8 +11,10 @@ void render_hook_init(DefaultAvatar*, lv_obj_t*) {}
 void render_hook_frame(DefaultAvatar*) {}
 Emotion render_hook_emotion(const std::string& n)
 {
-    static const char* names[] = {"neutral", "happy", "angry", "sad", "doubt", "sleepy", "surprised", "tired", "closing", "sleeping", "love", "content"};
-    for (int i = 0; i < 12; i++) if (n == names[i]) return static_cast<Emotion>(i);
+    static const char* names[] = {"neutral", "happy", "angry", "sad", "doubt", "sleepy", "surprised", "tired", "closing", "sleeping", "love", "content",
+                                  "joy", "excited", "shocked", "curious", "worried"};
+    const int count = ML_COUNT < 17 ? ML_COUNT : 17;   // patch UXF02 adds five names after the first twelve
+    for (int i = 0; i < count; i++) if (n == names[i]) return static_cast<Emotion>(i);
     return Emotion::Neutral;
 }
 bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream& in)

@@ -24,7 +24,7 @@ K_MS_PER_KPX = 0.733
 MEAN_LIMIT = 6500                      # the motion rule's mean pixels a frame
 WORST_MS = 30.0                        # a worst face frame must fit in one 33 ms step; the 16,000 pixel rule is for game loops, and the shipped default (big_eyes) is already 22,000 on a blink
 WORST_LIMIT = int(WORST_MS / K_MS_PER_KPX * 1000)
-STATES = {"neutral": ("neutral", 0), "happy": ("happy", 0), "surprised": ("surprised", 0), "speaking": ("neutral", 90)}
+STATES = {"neutral": ("neutral", 0), "happy": ("happy", 0), "surprised": ("surprised", 0), "shocked": ("shocked", 0), "speaking": ("neutral", 90)}
 LINE = re.compile(r"perf \S+ frames (\d+) flushed_px_per_frame (\d+)")
 RENDER = ROOT / ".runs" / "vu-build" / "render"
 
@@ -63,11 +63,11 @@ def main() -> int:
     out = {"k_ms_per_1000px": K_MS_PER_KPX, "limits": {"mean_px": MEAN_LIMIT, "worst_px": WORST_LIMIT}, "states": table, "verdict": verdicts}
     if a.json:
         a.json.write_text(json.dumps(out, indent=1) + "\n")
-    lines = ["| Style | Neutral mean / worst px | Speaking mean / worst px | Surprised worst px | Worst frame ms (unit estimate) | Rule |", "|---|---|---|---|---|---|"]
+    lines = ["| Style | Neutral mean / worst px | Speaking mean / worst px | Surprised worst px | Shocked worst px | Worst frame ms (unit estimate) | Rule |", "|---|---|---|---|---|---|---|"]
     for style in STYLES:
         s = table[style]
         v = verdicts[style]
-        lines.append(f"| {style} | {s['neutral']['mean_px']} / {s['neutral']['worst_px']} | {s['speaking']['mean_px']} / {s['speaking']['worst_px']} | {s['surprised']['worst_px']} | {v['worst_px'] / 1000 * K_MS_PER_KPX:.1f} | {'fits' if v['fits'] else 'over'} |")
+        lines.append(f"| {style} | {s['neutral']['mean_px']} / {s['neutral']['worst_px']} | {s['speaking']['mean_px']} / {s['speaking']['worst_px']} | {s['surprised']['worst_px']} | {s['shocked']['worst_px']} | {v['worst_px'] / 1000 * K_MS_PER_KPX:.1f} | {'fits' if v['fits'] else 'over'} |")
     text = "\n".join(lines)
     print(text)
     if a.md:

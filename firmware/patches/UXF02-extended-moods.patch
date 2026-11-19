@@ -1,0 +1,62 @@
+# Intent: Five more mood faces for the owner-approved expressive set (firmware-v1-cut row 132-expressive-faces, preview judged 2026-11-14): joy, excited, shocked, curious and worried. Content and love already exist. Each is a look row and a pose spec in the look core, so every style draws it (eyes, lids, brows, mouth) with no new shape and no new memory; the avatar's Emotion enum gains the five names in the order the look core uses. Joy is a bigger happy (arched eyes, a wide open grin); excited has wide eyes, raised brows and a restless gaze; shocked is the widest eyes with raised brows and a tall round mouth; curious has one smaller eye lifted, a look to the side and a small crooked mouth; worried has tilted lids, brows drawn up in the middle and a wavering mouth. Nothing in the unit picks them yet: the host's face vocabulary (face_set.json, docs/dev/stackchan-faces-2026-11-14.md) names them and falls back to the old ones until a unit with this patch reports them.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_look_core.h and firmware/main/stackchan/avatar/avatar/elements/emotion.h (ours, patches X01, UXF01)
+# Check after a flash: self.face.bench_emotion with joy, excited, shocked, curious and worried draws five different faces in every style; the old twelve draw as before; the memory row is unchanged.
+# Kconfig: none
+# Memory cost: none (five table rows, about 400 bytes of flash).
+
+diff --git a/firmware/main/hal/maipai_look_core.h b/firmware/main/hal/maipai_look_core.h
+--- a/firmware/main/hal/maipai_look_core.h
++++ b/firmware/main/hal/maipai_look_core.h
+@@ -196,6 +196,11 @@
+     ML_SLEEPING, /* shut */
+     ML_LOVE,
+     ML_CONTENT, /* the resting look of a well cared for unit: round eyes, a small smile */
++    ML_JOY,     /* patch UXF02: the expressive set */
++    ML_EXCITED,
++    ML_SHOCKED,
++    ML_CURIOUS,
++    ML_WORRIED,
+     ML_COUNT
+ } ml_emotion_t;
+ 
+@@ -237,6 +242,11 @@
+     /* sleeping  */ {6, 0, -4, 1.00f, {14, 0, 6, 0, 0, 0}, ML_TINT_DIM},
+     /* love      */ {62, 1, -10, 1.00f, {30, 13, 8, 0, 1, 0}, ML_TINT_PINK},
+     /* content   */ {100, 0, 0, 1.00f, {24, 8, 8, 0, 0, 0}, ML_TINT_NONE},
++    /* joy       */ {62, 1, -10, 1.04f, {34, 14, 8, 0, 1, 0}, ML_TINT_NONE},
++    /* excited   */ {100, 0, 0, 1.10f, {30, 12, 10, 0, 1, 0}, ML_TINT_NONE},
++    /* shocked   */ {100, 0, 0, 1.18f, {3, 0, 26, 0, 0, 0}, ML_TINT_NONE},
++    /* curious   */ {88, 0, 4, 1.00f, {20, 2, 7, 1.2f, 0, 6}, ML_TINT_NONE},
++    /* worried   */ {80, 0, -14, 0.97f, {22, -5, 7, 1.4f, 0, -4}, ML_TINT_NONE},
+ };
+ 
+ /* The stock skin's own emotions (patch H02's source skin): lid weight and tilt as shipped. */
+@@ -745,6 +755,11 @@
+         case ML_CLOSING:
+         case ML_SLEEPING: s.mcurve = .2f; s.mopen = .12f; s.dim = .6f; s.dr = 0; break;
+         case ML_LOVE: s.heart = 1; s.mcurve = 1; s.mopen = .3f; s.dr = 0; break;
++        case ML_JOY: s.cheek = 1; s.mcurve = 1.2f; s.mopen = .55f; s.dy = -4; s.sw = 1.04f; break;
++        case ML_EXCITED: s.sw = 1.08f; s.sh = 1.15f; s.mcurve = 1; s.mopen = .7f; s.brow = 1; s.blift = 8; s.dr = 1.5f; break;
++        case ML_SHOCKED: s.sw = 1.16f; s.sh = 1.4f; s.mopen = 1; s.mcurve = 0; s.smw = .45f; s.brow = 1; s.blift = 14; s.dr = .3f; break;
++        case ML_CURIOUS: s.rscale = .88f; s.rlift = -8; s.gx = 8; s.gy = -5; s.brow = 1; s.blift = 4; s.br = 8; s.mcurve = .1f; s.mtilt = -6; s.mx = 8; s.smw = .8f; break;
++        case ML_WORRIED: s.slant = -.45f; s.lid = .12f; s.brow = 1; s.btilt = -1; s.blift = 3; s.sh = .96f; s.mcurve = -.5f; s.smw = .85f; s.gy = 3; s.dr = .6f; break;
+         default: break;
+     }
+     if (thinking) { /* a look up and away, the lid low, the right eye smaller, no mouth (the dots take its place) */
+diff --git a/firmware/main/stackchan/avatar/avatar/elements/emotion.h b/firmware/main/stackchan/avatar/avatar/elements/emotion.h
+--- a/firmware/main/stackchan/avatar/avatar/elements/emotion.h
++++ b/firmware/main/stackchan/avatar/avatar/elements/emotion.h
+@@ -21,6 +21,12 @@
+     Sleeping, // shut
+     Love,
+     Content,  // the resting look of a well cared for unit: round eyes, a small smile
++    // Patch UXF02: the order matches ml_emotion_t.
++    Joy,
++    Excited,
++    Shocked,
++    Curious,
++    Worried,
+ };
+ 
+ }  // namespace stackchan::avatar
