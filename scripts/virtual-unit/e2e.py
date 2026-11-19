@@ -600,7 +600,7 @@ async def play_a_game(rig: Rig, check) -> None:
     check("the games vary", len(set(seen)) >= min(2, len(seen)), str(seen))
     await rig.say("play memory", speech_s=0.8, tail_s=1.0, wait_stop=25.0)
     starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
-    check("'play memory' starts memory", bool(starts) and starts[-1] == "memory", str(starts[-3:]), known_gap="the virtual unit's self.game.start does not accept the `token` argument the host stamps on it (patch FM03, remote_trust.py); playground track: accept token in the tool schema")
+    check("'play memory' starts memory", bool(starts) and starts[-1] == "memory", str(starts[-3:]))
     check("no model was asked for any of it", not any("play a game" in json.dumps(r["messages"]) for r in rig.models.llm_requests))
 
 

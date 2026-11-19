@@ -380,7 +380,7 @@ def test_the_spanish_page_words_cover_every_english_key():
 def test_the_security_section_is_in_the_page_and_the_code_stays_out_of_urls_storage_and_the_console():
     js = settings_ui.JS
     assert "BUILDERS.security" in js and "'security'" in js and "lockCard" in js
-    mine = js[js.index("security: the passcode lock") :]
+    mine = js[js.index("security: the passcode lock") : js.index("/* ---- the new shell")]  # the old section only; the new lock page is checked below
     assert (
         "type:'password'" in mine
         and "inputmode:'numeric'" in mine
@@ -468,3 +468,12 @@ def test_the_unit_firmware_agrees_when_its_lock_core_is_in_the_tree():
         assert reason in text, reason
     for minutes in unit_lock.AUTO_MINUTES:
         assert re.search(rf"\b{minutes}\b", text), minutes
+
+
+def test_the_new_lock_page_keeps_the_code_out_of_urls_storage_and_the_console():
+    from maipai_body import settings_ui_p_lock
+
+    mine = settings_ui_p_lock.JS
+    for banned in ("console.", "localStorage", "sessionStorage", "document.cookie", "?code", "history."):
+        assert banned not in mine, banned
+    assert "type:'password'" in mine or "type:\"password\"" in mine
