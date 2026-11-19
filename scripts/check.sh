@@ -11,7 +11,8 @@ python3 scripts/efuse-check.py || exit 1  # owner decision 14: nothing burns an 
 
 bash scripts/spec-drift-check.sh
 python3 scripts/golden-stamp.py || exit 1  # the renderer goldens are for this ORDER (regenerate them in the landing that changes it)
-python3 scripts/face-recipe.py check || exit 1  # every firmware/styles/*.rcp is what its JSON says
+python3 scripts/face-recipe.py check || exit 1
+python3 scripts/character-check.py || exit 1  # every shipped character file passes schema/character.json  # every firmware/styles/*.rcp is what its JSON says
 # Secret scan: tracked files by the image-level scanner, tracked files and history by gitleaks when it is installed.
 git ls-files -z | xargs -0 python3 scripts/check-no-keys.py >/dev/null || { echo "secrets: FAIL (check-no-keys.py found a key-shaped value)"; exit 1; }
 if command -v gitleaks >/dev/null 2>&1; then

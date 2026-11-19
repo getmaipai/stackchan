@@ -52,6 +52,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/brain-routes.md` (30): The brain routes on the unit (owner decision 34)
 - `docs/design/brain-seam.md` (16): Brain seam call map
 - `docs/design/character-pack-format.md` (17): Illustrated character packs
+- `docs/design/characters.md` (69): Characters
 - `docs/design/clock-styles.md` (66): Clock styles, the tap and the sleep sign
 - `docs/design/config.md` (24): Host configuration
 - `docs/design/consolidation-2026-11-16.md` (79): One consolidated image, 2026-11-16
@@ -66,7 +67,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/fable-memory-review-2026-11-16.md` (174): Memory and risk review of the merged firmware, 2026-11-16
 - `docs/design/face-detect-esp-dl-2026-11-17.md` (241): Face detection on the unit with ESP-DL: can the head track a face alone? (2026-11-17)
 - `docs/design/face-seek-2026-11-17.md` (343): Turning toward people: core, wiring, lease, setting and detector evaluation (2026-11-17)
-- `docs/design/face-styles.md` (50): Face styles as recipes
+- `docs/design/face-styles.md` (54): Face styles as recipes
 - `docs/design/faces-core-2026-11-16.md` (21): Faces core, 2026-11-16 (patches X01 and X02)
 - `docs/design/faces-gate-2026-11-16.md` (61): Faces wired in and busy gate, 2026-11-16
 - `docs/design/faces-status-2026-11-16.md` (42): Faces and always-on behaviors, status 2026-11-16
@@ -187,7 +188,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/feature-ledger.html` (84): no header
 - `docs/dev/feature-ledger.html` (84): no header
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1178): Feature ledger
+- `docs/dev/feature-ledger.md` (1179): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -274,7 +275,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/mumble/pt.wav` (270): no header
 - `docs/dev/mumble/samples.json` (673): no header
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
-- `docs/dev/open-questions.md` (30): Open questions for the owner
+- `docs/dev/open-questions.md` (31): Open questions for the owner
 - `docs/dev/overview.md` (50): How MaiPai for StackChan fits together
 - `docs/dev/pantry-seed.md` (11): Pantry seed library
 - `docs/dev/pre-publish-checklist.md` (34): Before the repository goes public
@@ -319,7 +320,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/stackchan-spoken-stop-2026-10-21.md` (164): StackChan: "StackChan, stop" while it is talking (design, 2026-10-21)
 - `docs/dev/stackchan-timers-and-announcements-2026-11-13.md` (77): StackChan timers, alarms and hub announcements (2026-11-13)
 - `docs/dev/stackchan-touch-and-hearts-2026-10-21.md` (64): StackChan touch, shake and the heart (2026-10-21)
-- `docs/dev/stackchan-trip-card-2026-11-14.md` (76): StackChan trip card: using the robot away from home (2026-11-14)
+- `docs/dev/stackchan-trip-card-2026-11-14.md` (78): StackChan trip card: using the robot away from home (2026-11-14)
 - `docs/dev/stackchan-unit-measurements.md` (322): StackChan unit-arrival measurements
 - `docs/dev/stackchan-vision-channel-2026-10-21.md` (70): Why the StackChan could not see (2026-10-21)
 - `docs/dev/stackchan-vision-post-2026-10-22.md` (63): Robot vision, bot side (0.2.44)
@@ -437,7 +438,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
 - `docs/plan/face-parts.md` (76): Face parts and the asset bank (plan)
-- `docs/plan/face-styles-verdict.md` (36): Face styles: what fits and what does not
+- `docs/plan/face-styles-verdict.md` (57): Face styles: what fits and what does not
 - `docs/plan/first-release-notes-draft.md` (52): First release notes draft (2026-11-18)
 - `docs/plan/first-run-brain-choice.md` (25): The brain choice at first run: what the robot sends and what the host does (2026-11-18)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
@@ -479,7 +480,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/qa-games-firmware.md` (39): Question and answer games on the unit: the interface and the rules (firmware track, 2026-11-18)
 - `docs/plan/qa-games-unit-notes.md` (13): Question games on the unit: what patch SF88 does differently from the interface table
 - `docs/plan/reachy-virtual-unit-readiness.md` (34): Reachy Mini: what the virtual unit gives a second robot (2026-11-18)
-- `docs/plan/release-readiness.md` (43): First release readiness: the friend test
+- `docs/plan/release-readiness.md` (44): First release readiness: the friend test
 - `docs/plan/screen-standards-audit.md` (45): Every unit screen against the UX13 standard (audit and fix list)
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
 - `docs/plan/service-and-supervision.md` (115): The host as a managed service, with supervised parts
@@ -588,7 +589,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/troubleshooting.md` (45): Troubleshooting
 - `docs/user/try-the-virtual-robot.md` (30): Try the virtual robot
 - `docs/user/updates.md` (60): Update the robot
-- `docs/user/use-it-anywhere.md` (32): Use the robot away from home
+- `docs/user/use-it-anywhere.md` (38): Use the robot away from home
 - `docs/user/use-your-own-stack.md` (13): Use your own stack
 - `docs/user/voice.md` (87): Talk to the robot
 - `docs/user/wake-word-maker.md` (22): Make your own wake word (optional)
@@ -1060,7 +1061,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5630): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/app.py` (5634): MaiPai Bot's Reachy Mini app: the daemon's one running app.
 - `host/maipai_body/asset_transport.py` (182): ruff: noqa: E501
 - `host/maipai_body/assets.py` (125): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/assets/brand/PROVENANCE.md` (19): Brand assets provenance
@@ -1361,6 +1362,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/brain_setup/tester.py` (58): The test buttons of mode (b): each answers in plain words. A session is injected so tests never touch the netw
 - `host/maipai_body/chaos.py` (48): The chaos hook: kill a named host worker on a timer, ONLY when the MAIPAI_CHAOS environment variable is set (t
 - `host/maipai_body/character_pack.py` (366): Shareable illustrated character packs."""
+- `host/maipai_body/characters/atlas.json` (17): no header
+- `host/maipai_body/characters/bruno.json` (17): no header
+- `host/maipai_body/characters/clover.json` (17): no header
+- `host/maipai_body/characters/cosmo.json` (17): no header
+- `host/maipai_body/characters/daisy.json` (17): no header
+- `host/maipai_body/characters/ember.json` (17): no header
 - `host/maipai_body/child_gate.py` (30): Whether a child is near any unit, as Home last said (the `child_present` hub command). Shared by the command b
 - `host/maipai_body/cli.py` (611): ruff: noqa: E501
 - `host/maipai_body/command_bus.py` (370): ruff: noqa: E501
@@ -1652,7 +1659,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/settings_keys.py` (65): Settings keys shared by body settings consumers."""
 - `host/maipai_body/settings_page.py` (1078): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (189): ruff: noqa: E501
-- `host/maipai_body/settings_sim.py` (458): ruff: noqa: E501
+- `host/maipai_body/settings_sim.py` (459): ruff: noqa: E501
 - `host/maipai_body/settings_ui.py` (787): ruff: noqa: E501
 - `host/maipai_body/settings_ui_character.py` (21): ruff: noqa: E501
 - `host/maipai_body/settings_ui_family.py` (39): ruff: noqa: E501
@@ -1662,7 +1669,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/settings_ui_p_behavior.py` (119): ruff: noqa: E501
 - `host/maipai_body/settings_ui_p_games.py` (61): Placement: host dashboard (More > Games in the new look; the old builder BUILDERS.play is the spec for the cal
 - `host/maipai_body/settings_ui_p_lock.py` (42): ruff: noqa: E501
-- `host/maipai_body/settings_ui_p_network.py` (71): ruff: noqa: E501
+- `host/maipai_body/settings_ui_p_network.py` (72): ruff: noqa: E501
 - `host/maipai_body/settings_ui_p_packs.py` (136): ruff: noqa: E501
 - `host/maipai_body/settings_ui_p_remote.py` (110): ruff: noqa: E501
 - `host/maipai_body/settings_ui_p_system.py` (53): ruff: noqa: E501
@@ -1713,7 +1720,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/swipe_pages.py` (352): ruff: noqa: E501
 - `host/maipai_body/unit_behaviors.py` (170): ruff: noqa: E501
 - `host/maipai_body/unit_device.py` (138): ruff: noqa: E501
-- `host/maipai_body/unit_extras.py` (930): ruff: noqa: E501
+- `host/maipai_body/unit_extras.py` (947): ruff: noqa: E501
 - `host/maipai_body/unit_lock.py` (266): ruff: noqa: E501
 - `host/maipai_body/unit_polish.py` (187): ruff: noqa: E501
 - `host/maipai_body/unit_prefs.py` (248): ruff: noqa: E501
@@ -2483,6 +2490,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_camera_sweep_table.py` (35): The camera sweep table builder (scripts/camera-sweep-table.py)."""
 - `host/tests/test_channel_client.py` (221): Reconnect replays the same event id; the handler remains exactly once.
 - `host/tests/test_character_pack.py` (249): The dimensions are rejected from the PNG header before pixel decoding.
+- `host/tests/test_characters.py` (149): The character files and their checker (scripts/character-check.py, schema/character.json, docs/design/characte
 - `host/tests/test_check_no_keys.py` (27): The key scanner refuses real-looking keys and lets the marked test fakes through."""
 - `host/tests/test_cli_check_forget.py` (60): no header
 - `host/tests/test_cli_run_and_example.py` (27): The documented install path: `stackchan run` starts the host; the first-run config template ships."""
@@ -2518,7 +2526,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_expression_suppression.py` (83): The suppression table (dev.md section 5's "Suppressed or reinterpreted when" column)."""
 - `host/tests/test_eyes_client.py` (267): The Reachy Eyes serial client, clean-room (docs/dev/eyes-wire-protocol.md).
 - `host/tests/test_face_preview_parity.py` (127): ruff: noqa: E501
-- `host/tests/test_face_recipes.py` (76): Patch UXF01 (docs/design/face-styles.md): face styles as 44-byte recipes. The JSON sources and the .rcp files 
+- `host/tests/test_face_recipes.py` (94): Patch UXF01 (docs/design/face-styles.md): face styles as 44-byte recipes. The JSON sources and the .rcp files 
 - `host/tests/test_face_styles_golden.py` (59): Golden renders of every face style (docs/plan/face-styles-verdict.md): a digest of the thirteen mood pictures 
 - `host/tests/test_face_wrap_soak.py` (53): ruff: noqa: E501
 - `host/tests/test_face_zone_layout.py` (48): ruff: noqa: E501
@@ -2910,6 +2918,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_touch_detector.py` (52): A clip ends at 1.0 s; the full post-drive suppression is 260 ms.
 - `host/tests/test_touch_wiring.py` (62): TOUCH-01 glue: the loop reads the worker's antenna probe and reacts."""
 - `host/tests/test_translation_pack.py` (107): ruff: noqa: E501
+- `host/tests/test_travel_key_plain_link.py` (84): The Tailscale key never crosses a plain unit link (docs/design/encrypted-link.md, "refuse on a plain link").
 - `host/tests/test_trip_relay.py` (441): The laptop trip relay (body/scripts/trip_relay.py).
 - `host/tests/test_tts_playback.py` (273): G7's own acceptance (the gap-audit's exact words): "A stand-in
 - `host/tests/test_turn_client.py` (368): G6 (receive side)'s own acceptance: a real local HTTP server
@@ -2973,6 +2982,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/.gitkeep` (0): no header
 - `schema/asset-kinds.json` (84): no header
 - `schema/base-tools.json` (11): no header
+- `schema/character.json` (47): no header
 - `schema/licenses.json` (14): no header
 - `schema/memory-budget.json` (909): no header
 - `schema/power-model.json` (34): no header
@@ -2996,8 +3006,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/build-stackchan-firmware-asset.sh` (97): A release folder holding a key is refused before anything is packed (safety fix).
 - `scripts/camera-sweep-table.py` (64): turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the o
 - `scripts/captions-check.py` (25): every image in README.md, docs/user, docs/playground and docs/dev has a visible caption: a standalone image is
+- `scripts/character-check.py` (158): Character file checker: validates character files against schema/character.json with a small stdlib validator,
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (45): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (46): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/choices-check.py` (44): Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices
 - `scripts/dashboard-words-check.py` (46): the dashboard's front pages stay calm (owner request 2026-11-19): at most 6 controls, at most 60 words, labels
 - `scripts/dev-dashboard.sh` (37): run the host settings dashboard against seeded demo data (two stand-in units, no hardware, no real data) so it
@@ -3013,6 +3024,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/exposure-test.py` (304): the exposure suite. One run measures what the host contacts, what it exposes and what protects it, and prints 
 - `scripts/exposure-test.sh` (5): run the exposure suite (see scripts/exposure-test.py). Usage: bash scripts/exposure-test.sh [--write]
 - `scripts/face-kit/make_patch.py` (336): Builds firmware/patches/UXF01-face-style-recipes.patch from the reference tree: copies the three files it chan
+- `scripts/face-kit/make_patch_moods.py` (82): Builds firmware/patches/UXF02-extended-moods.patch: five more mood faces (joy, excited, shocked, curious, worr
 - `scripts/face-recipe.py` (69): Face recipes: the style assets (kind style, docs/plan/face-parts.md). firmware/styles/NAME.json holds the numb
 - `scripts/feature-ledger.py` (513): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
 - `scripts/funding-check.py` (98): fail when the README or the docs point to a funding page that .github/FUNDING.yml does not list.
@@ -3030,7 +3042,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
 - `scripts/fw-face-render/grid_render.cc` (804): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
 - `scripts/fw-face-render/hooks_banner.cc` (335): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
-- `scripts/fw-face-render/hooks_new.cc` (74): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
+- `scripts/fw-face-render/hooks_new.cc` (76): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
 - `scripts/fw-face-render/lock_render.sh` (25): draw the lock screen and the keypad with the real LVGL and the unit's own drawing code (maipai_lock_draw.h) on
 - `scripts/fw-face-render/more_host.cc` (59): Host stand-ins for what the More screen (maipai_more.cc) asks of the rest of the unit: the language, the lock,
@@ -3101,7 +3113,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/patch-replay.sh` (53): Identify genuinely added files separately from missing existing paths.
 - `scripts/pinned-key-check.py` (54): Release gate step: the web flasher only trusts the release keys pinned in flasher/trusted-keys.json, so a real
 - `scripts/psram-stack-lint.py` (188): Fail when a task whose stack is in PSRAM can reach flash or saved settings (patches TC02 and FM05).
-- `scripts/readiness.py` (188): First-release readiness: the friend test as a checklist, made from the state of the repository.
+- `scripts/readiness.py` (194): First-release readiness: the friend test as a checklist, made from the state of the repository.
 - `scripts/ref-tree.py` (46): Prints the firmware tree the renderer goldens and the unit checks run against. MAIPAI_FW_TREE_ROOT wins when i
 - `scripts/regen-core-tables.py` (26): Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patche
 - `scripts/release-report.py` (205): One markdown page per firmware build: image sizes per slot, memory numbers from a stress log, frame cost per s
@@ -3132,6 +3144,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/brain_route.py` (44): The brain route of the virtual unit (owner decision 34): hosted (route A, the vendor's servers) or custom (rou
 - `scripts/virtual-unit/build-face.sh` (21): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (40): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
+- `scripts/virtual-unit/character_sheet.py` (80): The six default characters, each in its own face style, color and background, in six moods: docs/images/charac
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
