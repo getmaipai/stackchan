@@ -37,6 +37,11 @@ One row per `robot.toml` key: who needs it, what it costs, why the default is no
 | `packages.coding_companion.enabled` | developers | one switch | off costs nothing | keep |
 | `packages.coding_companion.show_request_text` | developers | a privacy choice | the safe default shows less | advanced |
 | `packages.coding_companion.port` | a busy port | a number | the default port works | advanced |
+| `packages.pantry.enabled` | people who want jokes, riddles and trivia the robot keeps | one switch | off costs nothing and imports nothing | keep |
+| `packages.pantry.languages` | homes that use more than English | a list | one language is the right default | advanced |
+| `packages.pantry.daily_cap` | people with a paid or slow model | a number | 200 calls a day is safe for most; a metered model needs a lower one | advanced |
+| `packages.pantry.adult_humor` | adults who want a grown-up shelf | one switch | kids only is the safe default, and the owner must choose otherwise | keep |
+| `packages.pantry.folder` | people who store it elsewhere | a path | a private default exists | advanced |
 | `packages.wake_word_maker.enabled` | people who want a wake word | one switch | off costs nothing | keep |
 | `packages.wake_word_maker.folder` | people who store it elsewhere | a path | a private default exists | advanced |
 | `settings.lan` | people who use a phone | opens the page to the network | a risk the person must choose | keep |
