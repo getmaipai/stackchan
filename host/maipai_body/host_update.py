@@ -9,17 +9,54 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_SOURCE = "git+https://github.com/getmaipai/stackchan#subdirectory=host"
 HEALTH_WAIT_S = 60.0
 KEEP_VERSIONS = 2  # the running one and the one before it
+_CREDENTIALS = re.compile(r"(://)[^/@\s'\"]+@")
+
+
+def redact(text: str) -> str:
+    """Drop `user:password@` from every URL in the text, so a token in a source never reaches a file or the terminal."""
+    return _CREDENTIALS.sub(r"\1", text)
+
+
+def pip_failure_text(error: BaseException) -> str:
+    """One plain sentence for a failed install; never the pip command line, which carries the source."""
+    if isinstance(error, subprocess.TimeoutExpired):
+        return "pip did not finish in 30 minutes"
+    if isinstance(error, subprocess.CalledProcessError):
+        return f"pip stopped with exit status {error.returncode}"
+    return redact(str(error))[:160]
+
+
+@contextmanager
+def _update_lock(root: Path) -> Iterator[bool]:
+    """An exclusive lock for the whole update; yields False when another update holds it. The lock goes away with the process, so a crash never leaves it stuck."""
+    try:
+        import fcntl
+    except ImportError:  # Windows: no flock; the update still runs, without the guard
+        yield True
+        return
+    with open(root / ".update.lock", "a+") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 @dataclass
@@ -106,37 +143,60 @@ class HostUpdater:
 
     def update(self, source: str) -> UpdateResult:
         self.root.mkdir(parents=True, exist_ok=True)
+        with _update_lock(self.root) as got:
+            if not got:
+                return UpdateResult(False, "Another update is already running, so this one did not start. Nothing changed. Wait for it to finish, check `stackchan service status`, then run the update again if you still need to.")
+            return self._update_locked(source)
+
+    def _update_locked(self, source: str) -> UpdateResult:
         previous = self.current()
         new = self._next_dir()
         try:
             self._make_env(new, source)
         except Exception as error:  # nothing has been stopped or switched yet
             shutil.rmtree(new, ignore_errors=True)
-            return self._record(UpdateResult(False, f"The new version could not be installed ({str(error)[:160]}). Nothing changed and the host is still running the old version. Check the network and the source, then run the update again."))
+            return self._record(UpdateResult(False, f"The new version could not be installed ({pip_failure_text(error)}). Nothing changed and the host is still running the old version. Check the network and the source, then run the update again."))
         if not self._stop():
             shutil.rmtree(new, ignore_errors=True)
             return self._record(UpdateResult(False, "The host could not be stopped, so the update did not start. Nothing changed. Run `stackchan service stop`, read why it failed, then run the update again."))
-        self._switch(new)
-        started = self._activate(new)
-        if started and self._wait_healthy():
-            self._prune({new, *([previous] if previous else [])})
-            return self._record(UpdateResult(True, f"Updated. The host now runs {new.name} and reports healthy.", new.name))
+        reason = f"the new version was not healthy within {int(self._timeout)} seconds"
+        try:
+            self._switch(new)
+            if self._activate(new) and self._wait_healthy():
+                self._prune({new, *([previous] if previous else [])})
+                return self._record(UpdateResult(True, f"Updated. The host now runs {new.name} and reports healthy.", new.name))
+        except Exception as error:
+            reason = f"the new version could not be started ({redact(str(error))[:120]})"
         # The new version did not come up healthy: go back to the old one and say so.
-        self._stop()
-        self._switch(previous)
-        back = self._activate(previous)
+        back = False
+        try:
+            self._stop()
+            self._switch(previous)
+            back = self._activate(previous)
+        except Exception:
+            back = False
         shutil.rmtree(new, ignore_errors=True)
         tail = "and the old version is running again." if back else "but the old version did not start either: run `stackchan service start` and `stackchan service logs`."
-        return self._record(UpdateResult(False, f"The update did not take: the new version was not healthy within {int(self._timeout)} seconds, {tail} Nothing else changed.", None, True))
+        return self._record(UpdateResult(False, f"The update did not take: {reason}, {tail} Nothing else changed.", None, True))
 
 
-def make_env(folder: Path, source: str) -> None:
+def check_source(source: str) -> str | None:
+    """Why a source cannot be used, or None. A leading `-` would be read by pip as an option."""
+    if not source.strip():
+        return "The update source is empty. Unset MAIPAI_HOST_UPDATE_SOURCE or give a package address."
+    if source.lstrip().startswith("-"):
+        return "The update source starts with '-', which pip would read as an option, so nothing was installed. Give a package address such as git+https://host/path, or unset MAIPAI_HOST_UPDATE_SOURCE."
+    return None
+
+
+def make_env(folder: Path, source: str, say: Callable[[str], None] = print) -> None:
     """A fresh virtual environment with the new host installed, checked by importing it."""
+    say(f"Installing from {redact(source)}")
     subprocess.run([sys.executable, "-m", "venv", str(folder)], check=True, capture_output=True, timeout=300)
     pip = folder / "bin" / "pip"
-    done = subprocess.run([str(pip), "install", "--quiet", source], capture_output=True, text=True, timeout=1800)
+    done = subprocess.run([str(pip), "install", "--quiet", "--", source], capture_output=True, text=True, timeout=1800)
     if done.returncode != 0:
-        raise RuntimeError((done.stderr or done.stdout).strip().splitlines()[-1] if (done.stderr or done.stdout).strip() else "pip failed")
+        raise RuntimeError(redact((done.stderr or done.stdout).strip().splitlines()[-1]) if (done.stderr or done.stdout).strip() else "pip failed")
     check = subprocess.run([str(folder / "bin" / "python"), "-c", "import maipai_body"], capture_output=True, text=True, timeout=120)
     if check.returncode != 0 or not (folder / "bin" / "stackchan").exists():
         raise RuntimeError("the installed package did not import")
@@ -147,6 +207,11 @@ def run_update(source: str | None = None, *, say: Callable[[str], None] = print)
     from maipai_body.health import fetch_health
     from maipai_body.service_cmd import Service, _data_dir
 
+    chosen = source or os.environ.get("MAIPAI_HOST_UPDATE_SOURCE") or DEFAULT_SOURCE
+    refused = check_source(chosen)
+    if refused:
+        say(refused)
+        return 1
     data = _data_dir()
     service = Service()
 
@@ -157,12 +222,12 @@ def run_update(source: str | None = None, *, say: Callable[[str], None] = print)
 
     updater = HostUpdater(
         versions_root(data),
-        make_env=make_env,
+        make_env=lambda folder, src: make_env(folder, src, say),
         stop=lambda: service.stop() == 0,
         activate=activate,
         healthy=lambda: bool((fetch_health() or {}).get("state") == "ok"),
     )
     say("Installing the new version beside the old one. This can take a few minutes.")
-    result = updater.update(source or os.environ.get("MAIPAI_HOST_UPDATE_SOURCE") or DEFAULT_SOURCE)
+    result = updater.update(chosen)
     say(result.message)
     return 0 if result.ok else 1

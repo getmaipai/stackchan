@@ -30,9 +30,16 @@ def handover(
     sleep: Callable[[float], None] = time.sleep,
     health_wait_s: float = 60.0,
     poll_s: float = 2.0,
+    host_alive: Callable[[], bool] = lambda: True,
 ) -> dict:
     """Returns {"ok", "message"}. Never leaves the person with no host: a failed handover starts the host by hand again."""
     if not wait_gone():
+        if not host_alive() and not healthy():
+            # The host ended after the wait ran out (it had already been told to stop) and no service answers: do not leave the person with nothing.
+            start_by_hand()
+            return {"ok": False, "message": "The running host stopped late and no service was running, so the host was started the old way. Nothing else changed. Run `stackchan service install` to try again."}
+        if not host_alive():
+            return {"ok": True, "message": "The running host stopped and the service is already healthy. Nothing else was changed."}
         return {"ok": False, "message": "The running host did not stop, so nothing was changed. Run `stackchan service install` yourself after stopping it."}
     if not install():
         start_by_hand()
@@ -47,6 +54,42 @@ def handover(
     uninstall()
     start_by_hand()
     return {"ok": False, "message": f"The service did not report healthy within {int(health_wait_s)} seconds, so it was removed and the host was started the old way. Run `stackchan service logs` to see why."}
+
+
+def wait_for_exit(
+    pid: int,
+    *,
+    kill: Callable[[int, int], None] = os.kill,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+    term_wait_s: float = 60.0,
+    kill_wait_s: float = 5.0,
+) -> bool:
+    """Wait for a process to end. It was already sent SIGTERM; one that is still there after ``term_wait_s`` is hung in its shutdown and gets SIGKILL. True when it is gone."""
+
+    def gone() -> bool:
+        try:
+            kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            pass
+        return False
+
+    for limit, signal_to_send in ((term_wait_s, signal.SIGKILL), (kill_wait_s, None)):
+        deadline = clock() + limit
+        while clock() < deadline:
+            if gone():
+                return True
+            sleep(0.5)
+        if gone():
+            return True
+        if signal_to_send is not None:
+            try:
+                kill(pid, signal_to_send)
+            except (ProcessLookupError, PermissionError):
+                pass
+    return gone()
 
 
 def _record(data_dir: Path, result: dict) -> None:
@@ -70,22 +113,21 @@ def run_helper(wait_pid: int) -> int:
 
     service = Service(say=lambda _text: None)
 
-    def wait_gone() -> bool:
-        for _ in range(60):
-            try:
-                os.kill(wait_pid, 0)
-            except ProcessLookupError:
-                return True
-            except PermissionError:
-                pass
-            time.sleep(0.5)
-        return False
+    def host_alive() -> bool:
+        try:
+            os.kill(wait_pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            pass
+        return True
 
     def start_by_hand() -> None:
         subprocess.Popen([*service.original_command()], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     result = handover(
-        wait_gone=wait_gone,
+        wait_gone=lambda: wait_for_exit(wait_pid),
+        host_alive=host_alive,
         install=lambda: service.install() == 0,
         healthy=lambda: bool((fetch_health() or {}).get("state") == "ok"),
         uninstall=service.uninstall,

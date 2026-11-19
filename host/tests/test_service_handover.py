@@ -116,3 +116,73 @@ def test_the_service_label_can_be_overridden_for_a_throwaway_test_label_and_defa
     assert plain.stdout.strip() == "com.maipai.stackchan"
     custom = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "PYTHONPATH": ".", "MAIPAI_SERVICE_LABEL": "com.maipai.stackchan.testing"})
     assert custom.stdout.strip() == "com.maipai.stackchan.testing"
+
+
+def test_a_host_that_is_gone_after_the_wait_runs_out_is_started_by_hand_when_no_service_answers():
+    calls: list[str] = []
+    result = handover(
+        wait_gone=lambda: False,
+        install=lambda: calls.append("install") or True,
+        healthy=lambda: False,
+        uninstall=lambda: calls.append("uninstall"),
+        start_by_hand=lambda: calls.append("by hand"),
+        host_alive=lambda: False,
+    )
+    assert not result["ok"] and calls == ["by hand"] and "old way" in result["message"]
+
+
+def test_a_host_that_is_gone_but_whose_service_answers_is_left_alone():
+    calls: list[str] = []
+    result = handover(
+        wait_gone=lambda: False,
+        install=lambda: calls.append("install") or True,
+        healthy=lambda: True,
+        uninstall=lambda: calls.append("uninstall"),
+        start_by_hand=lambda: calls.append("by hand"),
+        host_alive=lambda: False,
+    )
+    assert calls == [] and result["ok"]
+
+
+def test_a_host_that_hangs_in_shutdown_is_ended_with_sigkill_after_the_wait():
+    import signal
+
+    from maipai_body.service_handover import wait_for_exit
+
+    alive = {"yes": True}
+    sent: list[int] = []
+
+    def kill(pid, sig):
+        if sig == 0:
+            if not alive["yes"]:
+                raise ProcessLookupError
+            return
+        sent.append(sig)
+        if sig == signal.SIGKILL:
+            alive["yes"] = False
+
+    now = {"t": 0.0}
+
+    def sleep(seconds):
+        now["t"] += seconds
+
+    assert wait_for_exit(42, kill=kill, sleep=sleep, clock=lambda: now["t"], term_wait_s=60, kill_wait_s=5)
+    assert sent == [signal.SIGKILL] and now["t"] >= 60
+
+
+def test_a_host_that_stops_by_itself_is_never_sent_sigkill():
+    from maipai_body.service_handover import wait_for_exit
+
+    polls = {"n": 0}
+    sent: list[int] = []
+
+    def kill(pid, sig):
+        if sig != 0:
+            sent.append(sig)
+            return
+        polls["n"] += 1
+        if polls["n"] > 3:
+            raise ProcessLookupError
+
+    assert wait_for_exit(42, kill=kill, sleep=lambda s: None, clock=lambda: 0.0, term_wait_s=60, kill_wait_s=5)
+    assert sent == []
