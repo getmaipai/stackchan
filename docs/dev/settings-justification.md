@@ -5,6 +5,7 @@ One row per `robot.toml` key: who needs it, what it costs, why the default is no
 | Key | Who needs it | Cost | Why the default is not enough | Disposition |
 |---|---|---|---|---|
 | `brain` | anyone | one question | Home or your own stack is a real choice | keep |
+| `brain_route` | anyone | one question | hosted by M5Stack/Xiaozhi or custom is a real choice, and voice leaves the home on one of them (decision 34) | keep |
 | `units` | a home with several robots needing different models | a table to write | global settings cover most homes | advanced |
 | `llm.url` | own-stack users | an address | no address can be guessed | keep |
 | `llm.model` | own-stack users | a name | the server decides the names | keep |

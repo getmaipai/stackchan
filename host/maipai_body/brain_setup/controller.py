@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from maipai_body import brain_route
 from maipai_body.brain_setup import catalog, modes, runner, tester
 from maipai_body.brain_setup.installer import Installer
 
@@ -48,6 +49,9 @@ class BrainSetup:
             mode = "none"
         return {
             "mode": mode,
+            "route": brain_route.read(self.config_path),
+            "hosted_proven": brain_route.HOSTED_PROVEN,
+            "voice_line": brain_route.VOICE_LINE,
             "home_url": raw.get("home", {}).get("url", ""),
             "llm_url": llm.get("url", ""), "model": llm.get("model", ""), "stt_url": llm.get("stt_url", ""), "tts_url": llm.get("tts_url", ""), "api_key_env": llm.get("api_key_env", ""),
         }
@@ -69,16 +73,25 @@ class BrainSetup:
 
     # -- applying a mode ---------------------------------------------------------------------------------------------------
     def apply(self, mode: str, body: dict[str, Any]) -> dict[str, Any]:
+        was_hosted = brain_route.read(self.config_path) == "hosted"
+        leave = {"note": brain_route.LEAVE_NOTE} if was_hosted else {}
         try:
+            if mode == "hosted":
+                if not brain_route.HOSTED_PROVEN:
+                    return {"ok": False, "error": "The hosted route is planned, not ready: it needs a test build that shows M5Stack/Xiaozhi's server accepts this firmware. Pick Custom for now."}
+                modes.set_values(self.config_path, "", {"brain_route": "hosted"})
+                return {"ok": True, "message": "Saved. Your voice now goes to M5Stack/Xiaozhi's servers, outside your home."}
             if mode == "home":
                 modes.apply_home(self.config_path, str(body.get("url", "")))
-                return {"ok": True, "message": "Saved. The host now uses MaiPai Home. Restart the host, then pair the robot with Home."}
+                modes.set_values(self.config_path, "", {"brain_route": "custom"})
+                return {"ok": True, "message": "Saved. The host now uses MaiPai Home. Restart the host, then pair the robot with Home.", **leave}
             if mode == "own":
                 modes.apply_own(self.config_path, str(body.get("llm_url", "")), str(body.get("model", "")), str(body.get("stt_url", "")), str(body.get("tts_url", "")), str(body.get("api_key_env", "")))
-                return {"ok": True, "message": "Saved. The host now uses your own stack. Restart the host to use it."}
+                modes.set_values(self.config_path, "", {"brain_route": "custom"})
+                return {"ok": True, "message": "Saved. The host now uses your own stack. Restart the host to use it.", **leave}
         except ValueError as error:
             return {"ok": False, "error": str(error)}
-        return {"ok": False, "error": "Pick home or own. The local stack is installed with the Install button."}
+        return {"ok": False, "error": "Pick hosted, home or own. The local stack is installed with the Install button."}
 
     # -- the local stack ---------------------------------------------------------------------------------------------------
     def install(self, choice: str) -> dict[str, Any]:

@@ -283,3 +283,40 @@ def test_the_local_stack_writes_only_the_model_for_the_voice(tmp_path):
     modes.apply_local(config, "small", {"stt_model_dir": "/s", "tts_model": "/t/v.onnx", "tts_tokens": "/t/tokens.txt", "tts_data_dir": "/t/data"})
     text = config.read_text()
     assert "tts_model" in text and "tts_tokens" not in text and "tts_data_dir" not in text
+
+
+def test_route_defaults_to_custom_and_hosted_is_refused_until_proven(tmp_path):
+    from maipai_body.brain_setup.controller import BrainSetup
+
+    cfg = tmp_path / "robot.toml"
+    cfg.write_text('brain = "llm"\n', encoding="utf-8")
+    setup = BrainSetup(cfg, tmp_path / "stack")
+    assert setup.current()["route"] == "custom"
+    result = setup.apply("hosted", {})
+    assert result["ok"] is False and "planned" in result["error"]
+    assert setup.current()["route"] == "custom"
+
+
+def test_leaving_hosted_says_the_vendor_keeps_its_record(tmp_path, monkeypatch):
+    from maipai_body import brain_route
+    from maipai_body.brain_setup.controller import BrainSetup
+
+    cfg = tmp_path / "robot.toml"
+    cfg.write_text('brain = "llm"\n', encoding="utf-8")
+    monkeypatch.setattr(brain_route, "HOSTED_PROVEN", True)
+    setup = BrainSetup(cfg, tmp_path / "stack")
+    assert setup.apply("hosted", {})["ok"] is True and setup.current()["route"] == "hosted"
+    out = setup.apply("home", {"url": "http://192.0.2.10:8000"})
+    assert out["ok"] and "their side" in out["note"] and setup.current()["route"] == "custom"
+    assert "note" not in setup.apply("home", {"url": "http://192.0.2.10:8000"})
+
+
+def test_route_push_tells_each_unit_once_and_again_on_change():
+    from maipai_body.brain_route import RoutePush
+
+    route, sent = ["custom"], []
+    push = RoutePush(route=lambda: route[0], units=lambda: ["a", "b"], has_tool=lambda u: u == "a", send=lambda u, a: sent.append((u, a["route"])))
+    push.tick(); push.tick()
+    assert sent == [("a", "custom")]
+    route[0] = "hosted"; push.tick()
+    assert sent[-1] == ("a", "hosted") and len(sent) == 2

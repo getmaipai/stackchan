@@ -1,6 +1,8 @@
 # Select "llm" to run without Home, or "home" to use the Home adapter.
 # "standalone" is accepted as an alias for "llm".
 brain = "llm"
+# Which route the voice takes: "custom" (default: your own key, server, host or Home) or "hosted" (M5Stack/Xiaozhi; planned, refused until a test build proves it).
+# brain_route = "custom"
 
 [llm]
 # OpenAI-compatible chat completions endpoint and model name.

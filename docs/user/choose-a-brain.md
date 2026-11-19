@@ -24,7 +24,7 @@ See [Install the small stack](local-stack.md).
 
 ## Two routes: hosted or custom
 
-<span class="planned-tag">Planned</span> The Brain page will offer two equal routes, the same choice the stock firmware gives. It waits for a test build to prove that M5Stack's server accepts this firmware; if it does not, route A is hidden and this page says why.
+The Brain page offers two equal routes, the same choice the stock firmware gives. Hosted sends your voice to M5Stack/Xiaozhi's servers, outside your home. Custom keeps it where you point it. <span class="planned-tag">Planned</span> The hosted route is shown but cannot be saved yet: it waits for a test build to prove that their server accepts this firmware. If it does not, the route is hidden and this page says why. When you leave hosted, the page tells you that anything their servers already kept stays on their side, and only they can delete it.
 
 - **A: Hosted by M5Stack/Xiaozhi.** Their servers answer. **Your voice leaves your home** for those servers, under their terms.
 - **B: Custom.** Your own key, a community server address, your own host or MaiPai Home, or a model on your computer. Your voice stays where you point it. The three ways above are all part of this route.

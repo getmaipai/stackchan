@@ -4058,11 +4058,20 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
             send=lambda unit, args: voice.robot.client.for_unit(unit)._call("self.banner.set", args),
         )
 
+        from maipai_body import brain_route as _brain_route
+
+        route_push = _brain_route.RoutePush(
+            route=lambda: _brain_route.read(backend.brain_setup.config_path) if getattr(backend, "brain_setup", None) is not None else "custom",
+            units=lambda: list(voice._sessions),
+            has_tool=lambda unit: getattr(getattr(voice, "polish", None), "probe", None) is not None and voice.polish.probe.has(unit, "brain_route") is True,
+            send=lambda unit, args: voice.robot.client.for_unit(unit)._call(_brain_route.TOOL, args),
+        )
         banner_stop = threading.Event()
 
         def _banner_loop() -> None:
             while not banner_stop.wait(10.0):
                 banner.tick()
+                route_push.tick()
 
         service_threads.start(_banner_loop, name="degraded-banner", stop=banner_stop)
         holder = {"server": server}
