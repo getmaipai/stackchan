@@ -4,13 +4,15 @@ MaiPai Home is an optional brain. The robot is complete without it. Use it if yo
 
 ## What it adds
 
-These run with MaiPai Home:
+These need MaiPai Home:
 
 - Names for the people the camera sees, and "what is this". [Details](camera.md)
 - Household-wide alerts and monitoring across rooms. [Watch](watch-and-alerts.md), [monitor](watch-the-room.md)
-- The coding companion, and home tools such as the local API and MQTT. [Coding](coding-companion.md), [tools](home-tools.md)
+- Home tools such as the local API and MQTT. [Tools](home-tools.md)
 
-The camera, remote control and monitoring themselves can run on your own host without Home. See [Find the robot and control it remotely](find-and-remote.md).
+The coding companion is a separate optional local package. It does not need MaiPai Home. [Coding companion](coding-companion.md)
+
+Photos, face follow and remote control can run on your own host without Home. Room watch is coming. See [Find the robot and control it remotely](find-and-remote.md).
 
 And the features across all of MaiPai Home:
 
@@ -32,7 +34,7 @@ Nothing changes on the robot. It runs the same firmware with your own model or w
 ## Turn it on
 
 1. Open `http://127.0.0.1:8051/brain` on the host computer ([Choose a brain](choose-a-brain.md)).
-2. Type the hub address, for example `http://192.0.2.20:3000`, and press **Use MaiPai Home**. Prefer a file? Set `brain = "home"` and `home_url` in `robot.toml` instead.
+2. Type the hub address, for example `http://192.0.2.20:3000`, and press **Use MaiPai Home**. Prefer a file? Set `brain = "home"` and `url` under `[home]` in `robot.toml` instead.
 3. Run `stackchan check`. You'll know it worked when the check lists Home as the brain and every line says ok.
 
 ![The robot's screen while it waits for MaiPai Home to approve it: crossed-out signal bars and a key.](../images/vu-pairing.png)

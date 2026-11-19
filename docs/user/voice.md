@@ -64,7 +64,7 @@ If the model cannot call actions, the voice commands above still work.
 
 ## Offline phrases
 
-When the robot cannot reach your host or hub, it plays a short spoken line instead of staying silent. Sixteen lines are stored on the robot, for cases such as no Wi-Fi, still connecting, no host, and "I'm back". They use the default synthetic voice, not a recording of a person. Low battery, the wake cue and a finished timer keep their tones. Not yet heard on a robot.
+When the robot cannot reach your host or hub, it plays a short spoken line instead of staying silent. Lines are stored on the robot for cases such as no Wi-Fi, still connecting, no host and "I'm back". They use the default synthetic voice, not a recording of a person. Low battery, the wake cue and a finished timer keep their tones.
 
 ## Speech speed and pitch
 
