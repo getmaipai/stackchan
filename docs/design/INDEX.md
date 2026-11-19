@@ -2912,7 +2912,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/mumble.py` (205): The offline mumble, reference implementation (patch UX16, spec docs/design/offline-mumble.md): one short note 
 - `scripts/virtual-unit/overlay-skip.txt` (1): no header
 - `scripts/virtual-unit/overlay_patches.py` (78): Brings the face overlay tree (.runs/fixtree, made by build-face.sh from a replayed firmware tree) up to the wh
-- `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (7): no header
+- `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (14): no header
 - `scripts/virtual-unit/physics/calibrate.py` (246): Fit the assumed servo parameters of a robot description from a bench recording of real head moves.
 - `scripts/virtual-unit/physics/compare_recording.py` (128): Draw the recorded head curve against the simulated one for the same steps, both axes, as an SVG (no libraries)
 - `scripts/virtual-unit/physics/imu.py` (45): From the IMU numbers the physics model reports to the two inputs the movement limiter takes: carried and orien
@@ -2979,7 +2979,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/wasm/parity.js` (108): Parity check of the browser build, in headless Chromium (Playwright): starts the page from docs-site/playgroun
 - `scripts/virtual-unit/wasm/run_native.py` (45): run the parity cases (page/py/parity_cases.py) natively: the real ctypes libraries (the core wrappers compiled
 - `scripts/virtual-unit/wasm/shim_main.py` (71): turn one of the native renderer programs (a main() that reads command lines from stdin until the end) into a m
-- `scripts/virtual-unit/wasm/site-build.sh` (163): build the static playground (docs-site/playground/): the unit's screens renderer, the lock keypad and the link
+- `scripts/virtual-unit/wasm/site-build.sh` (168): build the static playground (docs-site/playground/): the unit's screens renderer, the lock keypad and the link
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
 - `scripts/wakeword/features.py` (77): Small, dependency-light audio helpers for local wake-word experiments."""

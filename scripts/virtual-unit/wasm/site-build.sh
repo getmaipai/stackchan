@@ -124,19 +124,24 @@ build_pyodide() {
   printf 'pyodide %s: %s bytes of wasm\n' "$PYODIDE_VERSION" "$(fsize "$OUT/pyodide/pyodide.asm.wasm")"
 }
 
-# The physics engine (MuJoCo 4.0.1, Apache-2.0): the WebAssembly build from the npm registry, pinned by the package's published SHA-512, put in the site's vendor folder so the page never asks an
-# outside address (the native viewer loads the same file from a CDN; see scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json). Downloaded here, checked, never committed.
-MUJOCO_VERSION="4.0.1"
-MUJOCO_INTEGRITY="vLuwD6biiyo2D2LG1fwpwJUfWSDZhBIr6aUd3AuPJR8P7FAIeSHgofGC+0XgIpZ0vYi0EOyju+Kv7zPJepX7wA=="
+# The physics engine: the WebAssembly build from the npm registry, pinned by the package's published SHA-512, put in the site's vendor folder so the page never asks an outside address (the native
+# viewer loads the same file from a CDN). Its name, version, package, hash and files are read from scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json, the one place that names it
+# (the playground's own files never do). Downloaded here, checked, never committed.
 build_physics() {
-  local tgz="$WORK/downloads/mujoco-$MUJOCO_VERSION.tgz"
-  mkdir -p "$WORK/downloads" "$OUT/vendor/mujoco-$MUJOCO_VERSION"
-  if [ ! -f "$tgz" ]; then curl -fsSL -o "$tgz" "https://registry.npmjs.org/@mujoco/mujoco/-/mujoco-$MUJOCO_VERSION.tgz" || { echo "could not download MuJoCo $MUJOCO_VERSION from the npm registry. Check the network and run again."; exit 1; }; fi
-  [ "$(openssl dgst -sha512 -binary "$tgz" | base64 | tr -d '\n')" = "$MUJOCO_INTEGRITY" ] || { echo "the MuJoCo download does not match the pinned SHA-512. Delete $tgz and run again; if it still differs, check the package before changing the pin."; exit 1; }
-  rm -rf "$WORK/mujoco-x"; mkdir -p "$WORK/mujoco-x"; tar xzf "$tgz" -C "$WORK/mujoco-x"
-  cp "$WORK/mujoco-x/package/mujoco.js" "$WORK/mujoco-x/package/mujoco.wasm" "$OUT/vendor/mujoco-$MUJOCO_VERSION/"
-  cp "$ROOT/docs-site/vendor/mujoco/LICENSE-Apache-2.0.txt" "$OUT/vendor/mujoco-$MUJOCO_VERSION/LICENSE-Apache-2.0.txt"
-  printf 'mujoco %s: %s bytes of wasm (the page does not load it yet: the physics switch stays off until the page swaps the engine address)\n' "$MUJOCO_VERSION" "$(fsize "$OUT/vendor/mujoco-$MUJOCO_VERSION/mujoco.wasm")"
+  local rec="$HERE/../physics/THIRD-PARTY-physics-engine.json" eng ver pkg sum lic
+  eng="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["name"].lower())' "$rec")"
+  ver="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$rec")"
+  pkg="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["package"])' "$rec")"
+  sum="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha512"])' "$rec")"
+  lic="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["license_file"])' "$rec")"
+  local tgz="$WORK/downloads/$eng-$ver.tgz" dest="$OUT/vendor/$eng-$ver" f
+  mkdir -p "$WORK/downloads" "$dest"
+  if [ ! -f "$tgz" ]; then curl -fsSL -o "$tgz" "https://registry.npmjs.org/$pkg/-/$eng-$ver.tgz" || { echo "could not download the physics engine $ver from the npm registry. Check the network and run again."; exit 1; }; fi
+  [ "$(openssl dgst -sha512 -binary "$tgz" | base64 | tr -d '\n')" = "$sum" ] || { echo "the physics engine download does not match the pinned SHA-512. Delete $tgz and run again; if it still differs, check the package before changing the pin."; exit 1; }
+  rm -rf "$WORK/$eng-x"; mkdir -p "$WORK/$eng-x"; tar xzf "$tgz" -C "$WORK/$eng-x"
+  for f in $(python3 -I -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["files"]))' "$rec"); do cp "$WORK/$eng-x/package/$f" "$dest/"; done
+  cp "$ROOT/$lic" "$dest/$(basename "$lic")"
+  printf '%s %s: %s bytes of wasm (the page does not load it yet: the physics switch stays off until the page swaps the engine address)\n' "$eng" "$ver" "$(fsize "$dest/$eng.wasm")"
 }
 
 # The page: the viewer copied from view.html with the documented changes (make_page.py), the viewer's own scripts and model, three.js from the site's vendor folder, the adapter layer.

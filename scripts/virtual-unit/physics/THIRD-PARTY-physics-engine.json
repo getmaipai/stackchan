@@ -3,5 +3,12 @@
   "license": "Apache-2.0",
   "version": "4.0.1",
   "module": "https://cdn.jsdelivr.net/npm/@mujoco/mujoco@4.0.1/mujoco.js",
-  "note": "The physics mode of the virtual unit loads the engine's WebAssembly build from this pinned address when the person turns Physics mode on. Nothing is vendored. This file is the one place the address is written; the license is recorded in THIRD-PARTY.md and NOTICE."
+  "note": "The physics mode of the virtual unit loads the engine's WebAssembly build from this pinned address when the person turns Physics mode on. Nothing is vendored. This file is the one place the address is written; the license is recorded in THIRD-PARTY.md and NOTICE.",
+  "package": "@mujoco/mujoco",
+  "sha512": "vLuwD6biiyo2D2LG1fwpwJUfWSDZhBIr6aUd3AuPJR8P7FAIeSHgofGC+0XgIpZ0vYi0EOyju+Kv7zPJepX7wA==",
+  "files": [
+    "mujoco.js",
+    "mujoco.wasm"
+  ],
+  "license_file": "docs-site/vendor/mujoco/LICENSE-Apache-2.0.txt"
 }
