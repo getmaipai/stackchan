@@ -829,6 +829,66 @@
    "freed_when": "when the caption ends, on the wake word or an abort, or when a new sentence replaces it",
    "status": "estimate",
    "source": "patch SF87: a 12,800 byte render buffer and at most 401 bytes of text in PSRAM; the idle state (one mm_t, a 12-note ring, a mutex, a timer) is about 250 bytes internal and is not counted here; flash is an estimate; measure with two self.bench.heap_info calls (idle, mumbling)"
+  },
+  {
+   "id": "screen.qa_games",
+   "kind": "screen",
+   "name": "The question games (riddle, trivia, 20 Questions) while one runs",
+   "internal": 2400,
+   "psram": 800,
+   "flash": 8000,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when the host calls self.qa.start",
+   "freed_when": "when the game ends (quit, stop, host_gone, update, quiet) or the game-over screen is left",
+   "status": "estimate",
+   "source": "patch SF88: about 15 LVGL objects at an estimated 150 bytes each (the screen of a phase is deleted before the next is built); an 800 byte state in PSRAM; flash is an estimate; measure with two self.bench.heap_info calls (idle, a trivia question showing)"
+  },
+  {
+   "id": "feature.asset_store",
+   "kind": "feature",
+   "name": "The asset store while it is used (directory read, install running)",
+   "internal": 50,
+   "psram": 12800,
+   "flash": 7000,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a self.assets tool or a consumer first asks (nofont and lean images only)",
+   "freed_when": "never (kept once allocated, in PSRAM)",
+   "status": "estimate",
+   "source": "patch SF90: one block in PSRAM (directory about 4.3 KB, a 4 KB sector, a 4 KB scratch, a piece); internal is a mutex and flags; flash is an estimate; measure with two self.bench.heap_info calls (idle, after self.assets.list)"
+  },
+  {
+   "id": "feature.installed_game_packs",
+   "kind": "feature",
+   "name": "Installed game packs held for the games list (8 at most)",
+   "internal": 160,
+   "psram": 131072,
+   "flash": 1200,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when the games list or a game first asks for an installed pack (each pack, only if one is installed)",
+   "freed_when": "when the store changes and no game runs",
+   "status": "estimate",
+   "source": "patch SF91: the worst case, eight packs of 16,384 bytes; real packs are 2 to 3 KB (the built-ins are 17,828 bytes for seven); internal is 8 score entries"
+  },
+  {
+   "id": "feature.pantry",
+   "kind": "feature",
+   "name": "The content pantry while it is used (heard list and a shelf being read)",
+   "internal": 60,
+   "psram": 47200,
+   "flash": 6000,
+   "largest_block": 0,
+   "in_baseline": false,
+   "persistent": false,
+   "loaded_when": "when a self.pantry tool or a telling first needs the heard list (nofont and lean images only); a shelf only while it is checked or a record is picked",
+   "freed_when": "a shelf copy right after use; the heard list is kept once allocated (PSRAM)",
+   "status": "estimate",
+   "source": "patch SF93: the heard list block is about 6.2 KB (510 entries of 12 bytes in memory), a shelf copy is at most 40,960 bytes; internal is a mutex, a timer and counters; measure with two self.bench.heap_info calls (idle, during self.pantry.status)"
   }
  ]
 }

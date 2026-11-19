@@ -1,0 +1,152 @@
+# Intent: Fixes to the cloudtest image kind found by its first run on the unit (the vendor check failed at TLS and the host link never came up). Causes: (1) the normal and the test image carry no public root certificates on purpose (the bundle is a placeholder and ISRG Root X1), so the vendor's certificate chain could not be verified: the cloudtest kind now adds IDF's full list of standard roots through a new late defaults file read after the core trim (sdkconfig.cloudtest.late.defaults, copied to sdkconfig.late.defaults only for this kind; no other kind has public roots); (2) the vendor check ran in the activation task before the protocol was created, with up to 10 retries growing to 80 s, so the host link waited behind a check that could not succeed, and the single websocket client had been pointed at the vendor namespace only: the check now has 3 tries and waits (up to 60 s) for a real clock before asking, because the unit gets its time from the host and the vendor certificate has dates; the websocket client reads the vendor's address only when the hosted route has stored one and otherwise the paired host's (one link at a time, never both); (3) bench-visible lines: "CLOUDTEST check waits for the clock (year N)", "CLOUDTEST check starts: clock_year=N", "CLOUDTEST link: namespace=... route=... clock_year=..." at every connect, and self.brain.status now answers clock_year and link_ns. No time server is contacted: the clock comes from the host.
+# Placement: unit
+# Upstream: main/application.cc and protocols/websocket_protocol.cc of the xiaozhi-esp32 tree (MIT); firmware/CMakeLists.txt, main/hal/maipai_cloudtest.cc and .h, main/hal/maipai_hosted.cc (ours)
+# Check after a flash: only after the owner's yes (docs/plan/cloud-brain-firmware-test.md): the log shows the clock year and the link namespace; with the host link up the clock is set and the vendor check starts after it; the vendor certificate verifies; if the vendor is unreachable the host link still connects after at most 3 tries; self.brain.status answers clock_year and link_ns.
+# Kconfig: none (CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL is set only by the cloudtest late defaults)
+# Memory cost: none in any other kind. In the cloudtest kind about 68 KB of flash for the certificate bundle and no internal RAM beyond the stock TLS buffers.
+
+diff --git a/firmware/CMakeLists.txt b/firmware/CMakeLists.txt
+--- a/firmware/CMakeLists.txt
++++ b/firmware/CMakeLists.txt
+@@ -55,6 +55,11 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/sdkconfig.core.defaults")
+     endif()
+ endif()
+ 
++# Patch SF99: an image kind may override the core trim with sdkconfig.late.defaults, read after it (only the cloud brain test kind has one: it adds the public roots).
++if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/sdkconfig.late.defaults")
++    list(APPEND SDKCONFIG_DEFAULTS "${CMAKE_CURRENT_SOURCE_DIR}/sdkconfig.late.defaults")
++endif()
++
+ # Travel with the private network (patch TN01): scripts/fw-tailnet.sh downloads the pinned client into a folder outside
+ # this tree and fw-env.sh names it. Without the variable nothing about it is built.
+ if(DEFINED ENV{MAIPAI_MICROLINK_DIR} AND NOT "$ENV{MAIPAI_MICROLINK_DIR}" STREQUAL "")
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -544,7 +544,11 @@ void Application::CheckAssetsVersion() {
+ }
+ 
+ void Application::CheckNewVersion() {
++#if CONFIG_MAIPAI_CLOUDTEST
++    const int MAX_RETRY = 3;   // patch SF99: the host link must not wait hours behind a vendor check that cannot succeed
++#else
+     const int MAX_RETRY = 10;
++#endif
+     int retry_count = 0;
+     int challenge_rounds = 0;
+     int retry_delay = 10;  // Initial retry delay in seconds
+@@ -555,6 +559,13 @@ void Application::CheckNewVersion() {
+         display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);
+ 
+         if (maipai_hosted_blocked()) return;   // patch SF98: the hosted link was left while the check was retrying
++#if CONFIG_MAIPAI_CLOUDTEST
++        for (int w = 0; w < 6 && maipai_clock_year() < 2025; w++) {   // patch SF99: the vendor certificate needs a real date; the host sets the clock
++            ESP_LOGW(TAG, "CLOUDTEST check waits for the clock (year %d); the host link sets it", maipai_clock_year());
++            vTaskDelay(pdMS_TO_TICKS(10000));
++        }
++        ESP_LOGI(TAG, "CLOUDTEST check starts: clock_year=%d", maipai_clock_year());
++#endif
+         auto check = ota_->CheckVersion();
+         if (!check) {
+             retry_count++;
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -183,11 +183,12 @@ bool WebsocketProtocol::OpenAudioChannel() {
+ }
+ 
+ bool WebsocketProtocol::ConnectAudioChannel() {
++    const char* ws_ns = maipai_ws_read_ns();   // patch SF99: the vendor's address when the hosted route has one, else the paired host's (never both at once)
+ #if CONFIG_MAIPAI_CLOUDTEST
+-    if (maipai_hosted_blocked()) return false;   // patch SF98: the vendor link is never opened on route custom
+-    maipai_hosted_note_attempt();
++    if (strcmp(ws_ns, MAIPAI_WS_NS) == 0) maipai_hosted_note_attempt();
++    ESP_LOGI(TAG, "CLOUDTEST link: namespace=%s route=%s clock_year=%d", ws_ns, maipai_hosted_blocked() ? "custom" : "hosted", maipai_clock_year());
+ #endif
+-    Settings settings(MAIPAI_WS_NS, false);   // patch SF96
++    Settings settings(ws_ns, false);   // patch SF96, SF99
+     std::string url = settings.GetString("url");
+ #if CONFIG_MAIPAI_TAILNET
+     // Travel (patch TN02): while the private-network client is connected and the route that last worked is the private
+diff --git a/firmware/main/hal/maipai_cloudtest.h b/firmware/main/hal/maipai_cloudtest.h
+--- a/firmware/main/hal/maipai_cloudtest.h
++++ b/firmware/main/hal/maipai_cloudtest.h
+@@ -12,6 +12,10 @@
+ // The vendor link's settings live in their own namespaces, so the paired host's address and token (namespace "websocket") are never overwritten.
+ #define MAIPAI_WS_NS "cl_websocket"
+ #define MAIPAI_MQTT_NS "cl_mqtt"
++// The websocket namespace to read for the next connect: the vendor's (cl_websocket) when the route is hosted and the vendor reply stored an address, else the paired host's (websocket).
++const char* maipai_ws_read_ns();
++// The calendar year the unit believes (1970 when its clock is unset: it gets the time from the host, and the vendor's certificate needs a real date).
++int maipai_clock_year();
+ // A permanent strip on the screen: "Cloud brain test". Call once at start-up.
+ void maipai_cloudtest_start_banner();
+ // Only these generic tools may be called by the vendor service (and the brain route tools): the unit's privacy, lock, update, asset, game and pantry tools stay out of its reach.
+@@ -19,6 +23,8 @@ bool maipai_cloudtest_tool_allowed(const char* name);
+ #else
+ #define MAIPAI_WS_NS "websocket"
+ #define MAIPAI_MQTT_NS "mqtt"
++inline const char* maipai_ws_read_ns() { return "websocket"; }
++inline int maipai_clock_year() { return 0; }
+ inline void maipai_cloudtest_start_banner() {}
+ inline bool maipai_cloudtest_tool_allowed(const char*) { return true; }
+ #endif
+diff --git a/firmware/main/hal/maipai_cloudtest.cc b/firmware/main/hal/maipai_cloudtest.cc
+--- a/firmware/main/hal/maipai_cloudtest.cc
++++ b/firmware/main/hal/maipai_cloudtest.cc
+@@ -7,6 +7,9 @@
+ 
+ #if CONFIG_MAIPAI_CLOUDTEST
+ #include "hal.h"
++#include "maipai_hosted.h"
++#include <settings.h>
++#include <ctime>
+ #include <esp_log.h>
+ #include <esp_timer.h>
+ #include <lvgl.h>
+@@ -48,6 +51,21 @@ void maipai_cloudtest_start_banner()
+     if (esp_timer_create(&a, &timer) == ESP_OK) esp_timer_start_once(timer, 3ll * 1000 * 1000);   // after the display is up
+ }
+ 
++const char* maipai_ws_read_ns()
++{
++    if (maipai_hosted_blocked()) return "websocket";
++    Settings cl(MAIPAI_WS_NS, false);
++    return cl.GetString("url").empty() ? "websocket" : MAIPAI_WS_NS;
++}
++
++int maipai_clock_year()
++{
++    time_t t = time(nullptr);
++    struct tm tmv;
++    gmtime_r(&t, &tmv);
++    return tmv.tm_year + 1900;
++}
++
+ bool maipai_cloudtest_tool_allowed(const char* name)
+ {
+     static const char* const kAllowed[] = {"self.get_device_status", "self.audio_speaker.set_volume", "self.screen.set_brightness", "self.screen.set_theme",
+diff --git a/firmware/main/hal/maipai_hosted.cc b/firmware/main/hal/maipai_hosted.cc
+--- a/firmware/main/hal/maipai_hosted.cc
++++ b/firmware/main/hal/maipai_hosted.cc
+@@ -7,6 +7,7 @@
+ #include "maipai_hosted_core.h"
+ #include "device_events.h"
+ #include "hal.h"
++#include "maipai_cloudtest.h"
+ #include <application.h>
+ #include <esp_log.h>
+ #include <esp_system.h>
+@@ -121,10 +122,10 @@ void maipai_brain_register_tools()
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.brain.status",
+                 "Which brain the unit uses: route custom (its own host or local) or hosted, how many saved vendor keys (cl_ namespaces) it holds, and how many attempts to reach the vendor service it made since it started. "
+-                "Answers {ok, route, hosted_build, cl_keys, vendor_attempts}.",
++                "Answers {ok, route, hosted_build, clock_year, link_ns, cl_keys, vendor_attempts}.",
+                 std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
+                     return std::string("{\"ok\":true,\"route\":\"") + (maipai_hosted_blocked() ? "custom" : "hosted") + "\",\"hosted_build\":" + (kHostedBuild ? "true" : "false") +
+-                           ",\"cl_keys\":" + std::to_string(hosted_keys()) + ",\"vendor_attempts\":" + std::to_string(s_attempts.load()) + "}";
++                           ",\"clock_year\":" + std::to_string(maipai_clock_year()) + ",\"link_ns\":\"" + maipai_ws_read_ns() + "\",\"cl_keys\":" + std::to_string(hosted_keys()) + ",\"vendor_attempts\":" + std::to_string(s_attempts.load()) + "}";
+                 });
+     mcp.AddTool("self.brain.set_route",
+                 "Choose the brain: custom leaves the hosted brain (stops the vendor link, erases every saved vendor key, shows one line on screen, sends the event brain_route and restarts the unit in a few seconds). "

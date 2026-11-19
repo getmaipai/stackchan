@@ -36,3 +36,7 @@ A pure core `maipai_pantry_core.h` (plain C99, host-tested): `mpy_find(kind, tag
 4. Large pantries are installed over several `self.assets.data` pieces and verified by hash before the directory flip; the old pantry stays until the new one is complete (power-cut safe).
 
 Not built yet: this note fixes the limits so the host side (the app track) and the dashboard can size the content, and so the memory rows can be written when the reader lands.
+
+## Kind `line` (app track note, 2026-11-18)
+
+The host adds a sixth record kind, `line` (kind byte 5): a canned line for a situation. `text` is at most 100 bytes, `extra` is one of 20 situation tags (listed in `docs/design/content-pantry.md`, "Lines by situation"; `host/maipai_packages/pantry/record.py` `SITUATIONS` is the order), no answer, rating `kid`. The reader asks `mpy_find(kind=line, tag=<situation>, language, heard, rng)`, shows the text as the subtitle and plays the mumble. The reader needs the kind byte 5 accepted and the situation tag carried in the record's `extra` field. This also covers kind byte 4 (`object`, twenty questions, `docs/design/twenty-questions-library.md`). The unit keeps 13 of the 16 recorded offline phrases out of the image once this lands (the list is in the same section).

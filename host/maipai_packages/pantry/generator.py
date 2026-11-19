@@ -25,6 +25,8 @@ SHAPE = {
 
 
 def prompt_for(kind: str, language: str, rating: str, topic: str, n: int = BATCH) -> str:
+    if kind not in SHAPE:
+        raise ValueError(f"The host does not write {kind} records with the model. They ship in the built-in set.")
     return (
         f"Write {n} {kind}s for a family robot, in {LANGUAGE_NAMES.get(language, language)}, suitable for {'children' if rating == 'kid' else 'adults'}, about {topic}. "
         f"Reply with only a JSON array; {SHAPE[kind]}. Keep each text under {TEXT_CAPS[kind]} bytes and each answer under 40 bytes. No numbering, no commentary."
@@ -50,6 +52,9 @@ def parse(reply: str, kind: str, language: str, rating: str) -> list[Record]:
 def generate(library: Library, ask: Ask, kind: str, language: str, *, rating: str = "kid", batches: int = 1, daily_cap: int = 200, adult_allowed: bool = False, seed: int = 0) -> dict:
     """Run up to ``batches`` batches. Returns {"added", "dropped": {reason: n}, "model_calls", "stopped"} and saves it as the library's last report."""
     summary = {"kind": kind, "language": language, "added": 0, "dropped": {}, "model_calls": 0, "stopped": ""}
+    if kind not in SHAPE:
+        summary["stopped"] = f"The model does not write {kind} records. They come with the built-in set."
+        return summary
     for index in range(batches):
         topic = TOPICS[(seed + index) % len(TOPICS)]
         # one call for the batch plus about one per record for the filter: the daily cap counts them all

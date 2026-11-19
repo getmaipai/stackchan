@@ -283,9 +283,12 @@ def test_first_run_loads_the_built_in_set_once_and_deleted_records_stay_deleted(
     from maipai_packages.pantry import Pantry
 
     pantry = Pantry(tmp_path, None, languages=("en", "es"))
-    assert pantry.seeded == 420  # 300 English and 120 Spanish records; the other languages were not chosen
+    from maipai_packages.pantry.seed_loader import seed_files, seed_records
+
+    total = sum(len(seed_records(f)) for f in seed_files(("en", "es")))
+    assert pantry.seeded == total > 400  # English and Spanish only; the other languages were not chosen
     view = pantry.view()
-    assert view["built_in"]["state"] == "Built-in set" and view["built_in"]["records"] == 420 and view["rows"][0]["built_in"] is True
+    assert view["built_in"]["state"] == "Built-in set" and view["built_in"]["records"] == total and view["rows"][0]["built_in"] is True
     first = pantry.library.records("joke", "en")[0]
     pantry.delete(first.id_hex)
     again = Pantry(tmp_path, None, languages=("en", "es"))
@@ -304,3 +307,34 @@ def test_never_again_records_are_not_loaded_from_the_seed(tmp_path):
     library.never_again(target.id_hex)
     load_seed(library, ("en",))
     assert target.id_hex not in {r.id_hex for r in library.records()}
+
+
+def test_line_records_need_a_known_situation_and_no_answer():
+    import pytest
+    from maipai_packages.pantry.record import SITUATIONS, Record, RecordError, check
+
+    assert len(SITUATIONS) == 20
+    ok = check(Record("line", "en", "kid", "Good morning. I am glad you are here.", "", "greeting_morning"))
+    assert ok.kind == "line"
+    for bad in (
+        Record("line", "en", "kid", "Hello", "", "nonsense"),
+        Record("line", "en", "kid", "Hello", "x", "greeting_day"),
+        Record("line", "en", "adult", "Hello", "", "greeting_day"),
+        Record("line", "en", "kid", "x" * 101, "", "greeting_day"),
+    ):
+        with pytest.raises(RecordError):
+            check(bad)
+
+
+def test_lines_survive_the_shelf_and_dedupe_only_within_a_situation():
+    from maipai_packages.pantry.dedupe import dedupe
+    from maipai_packages.pantry.record import Record
+    from maipai_packages.pantry.shelf import pack, unpack
+
+    lines = [Record("line", "en", "kid", "Good morning, friend.", "", "greeting_morning"), Record("line", "en", "kid", "Good evening, friend.", "", "greeting_evening")]
+    back = unpack(pack(lines))
+    assert [(r.text, r.extra) for r in back] == [(r.text, r.extra) for r in lines]
+    kept, _report = dedupe([Record("line", "en", "kid", "Hello there my friend", "", "greeting_day"), Record("line", "en", "kid", "Hello there my friend now", "", "touch_head")], [])
+    assert len(kept) == 2  # similar words under two situations are both kept
+    kept, _report = dedupe([Record("line", "en", "kid", "Hello there my friend", "", "greeting_day"), Record("line", "en", "kid", "Hello there my friend now", "", "greeting_day")], [])
+    assert len(kept) == 1

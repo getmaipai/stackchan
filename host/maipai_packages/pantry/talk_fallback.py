@@ -15,8 +15,11 @@ from dataclasses import dataclass, field
 
 from maipai_packages.pantry.library import Library
 from maipai_packages.pantry.record import Record, normalize
+from maipai_packages.pantry.twenty_fallback import LINES as TWENTY_LINES
+from maipai_packages.pantry.twenty_fallback import TwentyQuestions
 
 GAME_KIND = {"riddles": "riddle", "trivia": "trivia", "jokes": "joke"}
+OBJECT_GAME = "twenty_questions"  # played from the library's object records (twenty_fallback.py)
 
 LINES = {
     "en": {
@@ -63,10 +66,21 @@ class PantryTalk:
         self._library, self._adult, self._clock = library, adult_humor, clock
         self._rng = rng or random.Random()
         self._turns: dict[str, _Turn] = {}
+        self._twenty: dict[str, object] = {}
+        self._twenty_engine = TwentyQuestions(self._rng)
         self._lock = threading.Lock()
 
     def supports(self, game_id: str) -> bool:
-        return game_id in GAME_KIND
+        return game_id in GAME_KIND or game_id == OBJECT_GAME
+
+    def done(self, unit: str) -> bool:
+        """True once a twenty questions game on this unit has ended; the caller then ends the talk game and the state is cleared."""
+        with self._lock:
+            game = self._twenty.get(unit)
+            if game is not None and game.done:
+                del self._twenty[unit]
+                return True
+            return False
 
     def reset(self, unit: str) -> None:
         with self._lock:
@@ -85,6 +99,8 @@ class PantryTalk:
         """The next fixed line for this game turn and whether the person scored a point; None when this game has no library half.
 
         With no riddle or question in play, the turn asks the next one whatever was heard (the game's first "go")."""
+        if game_id == OBJECT_GAME:
+            return self._twenty_line(unit, lang, heard, game_started)
         if game_id not in GAME_KIND:
             return None
         words = _lines(lang)
@@ -117,3 +133,17 @@ class PantryTalk:
                 key = "wrong" if game_id == "trivia" else "reveal"
                 return words[key].format(answer=turn.record.answer), False
             return words["again"], False
+
+    def _twenty_line(self, unit: str, lang: str, heard: str, game_started: float) -> tuple[str, bool]:
+        with self._lock:
+            game = self._twenty.get(unit)
+            if game is not None and game.game_started != game_started:
+                game = None
+            if game is None:
+                objects = [r for r in self._library.records("object", lang) if r.rating == "kid" or self._adult()]
+                game = self._twenty_engine.new(objects, game_started)
+                if game is None:
+                    return TWENTY_LINES.get(lang, TWENTY_LINES["en"])["none"], False
+                self._twenty[unit] = game
+                heard = ""  # the first turn is the person saying ready
+            return self._twenty_engine.turn(game, lang, heard), False

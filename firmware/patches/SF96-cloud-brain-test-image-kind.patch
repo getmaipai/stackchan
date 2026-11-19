@@ -1,0 +1,300 @@
+# Intent: A separate image kind, cloudtest, for trying the vendor's hosted brain with the owner's own account (never the default, never in a release image). With MAIPAI_CLOUDTEST the unit runs the vendor activation check against the upstream address of the pinned xiaozhi-esp32 tree (set only by sdkconfig.cloudtest.defaults), shows the activation code on screen silently (the normal build reboots into the phone-app setup instead), keeps the vendor link's address and token in their own namespaces (cl_websocket, cl_mqtt) so the paired host's pairing is never overwritten, never installs firmware from the vendor service, speaks websocket only, lets the vendor service call only four generic tools (device status, volume, brightness, theme: the privacy, lock, update, asset, game and pantry tools stay out of its reach), and keeps an amber strip "Cloud brain test" on screen. The unit's own mute, full quiet and vision-off bits still decide what the microphone and camera can do. Voice leaves the home while it is connected.
+# Placement: unit
+# Upstream: main/ota.cc, ota.h, application.cc, mcp_server.cc and protocols/websocket_protocol.cc of the xiaozhi-esp32 tree (MIT); firmware/main/hal/maipai_cloudtest.cc and .h (ours)
+# Check after a flash: only after the owner has said yes to contacting the vendor service (docs/plan/cloud-brain-firmware-test.md): the strip shows, the log shows the OTA check, an activation code shows on the screen with no sound, entering it in the owner's own console connects the unit, mute and full quiet still stop the microphone, and a flash of the plain image brings the host link back with the old pairing.
+# Kconfig: MAIPAI_CLOUDTEST (default n); the kind sets STACKCHAN_OTA_CHECK and OTA_URL
+# Memory cost: none in any other kind (everything is behind MAIPAI_CLOUDTEST). In the cloudtest kind: one esp_timer and a 16 px strip on the system layer, about 1 KB internal RAM, and the vendor check task with its 8 KB stack at start-up (stock behavior).
+
+diff --git a/firmware/xiaozhi-esp32/main/ota.cc b/firmware/xiaozhi-esp32/main/ota.cc
+--- a/firmware/xiaozhi-esp32/main/ota.cc
++++ b/firmware/xiaozhi-esp32/main/ota.cc
+@@ -26,6 +26,8 @@
+ #include <system_error>
+ #include <vector>
+ 
++#include <hal/maipai_cloudtest.h>
++
+ #define TAG "Ota"
+ 
+ Ota::Ota() {
+@@ -140,6 +142,11 @@ NetworkResult<> Ota::CheckVersion() {
+     if (cJSON_IsObject(activation)) {
+         // Discard community codes and URL messages; StackChan World handles binding.
+         requires_app_binding_ = cJSON_IsString(cJSON_GetObjectItem(activation, "code"));
++#if CONFIG_MAIPAI_CLOUDTEST
++        activation_code_.clear();   // patch SF96: the code is shown on screen for the owner to enter in their own console
++        cJSON* code = cJSON_GetObjectItem(activation, "code");
++        if (cJSON_IsString(code) && code->valuestring != nullptr && strlen(code->valuestring) <= 16) activation_code_ = code->valuestring;
++#endif
+         cJSON* challenge = cJSON_GetObjectItem(activation, "challenge");
+         if (cJSON_IsString(challenge)) {
+             activation_challenge_ = challenge->valuestring;
+@@ -154,7 +161,7 @@ NetworkResult<> Ota::CheckVersion() {
+     has_mqtt_config_ = false;
+     cJSON *mqtt = cJSON_GetObjectItem(root, "mqtt");
+     if (cJSON_IsObject(mqtt)) {
+-        Settings settings("mqtt", true);
++        Settings settings(MAIPAI_MQTT_NS, true);   // patch SF96: the cloud brain test keeps its own namespace
+         cJSON *item = NULL;
+         cJSON_ArrayForEach(item, mqtt) {
+             if (cJSON_IsString(item)) {
+@@ -175,7 +182,7 @@ NetworkResult<> Ota::CheckVersion() {
+     has_websocket_config_ = false;
+     cJSON *websocket = cJSON_GetObjectItem(root, "websocket");
+     if (cJSON_IsObject(websocket)) {
+-        Settings settings("websocket", true);
++        Settings settings(MAIPAI_WS_NS, true);   // patch SF96: the paired host's address and token are never overwritten
+         cJSON *item = NULL;
+         cJSON_ArrayForEach(item, websocket) {
+             if (cJSON_IsString(item)) {
+diff --git a/firmware/xiaozhi-esp32/main/ota.h b/firmware/xiaozhi-esp32/main/ota.h
+--- a/firmware/xiaozhi-esp32/main/ota.h
++++ b/firmware/xiaozhi-esp32/main/ota.h
+@@ -21,6 +21,7 @@ public:
+     bool HasNewVersion() { return has_new_version_; }
+     bool HasMqttConfig() { return has_mqtt_config_; }
+     bool HasWebsocketConfig() { return has_websocket_config_; }
++    const std::string& GetActivationCode() { return activation_code_; }   // patch SF96 (cloud brain test only)
+     bool RequiresAppBinding() { return requires_app_binding_; }
+     bool HasServerTime() { return has_server_time_; }
+     bool StartUpgrade(std::function<void(int progress, size_t speed)> callback);
+@@ -36,6 +37,7 @@ private:
+     bool has_new_version_ = false;
+     bool has_mqtt_config_ = false;
+     bool has_websocket_config_ = false;
++    std::string activation_code_;
+     bool has_server_time_ = false;
+     bool requires_app_binding_ = false;
+     bool has_serial_number_ = false;
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -21,6 +21,7 @@
+ #include <hal/maipai_lock.h>
+ #include <hal/maipai_sounds.h>
+ #include <hal/maipai_mumble.h>
++#include <hal/maipai_cloudtest.h>
+ #include <hal/maipai_boottone_core.h>
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_games.h>
+@@ -591,7 +592,12 @@ void Application::CheckNewVersion() {
+         retry_count = 0;
+         retry_delay = 10;  // Reset retry delay
+ 
++#if CONFIG_MAIPAI_CLOUDTEST
++        // Patch SF96: the cloud brain test never installs firmware from the vendor service (the update path would refuse it anyway).
++        if (false) {
++#else
+         if (ota_->HasNewVersion()) {
++#endif
+             if (UpgradeFirmware(ota_->GetFirmwareUrl(), ota_->GetFirmwareVersion())) {
+                 return;  // This line will never be reached after reboot
+             }
+@@ -600,9 +606,16 @@ void Application::CheckNewVersion() {
+ 
+         // No new version, mark the current version as valid
+         ota_->MarkCurrentVersionValid();
++#if CONFIG_MAIPAI_CLOUDTEST
++        if (ota_->RequiresAppBinding() && !ota_->GetActivationCode().empty()) {   // patch SF96: show the code, silently, and wait for the owner
++            std::string note = std::string("Enter this code in your own console: ") + ota_->GetActivationCode();
++            Alert("Cloud brain test", note.c_str(), "neutral", "");
++        }
++#else
+         if (ota_->RequiresAppBinding()) {
+             GetHAL().requestAppSetup();
+         }
++#endif
+         if (!ota_->HasActivationChallenge()) {
+             // Exit the loop if done checking new version
+             break;
+@@ -610,9 +623,11 @@ void Application::CheckNewVersion() {
+ 
+         display->SetStatus(Lang::Strings::ACTIVATION);
+         // Keep automatic device authentication bounded; manual binding uses the App.
++#if !CONFIG_MAIPAI_CLOUDTEST
+         if (++challenge_rounds > 3) {
+             GetHAL().requestAppSetup();
+         }
++#endif
+ 
+         // This will block the loop until the activation is done or timeout
+         for (int i = 0; i < 10; ++i) {
+@@ -639,7 +654,7 @@ void Application::InitializeProtocol() {
+ 
+     display->SetStatus(Lang::Strings::LOADING_PROTOCOL);
+ 
+-#if CONFIG_STACKCHAN_OTA_CHECK
++#if CONFIG_STACKCHAN_OTA_CHECK && !CONFIG_MAIPAI_CLOUDTEST   // patch SF96: the cloud brain test speaks websocket only (MQTT is not built into this unit)
+     if (ota_->HasMqttConfig()) {
+         protocol_ = std::make_unique<MqttProtocol>();
+     } else if (ota_->HasWebsocketConfig()) {
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -1,3 +1,4 @@
++#include <hal/maipai_cloudtest.h>
+ #include "websocket_protocol.h"
+ #if CONFIG_MAIPAI_LINK_PSK
+ #include <hal/maipai_linkpsk.h>
+@@ -181,7 +182,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
+ }
+ 
+ bool WebsocketProtocol::ConnectAudioChannel() {
+-    Settings settings("websocket", false);
++    Settings settings(MAIPAI_WS_NS, false);   // patch SF96
+     std::string url = settings.GetString("url");
+ #if CONFIG_MAIPAI_TAILNET
+     // Travel (patch TN02): while the private-network client is connected and the route that last worked is the private
+diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/main/mcp_server.cc
+--- a/firmware/xiaozhi-esp32/main/mcp_server.cc
++++ b/firmware/xiaozhi-esp32/main/mcp_server.cc
+@@ -20,6 +20,7 @@
+ #include "settings.h"
+ #include "update_verify.h"
+ #include <hal/maipai_remote.h>
++#include <hal/maipai_cloudtest.h>
+ 
+ #define TAG "MCP"
+ 
+@@ -446,6 +447,11 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
+         return tool->name() == tool_name;
+     });
+ 
++    if (!maipai_cloudtest_tool_allowed(tool_name.c_str())) {   // patch SF96: the vendor service reaches only a short list of generic tools
++        ReplyError(id, -32602, "This tool is not available in the cloud brain test: " + tool_name, response_sender);
++        return;
++    }
++
+     if (tool_iter == tools_.end()) {
+         ESP_LOGE(TAG, "tools/call: Unknown tool: %s", tool_name.c_str());
+         ReplyError(id, -32602, "Unknown tool: " + tool_name, response_sender);
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -7,6 +7,14 @@ config STACKCHAN_PERSISTENT_WEBSOCKET
+         Open the websocket at startup and reconnect after disconnects.
+         When disabled, the audio channel opens only for listening sessions.
+ 
++config MAIPAI_CLOUDTEST
++    bool "Cloud brain test build (patch SF96; never a release image)"
++    default n
++    help
++        Lets the unit try the vendor's hosted brain with the owner's own account: the vendor activation check runs, the activation code is shown on
++        screen, and the vendor link keeps its settings apart from the paired host's. A strip "Cloud brain test" stays on screen. The vendor
++        service may call only a short list of generic tools. Needs STACKCHAN_OTA_CHECK and an OTA_URL. Voice leaves the home while it is connected.
++
+ config STACKCHAN_OTA_CHECK
+     bool "Check remote OTA and activation service"
+     default n
+diff --git a/firmware/main/hal/maipai_daily.cc b/firmware/main/hal/maipai_daily.cc
+--- a/firmware/main/hal/maipai_daily.cc
++++ b/firmware/main/hal/maipai_daily.cc
+@@ -5,6 +5,7 @@
+  * reads the facts (battery, clock, state), calls the core, and acts: a sound through the sound policy, an
+  * event for the host, a few words on the face. Nothing here allocates after start.
+  */
++#include "maipai_cloudtest.h"
+ #include "maipai_daily.h"
+ #include "maipai_battery_core.h"
+ #include "maipai_hourly_core.h"
+@@ -290,4 +291,5 @@ void maipai_daily_register_tools()
+         });
+ #endif
+     maipai_serial_tools_start();  // bench builds only (patch V01)
++    maipai_cloudtest_start_banner();  // the cloud brain test build only (patch SF96)
+ }
+diff --git a/firmware/main/hal/maipai_cloudtest.h b/firmware/main/hal/maipai_cloudtest.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_cloudtest.h
+@@ -0,0 +1,24 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The cloud brain test build (patch SF96, kind cloudtest, never the default and never in a release image). In this build the unit asks the
++ * vendor's published activation service for a connection, so an owner can try the vendor's hosted brain with their own account. Everything
++ * that makes it different from the normal build is behind CONFIG_MAIPAI_CLOUDTEST. See docs/plan/cloud-brain-firmware-test.md.
++ */
++#pragma once
++#include <sdkconfig.h>
++
++#if CONFIG_MAIPAI_CLOUDTEST
++// The vendor link's settings live in their own namespaces, so the paired host's address and token (namespace "websocket") are never overwritten.
++#define MAIPAI_WS_NS "cl_websocket"
++#define MAIPAI_MQTT_NS "cl_mqtt"
++// A permanent strip on the screen: "Cloud brain test". Call once at start-up.
++void maipai_cloudtest_start_banner();
++// Only these generic tools may be called by the vendor service (and the brain route tools): the unit's privacy, lock, update, asset, game and pantry tools stay out of its reach.
++bool maipai_cloudtest_tool_allowed(const char* name);
++#else
++#define MAIPAI_WS_NS "websocket"
++#define MAIPAI_MQTT_NS "mqtt"
++inline void maipai_cloudtest_start_banner() {}
++inline bool maipai_cloudtest_tool_allowed(const char*) { return true; }
++#endif
+diff --git a/firmware/main/hal/maipai_cloudtest.cc b/firmware/main/hal/maipai_cloudtest.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_cloudtest.cc
+@@ -0,0 +1,61 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The cloud brain test build (patch SF96): the on-screen strip and the list of tools the vendor service may call. See maipai_cloudtest.h.
++ */
++#include "maipai_cloudtest.h"
++
++#if CONFIG_MAIPAI_CLOUDTEST
++#include "hal.h"
++#include <esp_log.h>
++#include <esp_timer.h>
++#include <lvgl.h>
++#include <cstring>
++
++namespace {
++
++void draw_strip()
++{
++    LvglLockGuard lock;
++    lv_obj_t* bar = lv_obj_create(lv_layer_sys());
++    lv_obj_remove_style_all(bar);
++    lv_obj_remove_flag(bar, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(bar, 320, 16);
++    lv_obj_set_pos(bar, 0, 224);
++    lv_obj_set_style_bg_color(bar, lv_color_hex(0xF2B24A), 0);
++    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
++    lv_obj_t* t = lv_label_create(bar);
++    lv_label_set_text(t, "Cloud brain test");
++    lv_obj_set_style_text_font(t, &lv_font_montserrat_14, 0);
++    lv_obj_set_style_text_color(t, lv_color_black(), 0);
++    lv_obj_center(t);
++}
++
++void once(void*)
++{
++    draw_strip();
++}
++
++}  // namespace
++
++void maipai_cloudtest_start_banner()
++{
++    static esp_timer_handle_t timer = nullptr;
++    esp_timer_create_args_t a = {};
++    a.callback = once;
++    a.name = "cloudtest_banner";
++    if (esp_timer_create(&a, &timer) == ESP_OK) esp_timer_start_once(timer, 3ll * 1000 * 1000);   // after the display is up
++}
++
++bool maipai_cloudtest_tool_allowed(const char* name)
++{
++    static const char* const kAllowed[] = {"self.get_device_status", "self.audio_speaker.set_volume", "self.screen.set_brightness", "self.screen.set_theme",
++                                                "self.brain.status", "self.brain.set_route"};   // patch SF98: the owner can leave hosted from here
++    for (const char* ok : kAllowed) {
++        if (strcmp(name, ok) == 0) return true;
++    }
++    return false;
++}
++
++#endif

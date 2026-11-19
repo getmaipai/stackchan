@@ -48,7 +48,7 @@ def dedupe(candidates: list[Record], known: list[Record], refused_ids: set[bytes
         toks, answer = tokens(record.text), normalize(record.answer)
         twin = False
         for other, other_toks, other_answer in pool:
-            if other.kind != record.kind or other.language != record.language:
+            if other.kind != record.kind or other.language != record.language or (record.kind == "line" and other.extra != record.extra):
                 continue
             score = similarity(toks, other_toks)
             if score >= SIMILAR or (answer and answer == other_answer and score >= SAME_ANSWER_SIMILAR):

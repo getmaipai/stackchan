@@ -1,0 +1,512 @@
+# Intent: The asset store, device side (owner decision 17; core SF89; design docs/plan/installed-set.md B and G). The part of the assets partition from CONFIG_MAIPAI_ASSET_STORE_START (0x320000) to the pack cache holds installed assets of every kind; the host installs with the tools self.assets.list, install, data, commit, remove, swap and abort (every refusal says what went wrong and what to do, in English and Spanish, with a code). Signed kinds need the release key's Ed25519 signature over the 128 byte header (the owner's own kinds, like look, are taken from the paired host on the hash and length); the body is streamed in 2,048 byte pieces, written a sector at a time with a pause between sectors, checked, read back and hashed, and only then does the directory flip. A game, an update, a lock or another install refuses it; so does a largest internal block under 20,000 bytes. Events asset_progress (every 10 percent), asset_done and asset_failed. A consumer calls maipai_assets_slots and maipai_assets_load (a PSRAM copy it frees). Off unless MAIPAI_ASSET_STORE (the nofont and lean images turn it on; the plain image is too large for it); with it on the build refuses an assets image that reaches the store.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_assets.cc and maipai_assets.h (ours); a registration line in hal_mcp.cpp; a build limit in main/CMakeLists.txt
+# Check after a flash: on a nofont or lean image, self.assets.list shows empty kinds and the free room (336 sectors less 8 for the directory); installing a signed game pack with install, data, commit shows it in the list as ok and active; a flipped byte in the body is refused at commit with the hash error and the list is unchanged; remove frees the room; a cut of the power in the middle of an install leaves the old list after the reboot; self.assets.install during a game is refused in words.
+# Kconfig: MAIPAI_ASSET_STORE (default n), MAIPAI_ASSET_STORE_START (hex, default 0x320000)
+# Memory cost: nothing while off or unused. In use: one 12.5 KB block in PSRAM (the directory, a 4 KB sector being filled, a 4 KB scratch and a piece), allocated the first time the store is used and kept; internal RAM about 50 bytes (a mutex and flags); flash about 7 KB (estimate).
+
+diff --git a/firmware/main/hal/maipai_assets.h b/firmware/main/hal/maipai_assets.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_assets.h
+@@ -0,0 +1,41 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The asset store, device side (patch SF90; the logic is maipai_assets_core.h). One region of the assets partition between the stock
++ * image and the pack cache holds every installed asset (language, font, style, look, game, sound, phrase). The host installs by
++ * tool calls (list, install, data, commit, remove, swap, abort); a consumer asks for the active item or one slot and gets a PSRAM
++ * copy it frees itself. Nothing loads at boot: the directory is read, and its 12.5 KB PSRAM block allocated, the first time something
++ * asks.
++ */
++#pragma once
++#include <sdkconfig.h>
++#include <stddef.h>
++#include <stdint.h>
++
++#if CONFIG_MAIPAI_ASSET_STORE
++void maipai_assets_register_tools();
++// The installed slots of a kind (ascending), at most 8. Returns how many.
++int maipai_assets_slots(int kind, uint8_t slots[8]);
++// A PSRAM copy of the item in this slot, checked against its hash; the caller frees it with maipai_assets_free. Fills name (41 bytes) when given.
++// False when there is no such item, it is damaged or memory is short.
++bool maipai_assets_load(int kind, int slot, uint8_t** bytes, size_t* len, char* name);
++void maipai_assets_free(uint8_t* bytes);
++// Reads len bytes at off of an item's body into buf, in place from the flash (no copy, no hash: the store checked the item when it read the directory).
++// False when there is no such item, it is damaged or the range is outside it.
++bool maipai_assets_read(int kind, int slot, uint32_t off, void* buf, size_t len);
++// The size of an item's body and its name (41 bytes, optional); false when there is no such (undamaged) item.
++bool maipai_assets_info(int kind, int slot, uint32_t* size, char* name);
++// The unit writes an item of its own kind (the heard list), atomically beside the old one. True on success.
++bool maipai_assets_put_unit(int kind, const char* name, const uint8_t* body, size_t len);
++// Changes whenever an install, a remove or a swap changed the store, so a consumer that keeps a copy knows to load it again.
++uint32_t maipai_assets_generation();
++#else
++inline void maipai_assets_register_tools() {}
++inline int maipai_assets_slots(int, uint8_t*) { return 0; }
++inline bool maipai_assets_load(int, int, uint8_t**, size_t*, char*) { return false; }
++inline void maipai_assets_free(uint8_t*) {}
++inline uint32_t maipai_assets_generation() { return 0; }
++inline bool maipai_assets_read(int, int, uint32_t, void*, size_t) { return false; }
++inline bool maipai_assets_info(int, int, uint32_t*, char*) { return false; }
++inline bool maipai_assets_put_unit(int, const char*, const uint8_t*, size_t) { return false; }
++#endif
+diff --git a/firmware/main/hal/maipai_assets.cc b/firmware/main/hal/maipai_assets.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_assets.cc
+@@ -0,0 +1,391 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The asset store, device side (patch SF90). See maipai_assets.h and docs/plan/installed-set.md sections B and G. The store is the part
++ * of the assets partition from CONFIG_MAIPAI_ASSET_STORE_START to the pack cache (0x470000); the build refuses an assets image that
++ * reaches into it. The directory and the scratch sectors live in one PSRAM block, allocated the first time the store is used (nothing before). Flash calls run on the tool task, a
++ * sector at a time with a pause between sectors (the animation and the audio go first).
++ */
++#include "maipai_assets.h"
++
++#if CONFIG_MAIPAI_ASSET_STORE
++#include "maipai_assets_core.h"
++#include "maipai_games.h"
++#include "maipai_lock.h"
++#include "maipai_update.h"
++#include "device_events.h"
++#include "update_verify.h"
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_partition.h>
++#include <esp_timer.h>
++#include <freertos/FreeRTOS.h>
++#include <freertos/task.h>
++#include <mbedtls/base64.h>
++#include <mcp_server.h>
++#include <atomic>
++#include <cstdio>
++#include <cstring>
++#include <mutex>
++#include <string>
++
++static const char* TAG = "MAIPAI-ASSETS";
++
++namespace {
++
++constexpr uint32_t kRegionStart = CONFIG_MAIPAI_ASSET_STORE_START;
++constexpr uint32_t kRegionBytes = TPC_REGION_START - kRegionStart;   // up to the pack cache
++constexpr uint32_t kRegionSectors = kRegionBytes / MAS_SECTOR;
++constexpr uint16_t kDataSectors = kRegionSectors - MAS_RING;
++constexpr uint32_t kMinInternalBlock = 20000;   // the camera stream needs this much to start: an install never takes it
++
++static_assert(CONFIG_MAIPAI_ASSET_STORE_START % MAS_SECTOR == 0, "the store starts on a sector");
++static_assert(CONFIG_MAIPAI_ASSET_STORE_START < TPC_REGION_START, "the store ends where the pack cache starts");
++
++constexpr uint32_t kPiece = 2048;
++
++const esp_partition_t* s_part = nullptr;
++std::mutex s_mu;
++
++struct Mem {
++    mas_dir_t dir;
++    mas_report_t rep;
++    mas_plan_t plan;
++    uint8_t sector[MAS_SECTOR];   // the sector being filled (and a scratch for remove and swap)
++    uint8_t scratch[MAS_SECTOR];  // the scratch of the data and commit flash calls
++    uint8_t piece[kPiece + 4];    // one decoded piece
++    uint32_t got;                 // body bytes received
++    uint32_t buffered;            // of them, held in `sector` and not yet written
++    uint8_t deps[MAS_DEPS][8];
++    char kind_name[12];
++    uint8_t next_pct;
++};
++Mem* s_mem = nullptr;
++bool s_scanned = false;
++bool s_installing = false;
++std::atomic<uint32_t> s_generation{0};   // changes whenever an install, a remove or a swap changed the store
++
++const char* const kCodes[MAS_E_COUNT] = {"ok", "short_header", "bad_magic", "no_board", "other_board", "unknown_kind", "bad_name", "bad_length", "no_license",
++                                         "newer_firmware", "reserved", "bad_slot", "older_version", "full", "flash", "hash", "no_item", "directory"};
++
++int f_read(void*, uint32_t off, uint8_t* buf, size_t len) { return esp_partition_read(s_part, kRegionStart + off, buf, len) == ESP_OK ? 0 : -1; }
++int f_erase(void*, uint32_t off, size_t len) { return esp_partition_erase_range(s_part, kRegionStart + off, len) == ESP_OK ? 0 : -1; }
++int f_write(void*, uint32_t off, const uint8_t* buf, size_t len) { return esp_partition_write(s_part, kRegionStart + off, buf, len) == ESP_OK ? 0 : -1; }
++void f_pause(void*) { vTaskDelay(pdMS_TO_TICKS(8)); }
++const tpc_ops_t OPS = {f_read, f_erase, f_write, f_pause};
++
++std::string json_str(const char* s)
++{
++    std::string o;
++    for (; *s != '\0'; s++) {
++        if (*s == '"' || *s == '\\') o += '\\';
++        o += *s;
++    }
++    return o;
++}
++
++std::string fail(int code)
++{
++    return std::string("{\"ok\":false,\"code\":\"") + kCodes[code] + "\",\"error\":\"" + json_str(MAS_ERR_EN[code]) + "\",\"error_es\":\"" + json_str(MAS_ERR_ES[code]) + "\"}";
++}
++
++std::string fail_text(const char* code, const char* en, const char* es)
++{
++    return std::string("{\"ok\":false,\"code\":\"") + code + "\",\"error\":\"" + json_str(en) + "\",\"error_es\":\"" + json_str(es) + "\"}";
++}
++
++// call with s_mu held: finds the partition, allocates the memory and reads the directory the first time. Returns "" or a plain reason.
++const char* ensure_locked()
++{
++    if (s_part == nullptr) {
++        s_part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "assets");
++        if (s_part == nullptr || s_part->size < TPC_REGION_START) return "The unit has no room for installed assets. Update the unit, then try again.";
++    }
++    if (s_mem == nullptr) {
++        s_mem = static_cast<Mem*>(heap_caps_calloc(1, sizeof(Mem), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (s_mem == nullptr) return "The unit is low on memory. Restart it and try again.";
++        s_scanned = false;
++    }
++    if (!s_scanned) {
++        mas_scan(&OPS, nullptr, s_mem->sector, kDataSectors, &s_mem->dir, &s_mem->rep);
++        s_scanned = true;
++        ESP_LOGI(TAG, "store read: dir %s, %u free of %u sectors", s_mem->rep.dir_found ? "found" : "empty", static_cast<unsigned>(mas_free_sectors(&s_mem->dir)), kDataSectors);
++    }
++    return "";
++}
++
++bool b64(const std::string& in, uint8_t* out, size_t cap, size_t* n)
++{
++    return mbedtls_base64_decode(out, cap, n, reinterpret_cast<const uint8_t*>(in.data()), in.size()) == 0;
++}
++
++int kind_by_name(const std::string& s)
++{
++    for (int i = 0; i < MAS_KINDS; i++) if (s == MAS_KIND[i].name) return i;
++    return -1;
++}
++
++void hex8(const uint8_t* id, char out[17]) { for (int i = 0; i < 8; i++) snprintf(out + 2 * i, 3, "%02x", id[i]); }
++
++void event(const char* kind, const char* name_kind, const char* name, const char* extra)
++{
++    char buf[200];
++    snprintf(buf, sizeof(buf), "\"kind\":\"%s\",\"name\":\"%.40s\"%s", name_kind, name, extra);
++    device_events_push(kind, buf);
++}
++
++bool busy(std::string* why)
++{
++    if (maipai_lock_locked()) { *why = fail_text("locked", "The unit is locked. Unlock it with the code on its screen first.", "La unidad esta bloqueada. Desbloqueala primero con el codigo en su pantalla."); return true; }
++    if (maipai_games_active()) { *why = fail_text("game_running", "A game is running. Stop it first (swipe down from the bottom edge, or say stop), then try again.", "Hay un juego en marcha. Detenlo primero (desliza hacia abajo desde el borde inferior, o di para) y vuelve a intentarlo."); return true; }
++    if (maipai_update_active()) { *why = fail_text("updating", "The unit is installing an update. Try again when it has restarted.", "La unidad esta instalando una actualizacion. Intentalo otra vez cuando se reinicie."); return true; }
++    return false;
++}
++
++}  // namespace
++
++int maipai_assets_slots(int kind, uint8_t slots[8])
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (kind < 0 || kind >= MAS_KINDS || ensure_locked()[0] != '\0') return 0;
++    int n = 0;
++    for (int s = 0; s < MAS_MAX_SLOTS && n < 8; s++) {
++        const int i = mas_find(&s_mem->dir, kind, s);
++        if (i >= 0 && !s_mem->rep.damaged[i]) slots[n++] = static_cast<uint8_t>(s);
++    }
++    return n;
++}
++
++bool maipai_assets_load(int kind, int slot, uint8_t** bytes, size_t* len, char* name)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (kind < 0 || kind >= MAS_KINDS || ensure_locked()[0] != '\0') return false;
++    const int i = mas_find(&s_mem->dir, kind, slot);
++    if (i < 0 || s_mem->rep.damaged[i]) return false;
++    const mas_entry_t& e = s_mem->dir.e[i];
++    uint8_t* out = static_cast<uint8_t*>(heap_caps_malloc(e.nsect * MAS_SECTOR, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (out == nullptr) return false;
++    for (uint32_t k = 0; k < e.nsect; k++) {
++        if (f_read(nullptr, (MAS_RING + e.first + k) * MAS_SECTOR, out + k * MAS_SECTOR, MAS_SECTOR) != 0) {
++            heap_caps_free(out);
++            return false;
++        }
++    }
++    muh_sha_t s;
++    muh_sha_begin(&s);
++    muh_sha_update(&s, out, e.size);
++    uint8_t got[32];
++    muh_sha_end(&s, got);
++    if (memcmp(got, e.sha, 32) != 0) {   // the bytes changed since the scan: mark it and refuse
++        s_mem->rep.damaged[i] = 1;
++        heap_caps_free(out);
++        return false;
++    }
++    *bytes = out;
++    *len = e.size;
++    if (name != nullptr) memcpy(name, e.name, MAS_NAME_MAX + 1);
++    return true;
++}
++
++bool maipai_assets_info(int kind, int slot, uint32_t* size, char* name)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (kind < 0 || kind >= MAS_KINDS || ensure_locked()[0] != '\0') return false;
++    const int i = mas_find(&s_mem->dir, kind, slot);
++    if (i < 0 || s_mem->rep.damaged[i]) return false;
++    if (size != nullptr) *size = s_mem->dir.e[i].size;
++    if (name != nullptr) memcpy(name, s_mem->dir.e[i].name, MAS_NAME_MAX + 1);
++    return true;
++}
++
++bool maipai_assets_read(int kind, int slot, uint32_t off, void* buf, size_t len)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (kind < 0 || kind >= MAS_KINDS || ensure_locked()[0] != '\0') return false;
++    const int i = mas_find(&s_mem->dir, kind, slot);
++    if (i < 0 || s_mem->rep.damaged[i] || static_cast<uint64_t>(off) + len > s_mem->dir.e[i].size) return false;
++    const uint32_t base = (MAS_RING + s_mem->dir.e[i].first) * MAS_SECTOR + off;
++    return f_read(nullptr, base, static_cast<uint8_t*>(buf), len) == 0;
++}
++
++bool maipai_assets_put_unit(int kind, const char* name, const uint8_t* body, size_t len)
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (ensure_locked()[0] != '\0' || s_installing) return false;
++    const int r = mas_store_unit(&OPS, nullptr, s_mem->scratch, &s_mem->dir, kind, name, body, static_cast<uint32_t>(len));
++    if (r != MAS_OK) {
++        ESP_LOGW(TAG, "could not write %s: %s", name, MAS_ERR_EN[r]);
++        s_scanned = false;   // read the directory again: a cut write may have left the old one
++        return false;
++    }
++    return true;   // the generation stays: a unit kind is not something a consumer keeps a copy of
++}
++
++void maipai_assets_free(uint8_t* bytes) { heap_caps_free(bytes); }
++
++uint32_t maipai_assets_generation() { return s_generation.load(); }
++
++void maipai_assets_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.assets.list",
++                "List what is installed in the asset store: each kind with its slots, and the free room. Answers {ok, v, region_bytes, free_bytes, dir_ok, kinds:[{kind, max_slots, max_item_bytes, active_slot, items:[{slot, name, code, version, bytes, sha8, active, state}]}]}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    const char* why = ensure_locked();
++                    if (why[0] != '\0') return fail_text("unavailable", why, why);
++                    const mas_dir_t& d = s_mem->dir;
++                    std::string out = std::string("{\"ok\":true,\"v\":1,\"region_bytes\":") + std::to_string(kDataSectors * MAS_SECTOR) + ",\"free_bytes\":" +
++                                      std::to_string(mas_free_sectors(&d) * MAS_SECTOR) + ",\"dir_ok\":" + (s_mem->rep.dir_corrupt ? "false" : "true") + ",\"installing\":" +
++                                      (s_installing ? "true" : "false") + ",\"kinds\":[";
++                    for (int k = 0; k < MAS_KINDS; k++) {
++                        const int act = mas_active(&d, k);
++                        out += std::string(k ? "," : "") + "{\"kind\":\"" + MAS_KIND[k].name + "\",\"max_slots\":" + std::to_string(MAS_KIND[k].max_slots) + ",\"max_item_bytes\":" +
++                               std::to_string(MAS_KIND[k].max_bytes) + ",\"active_slot\":" + (act >= 0 ? std::to_string(d.e[act].slot) : std::string("-1")) + ",\"items\":[";
++                        bool first = true;
++                        for (int s = 0; s < MAS_MAX_SLOTS; s++) {
++                            const int i = mas_find(&d, k, s);
++                            if (i < 0) continue;
++                            char id[17];
++                            hex8(d.e[i].sha, id);
++                            out += std::string(first ? "" : ",") + "{\"slot\":" + std::to_string(s) + ",\"name\":\"" + json_str(d.e[i].name) + "\",\"code\":\"" + json_str(d.e[i].code) +
++                                   "\",\"version\":" + std::to_string(d.e[i].version) + ",\"bytes\":" + std::to_string(d.e[i].size) + ",\"sha8\":\"" + id + "\",\"active\":" +
++                                   (d.e[i].active ? "true" : "false") + ",\"state\":\"" + (s_mem->rep.damaged[i] ? "damaged" : "ok") + "\"}";
++                            first = false;
++                        }
++                        out += "]}";
++                    }
++                    return out + "]}";
++                });
++    mcp.AddTool("self.assets.install",
++                "Begin installing an asset: header_b64 is the 128 byte .mah file, sig_b64 its 64 byte Ed25519 signature (empty only for the owner's own kinds, which the paired host may send). slot -1 takes the first free slot. "
++                "Then send the body with self.assets.data and finish with self.assets.commit. Answers {ok, slot, accept_bytes, piece_bytes} or a plain error.",
++                PropertyList({Property("slot", kPropertyTypeInteger, -1, -1, 7), Property("header_b64", kPropertyTypeString, std::string("")),
++                              Property("sig_b64", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    std::string why;
++                    if (busy(&why)) return why;
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    if (s_installing) return fail_text("busy", "Another install is running. Finish or abort it first.", "Hay otra instalacion en curso. Terminala o abortala primero.");
++                    const char* mem = ensure_locked();
++                    if (mem[0] != '\0') return fail_text("unavailable", mem, mem);
++                    if (heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) < kMinInternalBlock)
++                        return fail_text("low_memory", "The unit is low on memory right now. Try again in a minute.", "La unidad tiene poca memoria ahora. Intentalo otra vez en un minuto.");
++                    uint8_t hdr[MAS_ASSET_HDR + 4];
++                    size_t hn = 0;
++                    if (!b64(properties["header_b64"].value<std::string>(), hdr, sizeof(hdr), &hn)) return fail(MAS_E_SHORT);
++                    mah_t m;
++                    int r = mah_parse(hdr, hn, CONFIG_MAIPAI_BOARD_ID, CONFIG_MAIPAI_FW_BUILD, &m);
++                    if (r != MAS_OK) return fail(r);
++                    if (MAS_KIND[m.kind].owner_trust == 2)   // the unit writes these itself (the heard list)
++                        return fail_text("unit_kind", "The unit writes this kind itself. Do not install it from the host.", "La unidad escribe este tipo ella misma. No lo instales desde el equipo.");
++                    if (!MAS_KIND[m.kind].owner_trust) {   // the release key signs every kind but the owner's own
++                        uint8_t sig[MAS_SIG_LEN + 4];
++                        size_t sn = 0;
++                        if (!b64(properties["sig_b64"].value<std::string>(), sig, sizeof(sig), &sn) || sn != MAS_SIG_LEN)
++                            return fail_text("no_signature", "The asset has no valid signature. Send the .mah.sig file with it.", "El recurso no tiene una firma valida. Envia tambien el archivo .mah.sig.");
++                        UpdateVerifier v;
++                        if (!v.Begin(std::string(reinterpret_cast<char*>(sig), MAS_SIG_LEN))) return fail_text("no_key", "This unit has no release key, so it cannot check the signature.", "Esta unidad no tiene clave de versiones, asi que no puede comprobar la firma.");
++                        v.Update(hdr, MAS_ASSET_HDR);
++                        if (!v.Finish()) return fail_text("bad_signature", "The signature does not match the asset header. Download the asset again.", "La firma no coincide con el encabezado. Descarga el recurso otra vez.");
++                    }
++                    r = mas_begin(&s_mem->dir, &m, properties["slot"].value<int>(), &s_mem->plan);
++                    if (r != MAS_OK) return fail(r);
++                    s_mem->got = s_mem->buffered = 0;
++                    s_mem->next_pct = 10;
++                    memset(s_mem->deps, 0, sizeof(s_mem->deps));
++                    snprintf(s_mem->kind_name, sizeof(s_mem->kind_name), "%s", MAS_KIND[m.kind].name);
++                    s_installing = true;
++                    ESP_LOGI(TAG, "install %s %s v%u, %u bytes, %u sectors at %d", s_mem->kind_name, m.name, static_cast<unsigned>(m.version), static_cast<unsigned>(m.body_len),
++                             static_cast<unsigned>(s_mem->plan.nsect), s_mem->plan.first);
++                    return std::string("{\"ok\":true,\"slot\":") + std::to_string(s_mem->plan.index) + ",\"accept_bytes\":" + std::to_string(m.body_len) + ",\"piece_bytes\":" + std::to_string(kPiece) + "}";
++                });
++    mcp.AddTool("self.assets.data",
++                "Send the next piece of the body (up to 2048 raw bytes, base64). at must equal the bytes the unit already has. Answers {ok, got} or a plain error.",
++                PropertyList({Property("at", kPropertyTypeInteger, 0, 0, 2147483647), Property("b64", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    if (!s_installing || s_mem == nullptr) return fail_text("not_installing", "No install is running. Start one with self.assets.install first.", "No hay una instalacion en curso. Empieza una con self.assets.install.");
++                    uint8_t* piece = s_mem->piece;
++                    size_t n = 0;
++                    if (!b64(properties["b64"].value<std::string>(), piece, kPiece + 4, &n) || n == 0 || n > kPiece)
++                        return fail_text("bad_piece", "The piece is empty or larger than 2048 bytes. Send pieces of at most 2048 bytes.", "El trozo esta vacio o pasa de 2048 bytes. Envia trozos de 2048 bytes como maximo.");
++                    if (static_cast<uint32_t>(properties["at"].value<int>()) != s_mem->got)
++                        return fail_text("out_of_order", "The piece is not the next one. Send the bytes in order, starting at the number in got.", "El trozo no es el siguiente. Envia los bytes en orden, desde el numero de got.");
++                    if (s_mem->got + n > s_mem->plan.h.body_len) return fail(MAS_E_LENGTH);
++                    memcpy(s_mem->sector + s_mem->buffered, piece, n);   // a sector is written when it is full or the body ends
++                    s_mem->buffered += static_cast<uint32_t>(n);
++                    s_mem->got += static_cast<uint32_t>(n);
++                    if (s_mem->buffered == MAS_SECTOR || s_mem->got == s_mem->plan.h.body_len) {
++                        const int r = mas_data(&OPS, nullptr, s_mem->scratch, &s_mem->plan, s_mem->sector, s_mem->buffered);
++                        s_mem->buffered = 0;
++                        if (r != MAS_OK) {
++                            s_installing = false;
++                            event("asset_failed", s_mem->kind_name, s_mem->plan.h.name, "");
++                            return fail(r);
++                        }
++                    }
++                    const uint32_t pct = static_cast<uint32_t>(static_cast<uint64_t>(s_mem->got) * 100u / s_mem->plan.h.body_len);
++                    if (pct >= s_mem->next_pct) {
++                        char extra[24];
++                        snprintf(extra, sizeof(extra), ",\"percent\":%u", static_cast<unsigned>(pct));
++                        event("asset_progress", s_mem->kind_name, s_mem->plan.h.name, extra);
++                        s_mem->next_pct = static_cast<uint8_t>((pct / 10 + 1) * 10);
++                    }
++                    return std::string("{\"ok\":true,\"got\":") + std::to_string(s_mem->got) + "}";
++                });
++    mcp.AddTool("self.assets.commit",
++                "Finish the install: the unit checks the length and hash, reads the run back, then switches to the new item in one step. Answers {ok, slot} or a plain error.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    if (!s_installing || s_mem == nullptr) return fail_text("not_installing", "No install is running. Start one with self.assets.install first.", "No hay una instalacion en curso. Empieza una con self.assets.install.");
++                    const int r = mas_commit(&OPS, nullptr, s_mem->scratch, &s_mem->dir, &s_mem->plan, s_mem->deps);
++                    s_installing = false;
++                    s_scanned = false;   // read the directory again (it also re-checks every item) at the next use
++                    s_generation++;
++                    if (r != MAS_OK) {
++                        event("asset_failed", s_mem->kind_name, s_mem->plan.h.name, "");
++                        return fail(r);
++                    }
++                    event("asset_done", s_mem->kind_name, s_mem->plan.h.name, "");
++                    return std::string("{\"ok\":true,\"slot\":") + std::to_string(s_mem->plan.index) + "}";
++                });
++    mcp.AddTool("self.assets.abort", "Drop an install that is running. Nothing is changed. Answers {ok}.", std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++        std::lock_guard<std::mutex> lock(s_mu);
++        s_installing = false;
++        return std::string("{\"ok\":true}");
++    });
++    mcp.AddTool("self.assets.remove", "Remove an installed asset: kind (language, font, style, look, game, sound or phrase) and slot. One directory write; the room is free for the next install. Answers {ok} or a plain error.",
++                PropertyList({Property("kind", kPropertyTypeString, std::string("")), Property("slot", kPropertyTypeInteger, 0, 0, 7)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    std::string why;
++                    if (busy(&why)) return why;
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    const char* mem = ensure_locked();
++                    if (mem[0] != '\0') return fail_text("unavailable", mem, mem);
++                    if (s_installing) return fail_text("busy", "An install is running. Finish or abort it first.", "Hay una instalacion en curso. Terminala o abortala primero.");
++                    const int k = kind_by_name(properties["kind"].value<std::string>());
++                    if (k < 0) return fail(MAS_E_KIND);
++                    const int r = mas_remove(&OPS, nullptr, s_mem->sector, &s_mem->dir, k, properties["slot"].value<int>());
++                    s_scanned = false;
++                    s_generation++;
++                    return r == MAS_OK ? std::string("{\"ok\":true}") : fail(r);
++                });
++    mcp.AddTool("self.assets.swap", "Make an installed asset the active one of its kind: kind and slot. One directory write, nothing else is written. Answers {ok} or a plain error.",
++                PropertyList({Property("kind", kPropertyTypeString, std::string("")), Property("slot", kPropertyTypeInteger, 0, 0, 7)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    std::string why;
++                    if (busy(&why)) return why;
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    const char* mem = ensure_locked();
++                    if (mem[0] != '\0') return fail_text("unavailable", mem, mem);
++                    const int k = kind_by_name(properties["kind"].value<std::string>());
++                    if (k < 0) return fail(MAS_E_KIND);
++                    const int r = mas_swap(&OPS, nullptr, s_mem->sector, &s_mem->dir, k, properties["slot"].value<int>());
++                    s_scanned = false;
++                    s_generation++;
++                    return r == MAS_OK ? std::string("{\"ok\":true}") : fail(r);
++                });
++}
++
++#endif
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -25,6 +25,7 @@
+ #include "maipai_dance_session.h"
+ #include "maipai_motion_limit.h"
+ #include "maipai_games.h"
++#include "maipai_assets.h"
+ #include "maipai_pages_unit.h"
+ #include "maipai_lock.h"
+ #include "maipai_facebench.h"
+@@ -790,6 +791,7 @@ void Hal::xiaozhi_mcp_init()
+ 
+     // self.game.list, start, stop and scores (patch G01). Nothing runs until a game starts.
+     maipai_games_register_tools();
++    maipai_assets_register_tools();  // patch SF90: self.assets.* (nothing unless MAIPAI_ASSET_STORE)
+ 
+     // self.lock.status, set, clear, now and config (patch LK02).
+     maipai_lock_register_tools();
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -233,6 +233,22 @@ config MAIPAI_PARTITION_EXTRA_ASSETS
+         carries none of them. The bench probe self.bench.asset_use (SF79) showed that after boot and a walk of every screen of this firmware none of the 18 was loaded; only
+         the stock apps themselves (reached by holding the hardware button for 3 seconds) are not yet checked. Off frees about 708,000 bytes of the assets partition.
+ 
++config MAIPAI_ASSET_STORE
++    bool "Asset store (installed languages, fonts, styles, games, sounds; patch SF90)"
++    default n
++    help
++        Keeps installed assets in the part of the assets partition between the stock image and the pack cache, and registers
++        self.assets.list, install, data, commit, remove, swap and abort. The stock image must end below the start address
++        below: the build fails when it does not. The plain image is too large for it (4,463,226 bytes against 0x320000);
++        the nofont and lean images fit.
++
++config MAIPAI_ASSET_STORE_START
++    hex "Where the asset store starts in the assets partition (a multiple of 4096)"
++    default 0x320000
++    depends on MAIPAI_ASSET_STORE
++    help
++        The store runs from here to the pack cache at 0x470000: 336 sectors of 4,096 bytes, 8 of them the directory ring.
++
+ config MAIPAI_FW_BUILD
+     int "Build number of this image (signed updates)"
+     default 0
+diff --git a/firmware/main/CMakeLists.txt b/firmware/main/CMakeLists.txt
+--- a/firmware/main/CMakeLists.txt
++++ b/firmware/main/CMakeLists.txt
+@@ -468,7 +468,13 @@ function(build_default_assets_bin)
+     
+     partition_table_get_partition_info(assets_partition_size "--partition-name assets" "size")
+     if(assets_partition_size)
+-        list(APPEND BUILD_ARGS "--max_size" "${assets_partition_size}")
++        # Patch SF90: with the asset store on, the stock image must stop where the store starts (the pack cache is at the tail).
++        if(CONFIG_MAIPAI_ASSET_STORE)
++            math(EXPR asset_image_limit "${CONFIG_MAIPAI_ASSET_STORE_START}")
++            list(APPEND BUILD_ARGS "--max_size" "${asset_image_limit}")
++        else()
++            list(APPEND BUILD_ARGS "--max_size" "${assets_partition_size}")
++        endif()
+     endif()
+ 
+     # Create custom command to build assets

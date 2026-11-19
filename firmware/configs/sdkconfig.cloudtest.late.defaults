@@ -1,0 +1,5 @@
+# Read after sdkconfig.core.defaults (patch SF99), so it can override the core trim for this one kind.
+# The normal image carries no public roots on purpose (ca/travel-roots.pem: a placeholder and ISRG Root X1). The vendor's chain is unknown offline, so the test image adds the
+# full standard root set (IDF's list of Mozilla roots). This is what lets the check verify the vendor's certificate; it is only in this kind.
+# CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_NONE is not set
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y

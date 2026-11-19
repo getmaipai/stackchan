@@ -2316,6 +2316,8 @@ class StackChanTurnBridge:
             line, scored = out
             if scored:
                 self.talk_games.add_point(device_id)
+            if self.talk_fallback.done(device_id):
+                self.talk_games.end(device_id, "finished")
             await asyncio.to_thread(self._say, playback, base, cookie, line)
             self._breaker.note_speech()
             return True

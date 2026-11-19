@@ -158,3 +158,29 @@ Built: record, shelf writer and reader (header `MPSH`, matching the firmware rea
 Talk games from the library (state S1 of `model-games.md`): built for riddles and trivia in `host/maipai_packages/pantry/talk_fallback.py`. When the model cannot be reached in the middle of one of those games, the host plays the next turn from the library with fixed lines (English and Spanish; other languages fall back to English), counts the score itself, and never repeats a record to the same unit. Only `kid` records are used unless adult humor is on. Jokes have no talk game yet, and twenty questions, word chain, would you rather and the bedtime story have no library half, so they keep the usual offline line. Proven with tests against a fake turn; not yet proven on a real unit with the model switched off.
 
 The built-in set (`host/maipai_packages/pantry/seed/`, `seed_loader.py`): loaded once per seed file for the chosen languages when the pantry starts, with no model; a marker file (`seed-loaded.json`) keeps deleted records deleted and a changed seed file adds only what is missing. Records marked never again are never added. The dashboard card shows "Built-in set" and marks each built-in row.
+
+## Lines by situation (kind `line`, owner decision 24 extension, 2026-11-18)
+
+Offline, with no host and no model, the robot answers from canned lines: the unit's reader picks a line for the situation, shows it as the subtitle and plays the code-made mumble (`offline-mumble.md`). The robot talks, in a small way, from a pantry set.
+
+**The record.** Kind `line` (kind byte 5 on a shelf). `text` is the line, at most 100 bytes, in the robot's voice (short, warm, plain, no exclamation points). `extra` is the situation tag. No `answer`. Rating `kid` only. The id rule is unchanged. Dedupe works inside one situation, so a similar line under two situations is kept. The host does not write lines with the model: they ship in the built-in set (`seed/<language>-line.json`, about 6 per situation per language) and the model refill says so.
+
+**The situations** (`record.SITUATIONS`, 20, confirmed as asked):
+
+| Tag | When the unit uses it |
+|---|---|
+| `greeting_morning`, `greeting_day`, `greeting_evening` | A person appears or the wake word is heard, by the unit's own clock. |
+| `goodnight` | Night mode starts, or the person says good night. |
+| `touch_head`, `touch_face` | A head pet or a tap on the face. |
+| `pick_up`, `put_down` | The unit is lifted, or set down again. |
+| `shaken` | A shake. |
+| `loud_noise` | A sudden loud sound. |
+| `wake_heard_offline` | The wake word fired and no host answers (replaces the "hello" clip). |
+| `cannot_reach_home` | The host or Wi-Fi is not there (replaces the no_wifi, no_host and connecting clips). |
+| `back_online` | The host is back (replaces the back clips). |
+| `timer_done` | A timer ends (the tone still plays first). |
+| `battery_low` | A low-battery step (the recorded warning stays; this adds a friendly line). |
+| `thanks` | The person says thanks. |
+| `bored`, `sleepy`, `happy`, `curious` | The idle mood moves, by the pet mood. |
+
+**The 16 offline phrases** (`host/scripts/render_unit_phrases.py`, five groups): `no_wifi` (4), `no_host` (4), `connecting` (3) and `back` (2) are link-state chatter, not alarm, safety or battery, so 13 of the 16 move to lines (`cannot_reach_home` and `back_online`). `refused` (3: "I need to be approved again") stays a recorded clip, because it tells the owner to act on pairing. Flash: the 16 ogg clips measure 76,003 bytes (about 4.7 KB each), so the 13 that move free about 62 KB of the assets image for the one voice and language shipped today, and more once the phrase pack carries six languages. The replacement costs about 8 KB per language (20 situations, 6 lines, about 70 bytes plus the 16 byte index each).
