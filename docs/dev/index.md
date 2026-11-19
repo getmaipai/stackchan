@@ -30,6 +30,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - [Contributing](contributing.md)
 - [Cross-review bugs: fixed and still open](cross-review-status.md)
 - [Dance entry points on the real unit, and what each one runs](dance-entry-points.md)
+- [What this display can do](display-capabilities.md)
 - [Display speed: what the wire allows and where the rest goes (firmware track, 2026-11-19)](display-speed.md)
 - [Draft names to confirm](draft-names.md)
 - [End to end on the virtual unit (the spoken-turn check without hardware)](e2e-virtual-unit.md)

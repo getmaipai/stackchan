@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Frame cost of every game from the host renderer (docs/plan/games-visual-budget.md): for a run of each game, how much of the glass changes from one frame to the next, as pixels changed and as the
 area of the bounding box of the change (what a flush of only the changed rectangle costs). The unit's cost is taken from the box times the bench measured on the unit (2026-11-19, self.game.bench_box,
-a 100 by 100 pixel box drawn and flushed): a flat box takes 8,490 microseconds, so 0.849 ms per 1,000 pixels, draw and flush together (a full 320 by 240 screen is about 65 ms; the display flush alone runs
-about 2.4 MB/s). The earlier figure here, 0.39 ms per 1,000 pixels, came from a 30 ms full-screen flush that the bench did not confirm. Each technique costs its own multiple of the flat box (UNIT_BOX_US).
+a 100 by 100 pixel box drawn and flushed): a flat box takes 7,329 microseconds on the b85 bench (8,490 on the b80 bench), so 0.733 ms per 1,000 pixels, draw and flush together (a full 320 by 240 screen is about 56 ms). The first figure used
+here, 0.39 ms per 1,000 pixels, came from a 30 ms full-screen flush that the bench did not confirm. Each technique costs its own multiple of the flat box (UNIT_BOX_US).
 Two models of the flush: only the 16 by 16 pixel tiles that changed (several small dirty rectangles, what SF78 does for the grid games), or one rectangle round everything that changed. The renderer's host
 milliseconds do not carry over to the chip. Usage: games_cost.py [--json]. Placement: host-side development tool. Upstream: none."""
 import json
@@ -13,9 +13,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GRID = ROOT / ".runs" / "vu-screens" / "grid" / "grid_render"
-# Measured on the unit, microseconds to draw and flush one 100 by 100 pixel box (bench, 2026-11-19): the K of every estimate in the budget.
-UNIT_BOX_US = {"flat": 8490, "radius": 9075, "circle": 9879, "gradient": 9317, "shadow-small": 13182, "shadow": 20875, "alpha": 9798, "outline": 10133}
-MS_PER_PIXEL = UNIT_BOX_US["flat"] / 1000.0 / 10000.0   # 0.000849 ms a pixel: 65 ms for a full screen
+# Measured on the unit, microseconds to draw and flush one 100 by 100 pixel box (bench b85, 2026-11-19): the K of every estimate in the budget.
+UNIT_BOX_US = {"flat": 7329, "radius": 7400, "circle": 9300, "gradient": 9000, "shadow-small": 14300, "shadow": 21800, "alpha": 9700, "outline": 10500}   # b85 bench (the b80 bench was 8490, 9075, 9879, 9317, 13182, 20875, 9798, 10133)
+MS_PER_PIXEL = UNIT_BOX_US["flat"] / 1000.0 / 10000.0   # 0.000733 ms a pixel: 56 ms for a full screen
 
 RUNS = {
     "Four in a Row (a disc falls)": ["game c4 3", "diffbegin", "drop 3 1", "advance 700", "drop 4 2", "advance 700", "diffend c4"],

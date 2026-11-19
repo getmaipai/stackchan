@@ -355,9 +355,10 @@ int main()
                 int lang = 0;
                 for (int k = 0; k < 6; k++) if (f[4] == names[k]) lang = k;
                 const int res = f[0] == "won" ? MGO_WON : f[0] == "lost" ? MGO_LOST : f[0] == "over" ? MGO_OVER : f[0] == "timeup" ? MGO_TIMEUP : MGO_DRAW;
-                mgo::g_look = f[5].empty() ? 0 : atoi(f[5].c_str());
+                const int saved_look = mgo::g_look;   // an empty look field is the build's default look (MGO_LOOK_DEFAULT)
+                if (!f[5].empty()) mgo::g_look = atoi(f[5].c_str());
                 s_over = mgo::build_lang(lv_layer_top(), res, f[1].c_str(), f[2].c_str(), f[3] == "1", lang);
-                mgo::g_look = 0;
+                mgo::g_look = saved_look;
                 s_over_t = 0;
                 const uint32_t to = f[6].empty() ? 0 : (uint32_t)atoi(f[6].c_str());
                 for (uint32_t tt = 0; tt <= to; tt += 30) mgo::set_pop(s_over, tt);
@@ -664,9 +665,10 @@ int main()
             if (what == "over") {   // patch UX15d: the game-over screen's motion, a frame every 30 ms from RESULT's screen to MS: play over won|lost|draw|over|timeup NEWBEST LOOK MS
                 std::string res; int nb, look, ms; in >> res >> nb >> look >> ms;
                 const int r = res == "won" ? MGO_WON : res == "lost" ? MGO_LOST : res == "over" ? MGO_OVER : res == "timeup" ? MGO_TIMEUP : MGO_DRAW;
+                const int saved_look = mgo::g_look;
                 mgo::g_look = look;
                 mgo::Screen sc = mgo::build_lang(lv_layer_top(), r, "Score 120", "Best 90", nb != 0, 0);
-                mgo::g_look = 0;
+                mgo::g_look = saved_look;
                 cur = sc.root;
                 diff_frame();   // the screen appears: the whole glass changes, as it does for every game-over look, so the numbers below start from the first frame of the screen itself
                 s_have_prev = false; s_d_frames = s_d_changed = s_d_bbox = s_d_bbox_max = s_d_tiles = s_d_tiles_max = 0; s_d_outside = 0; s_d_dirty = s_d_dirty_max = 0;
@@ -674,7 +676,7 @@ int main()
                 uint32_t before = 0;
                 for (int tt = 30; tt <= ms; tt += 30) {
                     mgo_rect_t rr[MGO2_MAX_RECTS];
-                    const int nr = sc.st != nullptr ? mgo_dirty(r, nb, sc.st->num_len, before, (uint32_t)tt, rr) : 0;
+                    const int nr = sc.st != nullptr ? mgo_dirty(r, nb, sc.st->num_len, sc.st->score_w, before, (uint32_t)tt, rr) : 0;
                     s_dirty.clear();
                     if (sc.st != nullptr && look >= MGO_LOOK_FULL) for (int i = 0; i < nr; i++) s_dirty.push_back({rr[i].x, rr[i].y, rr[i].w, rr[i].h});
                     mgo::set_pop(sc, (uint32_t)tt);

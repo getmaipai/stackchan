@@ -192,6 +192,29 @@ static void test_settings(void)
     /* a slider row keeps 20 px of empty room under the knob (patch QS01): label 18, slider at y 28 (16 high, the knob 8 more each side) */
     CHECK(MAC_SLIDER_ROW_H - (MAC_SLIDER_Y + 16 + 8) >= 20 && MAC_SLIDER_Y >= 20 + 2);   /* patch UX13: the 20 px label above, the slider at y 30; the grab area is 56 px (20 px of extended area each side) */
     /* the rows of each tab, with every flag set */
+#ifdef MAC_UX30_ROWS   /* patch UX30 (docs/plan/unit-settings-simplification.md): five rows in General, the two switches on the Look tab, no repeated Wi-Fi rows */
+    n = mac_set_rows(MAC_TAB_GENERAL, MAC_SF_LOCK | MAC_SF_TAILNET | MAC_SF_PICTURES, r);
+    CHECK(n == 6 && r[0].id == MAC_R_VOLUME && r[1].id == MAC_R_BRIGHT && r[2].id == MAC_R_NIGHT && r[3].id == MAC_R_LANGUAGE && r[4].id == MAC_R_AUTOLOCK && r[5].id == MAC_R_MORE);
+    CHECK(mac_row_kind(MAC_R_LISTEN_LIGHT) == MAC_K_SWITCH && strcmp(mac_row_label(MAC_R_LISTEN_LIGHT, 0), "Listening light") == 0);
+    CHECK(mac_set_rows(MAC_TAB_GENERAL, 0, r) == 5);                     /* no lock built in: no auto lock */
+    for (unsigned f = 0; f < 16; f++) {                                  /* no tab has more than six rows, whatever the flags say */
+        for (int tab = 0; tab < MAC_TAB_COUNT; tab++) {
+            n = mac_set_rows(tab, f, r);
+            if (tab != MAC_TAB_FACES) CHECK(n <= 6);
+        }
+    }
+    n = mac_set_rows(MAC_TAB_NETWORK, MAC_SF_TAILNET, r);
+    CHECK(n == 4 && r[0].id == MAC_R_WIFI_PAGE && r[1].id == MAC_R_SSID && r[2].id == MAC_R_TAILNET && r[3].id == MAC_R_HUB);
+    CHECK(mac_set_rows(MAC_TAB_NETWORK, 0, r) == 3);
+    n = mac_set_rows(MAC_TAB_FACES, 0, r);                               /* the tile rows, then the two switches */
+    CHECK(n == (MPG_SET_STYLES + 1) / 2 + 2 && r[n - 2].id == MAC_R_STATUS_ICONS && r[n - 1].id == MAC_R_LISTEN_LIGHT);
+    CHECK(mac_set_rows(MAC_TAB_FACES, MAC_SF_PICTURES, r) == (MPG_SET_STYLES + 2) / 2 + 2);
+    for (unsigned f = 0; f < 16; f++) {
+        n = mac_set_rows(MAC_TAB_INFO, f, r);
+        CHECK(n == 6 && r[0].id == MAC_R_I_TAG && r[1].id == MAC_R_I_IMAGE && r[2].id == MAC_R_I_SLOT && r[3].id == MAC_R_I_MEM && r[4].id == MAC_R_I_HOST && r[5].id == MAC_R_I_UP);
+        for (int i = 0; i < n; i++) CHECK(r[i].kind == MAC_K_INFO);
+    }
+#else
     n = mac_set_rows(MAC_TAB_GENERAL, MAC_SF_LOCK | MAC_SF_TAILNET | MAC_SF_PICTURES, r);
     CHECK(n == 9 && r[0].id == MAC_R_VOLUME && r[1].id == MAC_R_BRIGHT && r[2].id == MAC_R_NIGHT && r[3].id == MAC_R_STATUS_ICONS && r[4].id == MAC_R_LISTEN_LIGHT && r[5].id == MAC_R_AUTOLOCK && r[6].id == MAC_R_LOCK_NOW && r[7].id == MAC_R_LANGUAGE && r[8].id == MAC_R_MORE);
     CHECK(mac_row_kind(MAC_R_LISTEN_LIGHT) == MAC_K_SWITCH && strcmp(mac_row_label(MAC_R_LISTEN_LIGHT, 0), "Listening light") == 0);   /* patch NX01: the switch moved here from the sheet */
@@ -212,6 +235,7 @@ static void test_settings(void)
               r[5].id == MAC_R_SSID && r[6].id == MAC_R_SIGNAL && r[7].id == MAC_R_I_UP);
         for (int i = 0; i < n; i++) CHECK(r[i].kind == MAC_K_INFO);
     }
+#endif
     char up[24];
     mac_uptime_text(up, sizeof(up), 45, 0); CHECK(strcmp(up, "45 s") == 0);
     mac_uptime_text(up, sizeof(up), 59 * 60 + 59, 0); CHECK(strcmp(up, "59 min") == 0);

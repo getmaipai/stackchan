@@ -50,6 +50,8 @@ SCREENS: dict[str, list] = {
     "screen-settings-general": BAR + [("raw", "pshow settings"), ("advance", 500)],
     "screen-settings-network": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 128"), ("advance", 500)],
     "screen-settings-faces": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 190"), ("advance", 500)],
+    "screen-settings-look-switches": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 190"), ("advance", 400), ("raw", "pscrollby 250 150 100"), ("advance", 400)],   # patch UX30: the Look tab (was Faces) holds the two switches
+    "screen-settings-general-more": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pscrollby 250 150 140"), ("advance", 400)],   # patch UX30: the end of the shorter General list
     "screen-settings-info": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pscrollby 40 150 64"), ("advance", 100), ("raw", "pclick 40 190"), ("advance", 500)],
     # The music dance ladder on a simulated song that builds from quiet to very loud (dance_sim.py: the unit's real ladder core, the host's show): the five steps (patches MD01 to MD03).
     "dance-1-eyes": [("call", "sim.music", {"action": "start", "song": "loud_peak", "mode": "home"}), ("advance", 1300)],
@@ -234,7 +236,7 @@ GRID_SCENARIOS = {
     "game-maze-near-goal": ["game c4 3", "maze 4|520|en", "snap {out}"],
     "game-maze-other-es": ["game c4 3", "maze 9|260|es", "snap {out}"],
 }
-# The new look of the shared game-over screen (patch UX15d, docs/design/game-over-look.md): each outcome on three sample games, the neutral ends, the six languages, moments of the motion and the pressed buttons.
+# The new look of the shared game-over screen (patch UX15d, docs/design/game-over-look.md): each outcome on three sample games, the neutral ends, the six languages, moments of the motion (look 2, which is a bench level) and the pressed buttons.
 # The `over` fields: result|score|best|new best|language|look level|ms after it appeared|pressed button. Look 2 is the new look moving; at 2000 ms every motion has ended.
 def _over(result, score, best, nb, lang="en", look=2, ms=2000, pressed=""):
     return ["game c4 3", f"over {result}|{score}|{best}|{nb}|{lang}|{look}|{ms}|{pressed}", "snap {out}"]
@@ -251,13 +253,15 @@ for _lg in ("en", "es", "fr", "de", "pt", "it"):
 GRID_SCENARIOS["game-over-look-lost-lang-de"] = _over("lost", "Punkte 12", "Beste 30", 0, "de")
 GRID_SCENARIOS["game-over-look-timeup-lang-es"] = _over("timeup", "Puntos 120", "Mejor 287", 0, "es")
 GRID_SCENARIOS["game-over-look-won-confetti"] = _over("won", "Score 66", "Best 70", 0, ms=660)
-GRID_SCENARIOS["game-over-look-won-landing"] = _over("won", "Score 66", "Best 70", 0, ms=210)
+GRID_SCENARIOS["game-over-look-won-counting"] = _over("won", "Score 66", "Best 70", 0, ms=480)
 GRID_SCENARIOS["game-over-look-lost-rain"] = _over("lost", "Score 12", "Best 30", 0, ms=700)
 GRID_SCENARIOS["game-over-look-draw-squeeze"] = _over("draw", "Match 1 to 1", "Best 3", 0, ms=600)
 GRID_SCENARIOS["game-over-look-timeup-sweep"] = _over("timeup", "Score 120", "Best 287", 0, ms=900)
 GRID_SCENARIOS["game-over-look-newbest-glitter"] = _over("won", "Score 301", "", 1, ms=600)
 GRID_SCENARIOS["game-over-look-won-pressed-again"] = _over("won", "Score 66", "Best 70", 0, pressed=1)
 GRID_SCENARIOS["game-over-look-lost-pressed-quit"] = _over("lost", "Score 12", "Best 30", 0, pressed=2)
+for _res, _score, _best in (("won", "Score 38", "Best 30"), ("lost", "Score 38", "Best 30"), ("draw", "Match 1 to 1", "Best 3")):   # today's screen (look 0), for the before and after picture
+    GRID_SCENARIOS[f"game-over-look-today-{_res}"] = _over(_res, _score, _best, 0, look=0)
 GRID_SCENARIOS["game-over-look-won-still"] = _over("won", "Score 66", "Best 70", 0, look=1)
 GRID_SCENARIOS["game-over-look-newbest-still"] = _over("won", "Score 301", "", 1, look=1)
 
@@ -460,6 +464,7 @@ REQUIRES = [
     (r"^game(-over)?-reversi", "UX22-reversi.patch"),
     (r"^game-battleship", "UX23-battleship-lite.patch"),
     (r"^game-over-look", "UX15d-game-over-look.patch"),
+    (r"^screen-settings-(look-switches|general-more)$", "UX30-settings-fewer-rows.patch"),
     (r"^game-pong", "UX24-pong.patch"),
     (r"^game-flyer", "UX25-flyer.patch"),
     (r"^game-c4-look", "UX26-four-in-a-row-richer-look-bench.patch"),

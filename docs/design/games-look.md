@@ -45,7 +45,7 @@ Every component is a function the games share, drawn from rectangles. The cost i
 
 ## 4. Pass numbers
 
-The pass rules are those of `docs/dev/measure-a-game.md` section 4, with the gap numbers re-based on the unit: the worst tick gap of a look must be at most **100 ms** and the median at most **46 ms** (the plain Four in a Row measures 81 and 40 to 44; the budget's 60 ms rule is not met even by the plain look, so a look is judged against the plain look plus 19 ms), internal free within 1,000 bytes of the plain look, no flicker. A screen that does not tick is judged by the motion rule instead (budget section 4): entry frame at most 100 ms, a motion frame at most 16,000 px worst and 6,500 px on average. Components are used freely, used with a limit (written in the table above), or not used on a screen that ticks.
+The pass rules are those of `docs/dev/measure-a-game.md` section 4, with the gap numbers re-based on the unit: the worst tick gap of a look must be at most **120 ms** and the median at most **46 ms** (the plain Four in a Row measures 81 ms on b80 and 109 ms on b85, median 40 to 44; the budget's 60 ms rule is not met even by the plain look, so a look is judged against the plain look measured in the same run), internal free within 1,000 bytes of the plain look, no flicker. A screen that does not tick is judged by the motion rule instead (budget section 4): entry frame at most 100 ms, a motion frame at most 16,000 px worst and 6,500 px on average. Components are used freely, used with a limit (written in the table above), or not used on a screen that ticks.
 
 ## 5. A new game inherits all of this
 
