@@ -2234,7 +2234,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/packcache_k_test.c` (345): Host test for the pack cache with the phrase type and the format 2 directory (patch K10): the new type beside 
 - `host/tests/firmware/pages_core_test.c` (639): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/pairx_core_test.c` (137): Host test for the unit's pairing state machine (patch SF33), with the vectors of scripts/link-key-vector.py (f
-- `host/tests/firmware/pantry_core_test.c` (188): Host test of the pantry core (patch SF92): shelf checks, record parts, the heard list, choosing a record, and 
+- `host/tests/firmware/pantry_core_test.c` (213): Host test of the pantry core (patch SF92): shelf checks, record parts, the heard list, choosing a record, and 
 - `host/tests/firmware/phrase_flow_test.c` (94): Host test for the offline phrase flow (patch V02): the link events and the pick, as maipai_sounds.cc drives th
 - `host/tests/firmware/phrasepack_core_test.c` (304): Host test for the offline phrases as a pack (patch K12): the zip of sixteen clips becomes one block and a tabl
 - `host/tests/firmware/picface_core_test.c` (231): Host test for the picture face core (patch H03): limits, refusals in two languages, slot choice, fade, cache, 
