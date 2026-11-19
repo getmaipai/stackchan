@@ -12,6 +12,7 @@ import base64
 import json
 import os
 import subprocess
+import threading
 import sys
 import tempfile
 from pathlib import Path
@@ -38,6 +39,9 @@ JSON_TYPES = {"string": str, "integer": int, "boolean": bool}
 
 class RendererMissing(RuntimeError):
     pass
+
+
+READ_TIMEOUT_S = 180.0  # generous: a loaded machine runs four test processes at once
 
 
 class VirtualUnit:
@@ -91,13 +95,21 @@ class VirtualUnit:
 
     def _read_until(self, prefix: str) -> str:
         """The renderer prints a line for some commands (pshow, pstate): skip them and keep them in self.output."""
-        while True:
-            line = self._proc.stdout.readline()
-            if not line:
-                raise RuntimeError("the renderer stopped: rebuild it (scripts/virtual-unit/build-screens.sh) and run again")
-            if line.startswith(prefix):
-                return line.strip()
-            self.output.append(line.strip())
+        # A renderer built from older sources can wait for a command it does not know and never answer: a watchdog kills it after READ_TIMEOUT_S
+        # so the test fails with a clear message instead of hanging the whole suite.
+        watchdog = threading.Timer(READ_TIMEOUT_S, self._proc.kill)
+        watchdog.daemon = True
+        watchdog.start()
+        try:
+            while True:
+                line = self._proc.stdout.readline()
+                if not line:
+                    raise RuntimeError(f"the renderer stopped or did not answer in {READ_TIMEOUT_S:.0f} s: rebuild it (scripts/virtual-unit/build-screens.sh) and run again")
+                if line.startswith(prefix):
+                    return line.strip()
+                self.output.append(line.strip())
+        finally:
+            watchdog.cancel()
 
     def _sync(self) -> str:
         self._send("count 0 0 1 1")  # the renderer answers on stdout: a barrier after earlier commands

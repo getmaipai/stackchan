@@ -24,8 +24,10 @@ pytestmark = [pytest.mark.slow, pytest.mark.skipif(
 
 
 def test_the_fleet_and_chaos_scenarios_pass_against_the_real_host():
-    done = subprocess.run([sys.executable, str(ROOT / "scripts" / "virtual-unit" / "e2e.py"), "--fleet", "--jobs", os.environ.get("MAIPAI_E2E_FLEET_JOBS", "2")], capture_output=True, text=True, timeout=2400, cwd=ROOT)
+    done = subprocess.run([sys.executable, str(ROOT / "scripts" / "virtual-unit" / "e2e.py"), "--fresh-venv", "--fleet", "--jobs", os.environ.get("MAIPAI_E2E_FLEET_JOBS", "2")], capture_output=True, text=True, timeout=2400, cwd=ROOT)
     out = done.stdout + done.stderr
+    (ROOT / ".runs").mkdir(exist_ok=True)
+    (ROOT / ".runs" / "e2e-fleet.last.log").write_text(out)  # the whole run, so a failure under load can be read in full (the assertion message keeps only the tail)
     if "uv" in out and "failed to" in out.lower() and "install" in out.lower():
         pytest.skip("the clean venv could not be installed here (offline?): " + out[-300:])
     assert done.returncode == 0, out[-3000:]

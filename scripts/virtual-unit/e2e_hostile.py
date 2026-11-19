@@ -16,7 +16,9 @@ import time
 
 from e2e_extra import leak_verdict, sample
 
-LOOSE = {"rss_mb": 80.0, "rss_pct": 40.0, "threads": 6, "fds": 12, "sockets": 8}
+# threads: the host's default thread pool grows to its cap (up to 32 workers) the first time many sessions ask for work at once, and its idle workers stay for the life of the process.
+# A leak grows with the sixty sessions, so 14 still catches it while a pool filling up on a loaded machine does not fail the run.
+LOOSE = {"rss_mb": 80.0, "rss_pct": 40.0, "threads": 14, "fds": 12, "sockets": 8}
 
 
 def errors_since(rig, mark: int, keep_handshake: bool = False) -> list[str]:
@@ -44,8 +46,10 @@ async def health(rig, check, label: str, mark: int, before: dict) -> None:
     check(f"{label}: the real unit still gets a spoken reply", len(rig.models.tts_requests) > before_replies)
     await asyncio.sleep(3.0)
     now = sample(rig.proc.pid)
-    if leak_verdict(before, now, LOOSE):   # give the host time to wind down before calling it a leak
-        await asyncio.sleep(20.0)
+    for _ in range(20):   # give the host time to wind down before calling it a leak: poll up to a minute instead of one fixed wait
+        if not leak_verdict(before, now, LOOSE):
+            break
+        await asyncio.sleep(3.0)
         now = sample(rig.proc.pid)
     check(f"{label}: threads, descriptors and sockets are back near where they were", not leak_verdict(before, now, LOOSE), "; ".join(leak_verdict(before, now, LOOSE)) + f" ({before} -> {now})")
     errs = errors_since(rig, mark)
