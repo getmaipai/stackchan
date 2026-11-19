@@ -109,11 +109,10 @@ def rows() -> list[dict]:
             "blocked": False,
         },
         {
-            "row": "Use the robot on another Wi-Fi (away from home)",
+            "row": "Optional: use the robot on another Wi-Fi (away from home)",
             "evidence": [("tailnet client patches", patches("147|149|144")), ("away page and tests", has(r"test_travel_key_plain_link|test_stackchan_travel_host|test_stackchan_tailnet_travel")), ("user page", has(r"^docs/user/use-it-anywhere\.md$"))],
-            "missing": ["a real join: one tagged one-time key, a second Wi-Fi and a voice reply over the private route (the only real-unit run so far reached the control server with a fake key and was refused)", "the client's memory measured together with games and packs (floor: 25 KB steady, 15 KB lowest)"],
-            "blocked": True,
-            "unblock": [("owner", "make one tagged one-time Tailscale key for the bench run"), ("firmware", "run the real join on a unit: roaming, the region fix, a voice reply over the private route and the combined memory gate")],
+            "missing": ["optional, not proven: a real join: one tagged one-time key, a second Wi-Fi and a voice reply over the private route (the only real-unit run so far reached the control server with a fake key and was refused)", "the client's memory measured together with games and packs (floor: 25 KB steady, 15 KB lowest)"],
+            "blocked": False,
         },
         {
             "row": "Parent view: what the robot is doing, in plain words",
@@ -168,7 +167,7 @@ def render() -> str:
         "## What gates the first release, in one list",
         "- A release key and a signed image (blocks install and update).",
         "- A published web flasher and a host installer that needs no terminal.",
-        "- Hands-on checks on a robot: first run, pairing from a phone, lock, privacy cues, the first spoken reply, the head's own timings, and one real away-from-home join with a one-time key on a second Wi-Fi.",
+        "- Hands-on checks on a robot: first run, pairing from a phone, lock, privacy cues, the first spoken reply, the head's own timings.",
         "- Finger test on the glass (owner, 2026-11-18): press Skip and Back on every first-run step, the keypad keys, every control sheet tile, both sliders, the four settings tabs, the timer delete button, the games wall tiles and the Quiet now and Vision off tiles; note any press that misses, hits the next target or needs a second try (the audit that lists them is docs/dev/screen-audit.md).",
         "- Native-speaker review of the five languages after English and Spanish.",
         "",

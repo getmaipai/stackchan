@@ -1,6 +1,8 @@
 # Use the robot away from home
 
-The robot can reach your host or hub from any Wi-Fi, such as a friend's house, a hotel or the office. It joins your private network (Tailscale) by itself when it cannot reach your host. At home it never starts.
+This is optional. The robot works fully at home without it, and nothing asks you to turn it on. It needs a free Tailscale account.
+
+If you want it, the robot can reach your host or hub from any Wi-Fi, such as a friend's house, a hotel or the office. It joins your private network (Tailscale) by itself when it cannot reach your host. At home it never starts.
 
 ## How it works
 

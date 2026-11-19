@@ -64,7 +64,7 @@ Step 3 has two routes: **Hosted by M5Stack/Xiaozhi**, where your voice goes to t
 
 It opens a setup page. Connect your phone to the network named `stackchan-` and four letters or digits. The robot's screen shows a six-digit setup code. Open the page, pick your Wi-Fi, enter the password, the host address and the code. The page stays open after, so you can add more networks.
 
-If you will take the robot away from home (built, not yet proven on a unit), also type a one-time key for your private network: see [Use the robot away from home](use-it-anywhere.md).
+If you will take the robot away from home (optional, built, not yet proven on a unit), also type a one-time key for your private network: see [Use the robot away from home](use-it-anywhere.md).
 
 ![The setup page with a list of networks.](../images/wifi-setup.svg)
 

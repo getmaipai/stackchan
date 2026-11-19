@@ -211,10 +211,10 @@ function need(){return h('div',{class:'rows'},h('p',{class:'empty2'},T('Add your
 const PAGE2={
  async home(v){const f=FRONT.home;if(!UNIT){add(v,...lt(f.title),need());return}const c=await cx();const o=c.o;
   const bat=o.battery?o.battery.percent:null;
-  const tvh=await api(unitPath(UNIT.device_id,'travel'));const awayOn=!!(tvh.ok&&tvh.d&&tvh.d.available);const done={pair:true,wifi:UNIT.wifi==='set'||!!UNIT.online,brain:!!BRAINSET,look:LOOKED(),away:!awayOn||!!tvh.d.ready_to_use};const left=['pair','wifi','brain','look','away'].filter(k=>!done[k]);
+  const tvh=await api(unitPath(UNIT.device_id,'travel'));const awayOn=!!(tvh.ok&&tvh.d&&tvh.d.available);const done={pair:true,wifi:UNIT.wifi==='set'||!!UNIT.online,brain:!!BRAINSET,look:LOOKED(),away:!awayOn||!!tvh.d.ready_to_use};const left=['pair','wifi','brain','look'].filter(k=>!done[k]);
   add(v,...lt(UNIT.name),statLine(UNIT),bat!=null?h('div',{class:'stl'},h('div',{class:'meter2','aria-hidden':'true'},h('i',{style:'width:'+bat+'%'})),T('Battery')+' '+bat+'%'+(o.battery.charging?' ⚡':'')):null,h('div',{style:'height:20px'}));
-  if(left.length){const steps=[['pair','Pair your robot',null],['wifi','Connect to Wi-Fi',()=>nav('robot','wifi')],['brain','Choose a brain',()=>{location.href='/brain'}],['look','Pick a look',()=>nav('robot','look')],['away','Away from home',()=>nav('more','network-away')]];
-   add(v,grp(T('Get started'),...steps.map(([k,t,fn])=>h(fn&&!done[k]?'button':'div',{class:'step'+(done[k]?' done':'')+(fn&&!done[k]?' go r':''),onclick:fn&&!done[k]?fn:null},h('span',{class:'tick'},done[k]?SVG(IC.check):null),h('span',{class:'rl'},T(t)),fn&&!done[k]?chev():null))))}
+  if(left.length){const steps=[['pair','Pair your robot',null],['wifi','Connect to Wi-Fi',()=>nav('robot','wifi')],['brain','Choose a brain',()=>{location.href='/brain'}],['look','Pick a look',()=>nav('robot','look')],['away','Away from home',()=>nav('more','network-away'),true]];
+   add(v,grp(T('Get started'),...steps.map(([k,t,fn,opt])=>h(fn&&!done[k]?'button':'div',{class:'step'+(done[k]?' done':'')+(fn&&!done[k]?' go r':''),onclick:fn&&!done[k]?fn:null},h('span',{class:'tick'},done[k]?SVG(IC.check):null),h('span',{class:'rl'},T(t)+(opt?' ('+T('Optional').toLowerCase()+')':'')),fn&&!done[k]?chev():null))))}
   const big=(ic,l,fn,pressed)=>h('button',{type:'button',class:'big','aria-pressed':pressed?'true':null,onclick:fn},h('span',{class:'ri'},SVG(IC[ic])),T(l));
   const q=!!(o.saved||{}).quiet_now;
   const qb=big('moon','Quiet now',async()=>{const r=await dev({quiet_now:!(CXD.o.saved||{}).quiet_now});if(r.ok){CXD.o.saved=Object.assign({},CXD.o.saved,{quiet_now:!(CXD.o.saved||{}).quiet_now});qb.setAttribute('aria-pressed',String(!!CXD.o.saved.quiet_now))}},q);

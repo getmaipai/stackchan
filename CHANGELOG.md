@@ -16,7 +16,7 @@ What is proven on a real robot and what is proven only on a computer is on [the 
 - Privacy controls: mute, camera off and full quiet by tapping the face, and cues that cannot be hidden when the robot listens or watches.
 - Six languages, switched at run time: English, Spanish, French, German, Portuguese and Italian.
 - Your own brain: any OpenAI-compatible model, a small model the host installs, or MaiPai Home.
-- Away from home (built, not yet proven on a unit): the robot is meant to join your own private network by itself when it cannot reach your host. The code is in the release images, but no unit has joined a real network with a real key yet.
+- Away from home (optional, built, not yet proven on a unit): the robot is meant to join your own private network by itself when it cannot reach your host. The code is in the release images, but no unit has joined a real network with a real key yet.
 - Setup and safety: a Wi-Fi setup page with an on-screen code, pairing with a code you can revoke, reset on the robot, and signed updates with rollback.
 - Optional features that are off until you turn them on: camera snapshots, remote control with a cue on the robot, and find my robot.
 - A host program with a settings page, the `stackchan check` command, and several robots on one host.
