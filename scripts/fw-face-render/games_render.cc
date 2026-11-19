@@ -8,6 +8,7 @@
 //   guides on|off            draw the banner row, drag bar strip and bottom margin lines (y 28, 44 and 224) and the touch regions on the picture
 //   t MS / draw             the clock (for motion keyframes) and a draw at that time; snap draws at the present clock
 //   targets                  one line for every touch region of the loaded pack, in the format of the page renderer's ptargets (ptarget x1 y1 x2 y2 own x1 y1 x2 y2 scroll 0), for the screen audit
+//   objcount                 print `objects N labels L`: the LVGL objects the loaded pack's current state keeps on the top layer (internal RAM on the unit)
 //   snap FILE.png            draw and write the screen as a PNG
 //   sheet FILE.png COLS      a grid of every snap so far at half size
 // Build: bash scripts/fw-face-render/games_render.sh <firmware tree root> <out dir>
@@ -25,7 +26,16 @@
 
 static uint8_t s_buf[320 * 240 * 2];
 static uint32_t tick_cb() { return 1000; }
-static void flush_cb(lv_display_t* d, const lv_area_t*, uint8_t*) { lv_display_flush_ready(d); }
+static bool g_partial = false;              // PARTIAL=1: the display refreshes only what was invalidated, as the unit's does; the frame builds up in s_buf
+alignas(64) static uint8_t s_part[320 * 60 * 2];
+static void flush_cb(lv_display_t* d, const lv_area_t* a, uint8_t* px)
+{
+    if (g_partial) {   // copy the area into the whole frame, the way the panel keeps it
+        const int w = a->x2 - a->x1 + 1;
+        for (int y = a->y1; y <= a->y2; y++) memcpy(s_buf + ((size_t)y * 320 + a->x1) * 2, px + (size_t)(y - a->y1) * w * 2, (size_t)w * 2);
+    }
+    lv_display_flush_ready(d);
+}
 
 static void write_png(const char* path, const std::vector<uint8_t>& rgb, int w, int h)
 {
@@ -60,7 +70,12 @@ static uint8_t g_blob[MG_MAX_PACK];
 static mg_pack_t g_pack;
 static mg_run_t g_run;
 static lv_obj_t* g_root = nullptr;
-static lv_obj_t* g_obj[MG_MAX_SHAPES];
+#ifdef MGD_SCENE   // set by build-screens.sh when the tree's maipai_games_draw.h draws the shapes as nodes of one scene (patch UX29)
+typedef mgd::Node* ShapeObj;
+#else
+typedef lv_obj_t* ShapeObj;
+#endif
+static ShapeObj g_obj[MG_MAX_SHAPES];
 static uint8_t g_type[MG_MAX_SHAPES], g_text[MG_MAX_SHAPES];
 static lv_point_precise_t g_pts[MG_MAX_SHAPES][2];
 static mgd::Parts g_mole;
@@ -101,6 +116,9 @@ static bool load(const char* path)
     lv_obj_set_style_bg_color(g_root, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
     memset(&g_mole, 0, sizeof(g_mole));
+#ifdef MGD_SCENE
+    mgd::begin(g_root, &g_pack, &g_mole);  // patch UX29: the one canvas that draws every shape
+#endif
     for (int i = 0; i < g_pack.n_shapes; i++) {
         mg_shape_t s;
         mg_shape_get(&g_pack, i, &s);
@@ -117,7 +135,7 @@ static std::vector<uint8_t> grab()
 {
     mgd::draw_state(g_run, g_obj, g_type, g_text, &g_mole, g_es, g_now >= 900 ? g_now - 900 : 0);  // patch GM04: a still picture is taken well after what appeared (no pop in the middle)
     mgd::animate(g_run, g_obj, g_type, g_pts, &g_mole, g_now);  // the springs and easings at this moment
-    lv_obj_invalidate(lv_screen_active());
+    if (!g_partial) lv_obj_invalidate(lv_screen_active());   // a partial run relies on what the player invalidated itself
     lv_refr_now(nullptr);
     std::vector<uint8_t> rgb;
     rgb.reserve(320 * 240 * 3);
@@ -161,7 +179,9 @@ int main()
     lv_init();
     lv_tick_set_cb(tick_cb);
     lv_display_t* d = lv_display_create(320, 240);
-    lv_display_set_buffers(d, s_buf, nullptr, sizeof(s_buf), LV_DISPLAY_RENDER_MODE_FULL);
+    g_partial = getenv("PARTIAL") != nullptr;
+    if (g_partial) lv_display_set_buffers(d, s_part, nullptr, sizeof(s_part), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    else lv_display_set_buffers(d, s_buf, nullptr, sizeof(s_buf), LV_DISPLAY_RENDER_MODE_FULL);
     lv_display_set_flush_cb(d, flush_cb);
     lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);
     lv_obj_set_style_bg_color(lv_screen_active(), lv_color_black(), 0);
@@ -191,7 +211,24 @@ int main()
             printf("no game loaded for: %s\n", line.c_str());
         } else if (cmd == "clear") {  // forget the snaps so far (the next sheet starts fresh)
             g_tiles.clear();
-        } else if (cmd == "targets") {  // the pack's touch regions, for the screen audit (scripts/virtual-unit/games_audit.py)
+        } else if (cmd == "objcount") {
+        int objs = 0, labels = 0;
+        std::vector<lv_obj_t*> stack{lv_layer_top()};
+        while (!stack.empty()) {
+            lv_obj_t* o = stack.back(); stack.pop_back();
+            const uint32_t n = lv_obj_get_child_count(o);
+            for (uint32_t i = 0; i < n; i++) { lv_obj_t* ch = lv_obj_get_child(o, (int32_t)i); objs++; if (lv_obj_check_type(ch, &lv_label_class)) labels++; stack.push_back(ch); }
+        }
+        printf("objects %d labels %d", objs, labels);
+#ifdef MGD_SCENE
+        if (g_mole.sc != nullptr) {   // patch UX29: the scene's nodes and the bytes of internal RAM they and the canvas take (the block begin() made)
+            const int bytes = (int)(((sizeof(mgd::Scene) + 7u) & ~7u) + ((g_mole.sc->cap * sizeof(mgd::Node) + 7u) & ~7u) + g_mole.sc->arena_cap);
+            printf(" nodes %d of %d node_bytes %d sizeof_node %d", g_mole.sc->cnt, g_mole.sc->cap, bytes, (int)sizeof(mgd::Node));
+        }
+#endif
+        printf("\n");
+        fflush(stdout);
+    } else if (cmd == "targets") {  // the pack's touch regions, for the screen audit (scripts/virtual-unit/games_audit.py)
             for (int i = 0; i < g_pack.n_regions; i++) {
                 mg_region_t r;
                 mg_region_get(&g_pack, i, &r);

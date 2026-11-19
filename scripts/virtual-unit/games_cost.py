@@ -25,9 +25,11 @@ RUNS = {
     "Reversi (a game)": ["game c4 3", "diffbegin", "play reversi 3", "diffend reversi"],
     "Battleship-lite (shots)": ["game c4 3", "diffbegin", "play battleship 3 12", "diffend battleship"],
     "Pong (a rally)": ["game c4 3", "diffbegin", "play pong 400 18", "diffend pong"],
+    "Balance (a lean)": ["game c4 3", "diffbegin", "play balance 4 900", "diffend balance"],
+    "Maze (a roll)": ["game c4 3", "diffbegin", "play maze 4 700", "diffend maze"],
     "Flappy-style flyer (flying)": ["game c4 3", "diffbegin", "play flyer 4 600", "diffend flyer"],
 }
-LINE = re.compile(r"cost (\S+) frames (\d+) changed_px (\d+) bbox_px (\d+) bbox_px_max (\d+) tile_px (\d+) tile_px_max (\d+)")
+LINE = re.compile(r"cost (\S+) frames (\d+) changed_px (\d+) bbox_px (\d+) bbox_px_max (\d+) tile_px (\d+) tile_px_max (\d+)(?: outside_dirty (\d+) dirty_px (\d+) dirty_px_max (\d+))?")
 
 
 def run(commands):
@@ -36,7 +38,7 @@ def run(commands):
     for line in out.splitlines():
         m = LINE.match(line)
         if m:
-            return {"frames": int(m.group(2)), "changed_px": int(m.group(3)), "bbox_px": int(m.group(4)), "bbox_px_max": int(m.group(5)), "tile_px": int(m.group(6)), "tile_px_max": int(m.group(7))}
+            return {"frames": int(m.group(2)), "changed_px": int(m.group(3)), "bbox_px": int(m.group(4)), "bbox_px_max": int(m.group(5)), "tile_px": int(m.group(6)), "tile_px_max": int(m.group(7)), "outside_dirty": int(m.group(8) or 0), "dirty_px": int(m.group(9) or 0), "dirty_px_max": int(m.group(10) or 0)}
     return None
 
 
@@ -52,13 +54,15 @@ def main() -> int:
         r["flush_ms_mean"] = round(r["tile_px"] * MS_PER_PIXEL, 1)        # only the 16 by 16 tiles that changed are flushed (several small dirty rectangles)
         r["flush_ms_worst"] = round(r["tile_px_max"] * MS_PER_PIXEL, 1)
         r["flush_ms_one_rect"] = round(r["bbox_px"] * MS_PER_PIXEL, 1)    # one rectangle round everything that changed
+        r["flush_ms_dirty"] = round(r["dirty_px"] * MS_PER_PIXEL, 1)      # the rectangles the game itself invalidates (Pong and the flyer: pg_dirty and fl_dirty), 0 where the game has none yet
+        r["flush_ms_dirty_worst"] = round(r["dirty_px_max"] * MS_PER_PIXEL, 1)
         rows[name] = r
     if "--json" in sys.argv:
         print(json.dumps(rows, indent=1))
         return 0
-    print("| Game | Frames | Pixels changed per frame | Tiles flushed per frame (px) | Flush ms (mean) | Flush ms (worst frame) | One rectangle, ms (mean) |\n|---|---:|---:|---:|---:|---:|---:|")
+    print("| Game | Frames | Pixels changed per frame | Tiles flushed per frame (px) | Flush ms (mean) | Flush ms (worst frame) | One rectangle, ms (mean) | The game's own dirty rectangles, ms (mean / worst) | Pixels changed outside them |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     for n, r in rows.items():
-        print(f"| {n} | {r['frames']} | {r['changed_px']:,} | {r['tile_px']:,} | {r['flush_ms_mean']} | {r['flush_ms_worst']} | {r['flush_ms_one_rect']} |")
+        print(f"| {n} | {r['frames']} | {r['changed_px']:,} | {r['tile_px']:,} | {r['flush_ms_mean']} | {r['flush_ms_worst']} | {r['flush_ms_one_rect']} | {(str(r['flush_ms_dirty']) + ' / ' + str(r['flush_ms_dirty_worst'])) if r['dirty_px'] else 'none yet'} | {r['outside_dirty'] if r['dirty_px'] else '-'} |")
     return 0
 
 

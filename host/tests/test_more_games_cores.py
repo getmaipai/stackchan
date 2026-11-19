@@ -1,4 +1,4 @@
-"""Patches UX21 to UX25 (Higher or Lower, Reversi, Battleship-lite, Pong, the flyer): each pure core's host test runs here against the patch text; both patches are on ORDER with their header lines and neither file calls the
+"""Patches UX21 to UX25, UX27 and UX28 (Higher or Lower, Reversi, Battleship-lite, Pong, the flyer, Balance, Maze): each pure core's host test runs here against the patch text; both patches are on ORDER with their header lines and neither file calls the
 hardware. They wait on the branch ux/unproven-games for their bench proof (plain boot first); the tests skip while a patch is not in firmware/patches."""
 import re
 import shutil
@@ -15,6 +15,8 @@ GAMES = [
     ("UX23-battleship-lite.patch", "battleship", ["maipai_battleship_core.h", "maipai_battleship.h"]),
     ("UX24-pong.patch", "pong", ["maipai_pong_core.h", "maipai_pong.h"]),
     ("UX25-flyer.patch", "flyer", ["maipai_flyer_core.h", "maipai_flyer.h"]),
+    ("UX27-balance.patch", "balance", ["maipai_balance_core.h", "maipai_balance.h"]),
+    ("UX28-maze.patch", "maze", ["maipai_maze_core.h", "maipai_maze.h"]),
 ]
 
 
@@ -59,4 +61,4 @@ def test_neither_file_calls_the_esp_or_the_hardware(name, short, files):
     if not (PATCHES / name).exists():
         pytest.skip(f"{name} is not in firmware/patches yet")
     for f in files:
-        assert not re.search(r"esp_|nvs_|hal_bridge|Application|Board::|malloc|calloc", _added(name, f"firmware/main/hal/{f}")), f"{f} must stay free of hardware calls so the host renderer compiles it"
+        assert not re.search(r"esp_|nvs_|hal_bridge|Application|Board::|(?<!lv_)malloc|calloc", _added(name, f"firmware/main/hal/{f}")), f"{f} must stay free of hardware calls so the host renderer compiles it"

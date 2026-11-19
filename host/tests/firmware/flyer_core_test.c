@@ -88,6 +88,49 @@ int main(void)
         for (int i = 0; i < 4 && a.phase == FL_PLAY; i++) { a.y = ((FL_TOP + FL_BOTTOM) / 2 - FL_BIRD / 2) * 16; a.vy = -FL_GRAVITY; fl_step(&a); }
         CHECK(a.phase == FL_PLAY && a.score == before + 1);
     }
+    { /* the dirty rectangles cover what a step moved: each pipe (old and new place, lips included), the bird, the score line */
+        long worst = 0, total = 0, steps = 0;
+        for (uint32_t seed = 1; seed <= 12; seed++) {
+            fl_t a;
+            fl_init(&a, seed);
+            for (int t = 0; t < 1500 && a.phase == FL_PLAY; t++) {
+                fl_t b = a;
+                int next = -1;
+                for (int i = 0; i < FL_PIPES; i++) if (b.px[i] + FL_PIPE_W * 16 >= FL_BIRD_X * 16 && (next < 0 || b.px[i] < b.px[next])) next = i;
+                const int mid = next >= 0 ? b.gap[next] + FL_GAP / 2 : (FL_TOP + FL_BOTTOM) / 2;
+                if (fl_bird_top(&b) + FL_BIRD / 2 > mid + 14 && b.vy >= 0) fl_tap(&b);
+                fl_step(&b);
+                fl_rect_t r[FL_PIPES * 4 + 2];
+                const int n = fl_dirty(&a, &b, r);
+                CHECK(n >= 1 && n <= FL_PIPES * 4 + 2);
+                for (int k = 0; k < 2; k++) {   /* the bird's box, old and new */
+                    const fl_t* s = k ? &b : &a;
+                    int hit = 0;
+                    for (int i = 0; i < n; i++) hit |= FL_BIRD_X >= r[i].x && fl_bird_top(s) >= r[i].y && FL_BIRD_X + FL_BIRD <= r[i].x + r[i].w && fl_bird_top(s) + FL_BIRD <= r[i].y + r[i].h;
+                    CHECK(hit);
+                }
+                for (int i = 0; i < FL_PIPES; i++) {   /* every column a pipe covers in only one of the two states (its edges, or all of it after a wrap) is inside a rectangle that spans the sky */
+                    const int la = (a.px[i] >> 4) - 3, lb = (b.px[i] >> 4) - 3, w = FL_PIPE_W + 6;
+                    for (int x = (la < lb ? la : lb); x < (la > lb ? la : lb) + w; x++) {
+                        if (x < 0 || x >= 320) continue;
+                        const int in_a = x >= la && x < la + w, in_b = x >= lb && x < lb + w;
+                        if (!in_a && !in_b) continue;                                  /* not covered in either state */
+                        if (in_a == in_b && a.gap[i] == b.gap[i]) continue;   /* covered in both states by the same pipe: unchanged */
+                        int hit = 0;
+                        for (int j = 0; j < n; j++) hit |= x >= r[j].x && x < r[j].x + r[j].w && r[j].y <= FL_TOP && r[j].y + r[j].h >= FL_BOTTOM;
+                        CHECK(hit);
+                    }
+                }
+                long px = 0;
+                for (int i = 0; i < n; i++) px += (long)r[i].w * r[i].h;
+                total += px; steps++;
+                if (px > worst) worst = px;
+                a = b;
+            }
+        }
+        printf("flyer: dirty area per tick: mean %ld px, worst %ld px (the screen is 76,800)\n", total / steps, worst);
+        CHECK(worst < 40000 && total / steps < 12000);
+    }
     puts("flyer_core_test: all passed");
     return 0;
 }
