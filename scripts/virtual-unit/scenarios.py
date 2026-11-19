@@ -43,9 +43,9 @@ SCREENS: dict[str, list] = {
     "screen-low-battery": BAR + [("raw", "bstatus 12 0 1 1 1"), ("call", "self.face.bench_emotion", {"emotion": "tired", "tired_level": 2}), ("advance", 3400)],
     "screen-charging": BAR + [("raw", "bstatus 40 1 1 1 1"), ("advance", 700)],
     "screen-eyes-only-muted": BAR + [("raw", "style eyes_only"), ("raw", "bstatus 80 0 1 1 0"), ("raw", "seal on"), ("advance", 900)],  # patch UX03a
-    "screen-apps-wall": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700)],
-    "screen-games-wall": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 235 212"), ("advance", 700)],
-    "screen-timers-app": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700), ("raw", "pclick 80 70"), ("advance", 700)],
+    "screen-apps-wall": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700)],
+    "screen-games-wall": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 160 156"), ("advance", 700)],
+    "screen-timers-app": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700), ("raw", "pclick 80 70"), ("advance", 700)],
     "screen-settings-general": BAR + [("raw", "pshow settings"), ("advance", 500)],
     "screen-settings-network": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 128"), ("advance", 500)],
     "screen-settings-faces": BAR + [("raw", "pshow settings"), ("advance", 400), ("raw", "pclick 40 190"), ("advance", 500)],
@@ -91,10 +91,27 @@ SCREENS: dict[str, list] = {
     "screen-subtitles": BAR + [("raw", "bcaps subtitles"), ("raw", "ssay Sure, I can set a timer for five minutes."), ("advance", 900)],
     "screen-page-timers-running": BAR + [("raw", "ptimer 300 tea"), ("raw", "ptimer 90 eggs"), ("raw", "pshow timers"), ("advance", 800)],
     "screen-page-clock": BAR + [("raw", "pshow clock"), ("advance", 600)],
+    # patch UX14: the three clock styles, awake and asleep (a moon and Zz, the page dimmed), and the tap that cycles them
+    "clock-classic": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-ring": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 1"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-datetime": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 2"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-classic-asleep": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset asleep 1"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-ring-asleep": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 1"), ("raw", "pset asleep 1"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-datetime-asleep": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 2"), ("raw", "pset asleep 1"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-datetime-12h": BAR + [("raw", "pset hh 14"), ("raw", "pset mm 5"), ("raw", "pset cstyle 2"), ("raw", "pshow clock"), ("advance", 600)],
+    "clock-tap-to-datetime": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pshow clock"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600), ("raw", "pclick 20 60"), ("advance", 600)],
     "screen-page-timers": BAR + [("raw", "pshow timers"), ("advance", 600)],
+    "screen-page-timers-one": BAR + [("raw", "ptimer 300 tea"), ("raw", "pshow timers"), ("advance", 800)],   # patch UX13f: one timer, the quick starts under it
+    "screen-page-timers-more": BAR + [("raw", "ptimer 300 tea"), ("raw", "ptimer 90 eggs"), ("raw", "ptimer 900 laundry"), ("raw", "pshow timers"), ("advance", 800)],   # three timers: two rows and +1 more
+    "screen-alarms-app": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700), ("raw", "pclick 240 70"), ("advance", 700)],
     "screen-page-games": BAR + [("raw", "pshow games"), ("advance", 600)],
+    "screen-page-games-scrolled": BAR + [("raw", "pshow games"), ("advance", 600), ("raw", "pscrollby 160 80 72"), ("advance", 300)],   # patch UX13e: a swipe up scrolls one row and a bit
+    "screen-page-games-end": BAR + [("raw", "pshow games"), ("advance", 600), ("raw", "pscrollby 160 80 400"), ("advance", 300)],
     "screen-page-actions": BAR + [("raw", "pshow actions"), ("advance", 600)],
     "screen-control-sheet": BAR + [("raw", "pshow sheet"), ("advance", 600)],
+    "screen-control-sheet-tiles": BAR + [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 500)],   # patch UX13c: page 2 of the sheet
+    "es-control-sheet": BAR + [("raw", "pset es on"), ("raw", "pshow sheet"), ("advance", 600)],
+    "es-control-sheet-tiles": BAR + [("raw", "pset es on"), ("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 500)],
 }
 
 
@@ -119,7 +136,96 @@ GRID_SCENARIOS = {
     "game-match-flipping": ["game match 5", "tap 0", "advance 90", "snap {out}"],
     "game-hangman-mid": ["game hangman 1", "tap 4", "advance 400", "tap 0", "advance 400", "tap 17", "advance 400", "tap 19", "advance 400", "snap {out}"],
     "game-mines-open": ["game mines 3", "tap 20", "advance 500", "snap {out}"],
+    "game-dicepoker-start": ["game c4 3", "poker 1 1 1 1 1|0|0|1|0|0|en", "snap {out}"],
+    "game-dicepoker-first-roll": ["game c4 3", "poker 2 5 3 5 6|0|2|1|0|1|en", "snap {out}"],
+    "game-dicepoker-pair-held": ["game c4 3", "poker 2 5 3 5 6|10|1|1|0|1|en", "snap {out}"],
+    "game-dicepoker-full-house": ["game c4 3", "poker 4 4 4 2 2|27|0|3|70|1|en", "snap {out}"],
+    "game-dicepoker-straight": ["game c4 3", "poker 2 3 4 5 6|0|0|4|110|1|en", "snap {out}"],
+    "game-dicepoker-five-es": ["game c4 3", "poker 6 6 6 6 6|31|0|5|180|1|es", "snap {out}"],
+    "game-over-dicepoker-over-new-best": ["game c4 3", "over over|Score 230||1|en", "snap {out}"],
+    # patches SF76 and SF77: 2048 and Snake, steered by the unit's own swipe classification (a swipe of 60 px or more in 450 ms or less; a still touch held 450 ms is a long press)
+    "game-slide-start": ["game slide 5", "advance 100", "snap {out}"],
+    "game-slide-swiped": ["game slide 5", "swipe 250 120 60 125 180", "advance 300", "swipe 160 210 165 40 180", "advance 300", "snap {out}"],
+    "game-slide-2048": ["game slide 5", "tiles 11 10 9 8 4 5 6 7 3 2 1 1 0 1 2 0", "advance 100", "snap {out}"],
+    "game-slide-swipes-filmstrip": ["game slide 5", "advance 100", "stripadd", "swipe 250 120 60 125 180", "advance 60", "stripadd", "advance 120", "stripadd", "swipe 160 210 165 40 180", "advance 60", "stripadd", "advance 120", "stripadd", "swipe 60 120 260 118 180", "advance 60", "stripadd", "advance 120", "stripadd", "swipe 160 40 158 210 180", "advance 60", "stripadd", "advance 120", "stripadd", "stripwrite {out} 3"],
+    "game-snake-start": ["game snake 9", "advance 100", "snap {out}"],
+    "game-snake-moving": ["game snake 9", "advance 2900", "snap {out}"],
+    "game-snake-turned": ["game snake 9", "advance 1900", "swipe 160 200 162 60 150", "advance 900", "snap {out}"],
+    "game-snake-steering-filmstrip": ["game snake 9", "advance 1700", "stripadd", "advance 330", "stripadd", "swipe 160 200 162 60 150", "advance 330", "stripadd", "advance 330", "stripadd", "swipe 250 120 60 122 150", "advance 330", "stripadd", "advance 330", "stripadd", "stripwrite {out} 3"],
+    "game-snake-crashed": ["game snake 9", "advance 12000", "snap {out}"],
+    "game-mines-flagged": ["game mines 3", "swipe 184 100 184 100 100", "advance 300", "swipe 100 160 100 160 600", "advance 400", "swipe 148 130 148 130 600", "advance 400", "snap {out}"],
+    # patch SF72: a chip dropping into Four in a Row, one frame every 60 ms (the fall, the landing bounce), and the winning four pulsing (one frame every 120 ms): twelve frames
+    "game-c4-drop-filmstrip": ["game c4", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 2 2", "advance 700", "drop 3 1", "advance 700", "drop 4 2", "stripadd"] + ["advance 60", "stripadd"] * 8 + ["advance 400", "drop 3 1", "advance 700"] + ["advance 120", "stripadd"] * 0 + ["stripwrite {out} 3"],
+    "game-riddle-typing": ["game c4 3", "qa riddle|riddle|What has keys but cannot open locks?|A piano|22|0|en", "snap {out}"],
+    "game-joke-ready": ["game c4 3", "qa riddle|joke|I told my robot a joke about batteries. It was not charged by it.||-1|0|en", "snap {out}"],
+    "game-riddle-ready": ["game c4 3", "qa riddle|riddle|What has keys but cannot open locks?|A piano|-1|0|en", "snap {out}"],
+    "game-riddle-revealed": ["game c4 3", "qa riddle|riddle|What has keys but cannot open locks?|A piano|-1|1|en", "snap {out}"],
+    "game-riddle-revealed-es": ["game c4 3", "qa riddle|riddle|Que tiene dientes pero no puede morder?|Un peine|-1|1|es", "snap {out}"],
+    "game-trivia-ask": ["game c4 3", "qa trivia|Which planet is known as the Red Planet?|Venus;Mars;Jupiter;Mercury|3|10|20|0|0|0|en", "snap {out}"],
+    "game-trivia-right": ["game c4 3", "qa trivia|Which planet is known as the Red Planet?|Venus;Mars;Jupiter;Mercury|3|10|30|1|1|1|en", "snap {out}"],
+    "game-trivia-wrong": ["game c4 3", "qa trivia|Which planet is known as the Red Planet?|Venus;Mars;Jupiter;Mercury|3|10|20|2|3|1|en", "snap {out}"],
+    "game-trivia-long-three": ["game c4 3", "qa trivia|Which animal is the only mammal that can truly fly with its wings, and not just glide?|A bat;A flying squirrel;A sugar glider|7|10|60|0|0|0|en", "snap {out}"],
+    "game-trivia-ask-es": ["game c4 3", "qa trivia|Cual es el planeta rojo?|Venus;Marte;Jupiter;Mercurio|3|10|20|0|0|0|es", "snap {out}"],
+    "game-twenty-ask": ["game c4 3", "qa twenty|Is it bigger than a loaf of bread?|7|0|en", "snap {out}"],
+    "game-twenty-guess": ["game c4 3", "qa twenty|Is it a banana?|15|1|en", "snap {out}"],
+    "game-twenty-ask-es": ["game c4 3", "qa twenty|Es mas grande que una barra de pan?|7|0|es", "snap {out}"],
+    "game-over-trivia-win-new-best": ["game c4 3", "over won|Score 80|Best 70|1|en", "snap {out}"],
+    "game-over-colormemory-over-new-best": ["game c4 3", "over over|Round 15||1|en", "snap {out}"],
+    "game-over-colormemory-over": ["game c4 3", "over over|Round 9|Best 14|0|en", "snap {out}"],
+    "game-over-whack-timeup-new-best": ["game c4 3", "over timeup|Score 301||1|en", "snap {out}"],
+    "game-over-whack-timeup": ["game c4 3", "over timeup|Score 120|Best 287|0|en", "snap {out}"],
+    "game-over-doit-over": ["game c4 3", "over over|Score 12|Best 30|0|en", "snap {out}"],
+    "game-over-rps-win": ["game c4 3", "over won|Match 2 to 1|Best 3|0|en", "snap {out}"],
+    "game-over-rps-lose": ["game c4 3", "over lost|Match 1 to 2|Best 3|0|en", "snap {out}"],
+    "game-over-rps-draw": ["game c4 3", "over draw|Match 1 to 1|Best 3|0|en", "snap {out}"],
+    "game-over-twenty-lose": ["game c4 3", "over lost|It was a pear|Best 4 of 20|0|en", "snap {out}"],
+    "game-over-c4-win": ["game c4 3", "over won|Score 38|Best 30|0|en", "snap {out}"],
+    "game-over-c4-lose": ["game c4 3", "over lost||Best 30|0|en", "snap {out}"],
+    "game-over-c4-draw": ["game c4 3", "over draw||Best 30|0|en", "snap {out}"],
+    "game-over-c4-win-es": ["game c4 3", "over won|Puntos 38|Mejor 30|0|es", "snap {out}"],
+    "game-over-match-win-new-best": ["game match 3", "over won|14 turns|Best 18|1|en", "snap {out}"],
+    "game-over-hangman-win": ["game hangman 3", "over won|Score 70|Best 90|0|en", "snap {out}"],
+    "game-over-hangman-lose": ["game hangman 3", "over lost|The word was robot|Best 90|0|en", "snap {out}"],
+    "game-over-mines-win-new-best": ["game mines 3", "over won|Cleared in 82 s|Best 96 s|1|en", "snap {out}"],
+    "game-over-mines-lose": ["game mines 3", "over lost|Boom!|Best 96 s|0|en", "snap {out}"],
+    "game-over-tictactoe-win": ["game mines 3", "over won|Wins 3|Best 22|0|en", "snap {out}"],
+    "game-over-tictactoe-lose": ["game mines 3", "over lost|Wins 3|Best 22|0|en", "snap {out}"],
+    "game-over-tictactoe-draw": ["game mines 3", "over draw|Wins 3|Best 22|0|en", "snap {out}"],
+    "game-over-snake-over-new-best": ["game mines 3", "over over|Length 34||1|en", "snap {out}"],
+    "game-over-snake-over": ["game mines 3", "over over|Length 12|Best 31|0|en", "snap {out}"],
+    "game-over-2048-win-new-best": ["game mines 3", "over won|Score 20480||1|en", "snap {out}"],
+    "game-over-2048-over": ["game mines 3", "over over|Score 5184|Best 20480|0|en", "snap {out}"],
 }
+
+# Filmstrips: the frames a scenario collects with ("strip",) steps, half size, three to a row. The flip of a clock style change (patch UX14b) is 240 ms.
+# a strip step runs one renderer frame (33 ms) and takes the picture without running another, so the eight frames after the tap span the 240 ms flip
+_FLIP = [("raw", "pshow clock"), ("advance", 700), ("strip",), ("raw", "pclick 20 60")]
+FILMSTRIPS = {
+    "clock-flip-classic-to-ring": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41")] + _FLIP + [("stripnow",)] * 8,
+    "clock-flip-ring-to-datetime": BAR + [("raw", "pset hh 9"), ("raw", "pset mm 41"), ("raw", "pset cstyle 1")] + _FLIP + [("stripnow",)] * 8,
+}
+# The offline mumble's mouth (patch UX16, docs/design/offline-mumble.md): the levels the reference gives for the first nine characters of "Hello! I am your robot.", one slot each.
+import mumble as _mumble   # noqa: E402  (scripts/virtual-unit is on the path: this file is run from there)
+_HELLO = [b.mouth for b in _mumble.blips("Hello! I am your robot. How can I help you today?", 0, 3300)[:9]]
+FILMSTRIPS["mumble-mouth-sync"] = [("raw", "style big_eyes"), ("call", "self.face.bench_emotion", {"emotion": "happy"}), ("advance", 400)] + [("speakstrip", m) for m in _HELLO]
+# The two-message state of a unit whose host is away (patches SF64, SF68, SF73): Offline steady (after 45 s), then at ten minutes the notice takes the banner row for 20 s at the privacy
+# priority (it is long, so it scrolls), then Offline again. Frames: 1 minute away, the notice at 10 min 2 s, 7 s in, 14 s in, 19 s in, then 11 minutes away (the notice has ended).
+FILMSTRIPS["host-away-two-messages"] = BAR + [("awaystep", 60000), ("awaystep", 541000), ("awaystep", 5000), ("awaystep", 7000), ("awaystep", 5000), ("awaystep", 30000)]
+SCREENS.update(FILMSTRIPS)
+
+
+def strip_png(frames: list, per_row: int = 3) -> bytes:
+    import thumbnails as tn
+    halves = [tn._rows(tn.half(f)) for f in frames]
+    w, h = halves[0][0], halves[0][1]
+    rows = []
+    for r0 in range(0, len(halves), per_row):
+        group = halves[r0:r0 + per_row]
+        for y in range(h):
+            line = b"".join(g[2][y] for g in group) + b"\0" * (3 * w * (per_row - len(group)))
+            rows.append(line)
+    return tn._png(w * per_row, len(rows), rows)
+
 
 COVER_SCENARIOS = {
     "cover-connecting-wifi": ["show 1 0 Connecting to Wi-Fi...", "advance 800", "snap {out}"],
@@ -184,7 +290,7 @@ for _li, _lang in enumerate(LANGS):
     for _st in (0, 1, 3, 4, 5):
         SCREENS.setdefault(f"first-run-{_st + 1}-{_lang}", [("raw", f"frun step {_st} {_li} -1"), ("advance", 400)])
     SCREENS.setdefault(f"first-run-next-{_lang}", [("raw", f"frun step 7 {_li} -1"), ("advance", 400)])   # the last screen after All set! (patch UX12)
-for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("apps-wall", [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 185 212"), ("advance", 700)]),
+for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("apps-wall", [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700)]),
                       ("settings-general", [("raw", "pshow settings"), ("advance", 500)]), ("settings-info", [("raw", "pshow settings"), ("advance", 400), ("raw", "pscrollby 40 150 64"), ("advance", 100), ("raw", "pclick 40 190"), ("advance", 500)]),
                       ("page-timers", [("raw", "pshow timers"), ("advance", 600)]), ("page-actions", [("raw", "pshow actions"), ("advance", 600)])):
     SCREENS[f"es-{_name}"] = BAR + [("raw", "pset es on")] + _steps
@@ -220,8 +326,27 @@ def run(u, steps) -> None:
             u.raw(step[1])
         elif step[0] == "advance":
             u.advance(step[1])
+        elif step[0] == "speakstrip":   # the mouth at this speak level for one mumble slot (66 ms), then a frame for the filmstrip
+            u.raw("speak %d" % step[1])
+            u.raw("advance 66")
+            u.__dict__.setdefault("strip", []).append(u.snapshot_now())
+        elif step[0] == "stripnow":   # one renderer frame (33 ms), then a frame for the filmstrip
+            u.raw("advance 33")
+            u.__dict__.setdefault("strip", []).append(u.snapshot_now())
+        elif step[0] == "strip":   # a frame for a filmstrip golden (the frames are put side by side, half size, by strip_png)
+            u.__dict__.setdefault("strip", []).append(u.snapshot())
         elif step[0] == "touch":
             u.touch(*step[1:])
+        elif step[0] == "awaystep":   # the host-away rig: move the unit's fake time by ms (the notice, the label and the face follow), then a frame for the filmstrip
+            import host_away
+            away = u.host_away
+            if away.since is None:
+                away.language = "en"
+                away.link_lost()
+            u.jump(step[1])
+            away.tick(u.now_ms)
+            u.raw("advance 66")
+            u.__dict__.setdefault("strip", []).append(u.snapshot_now())
         elif step[0] == "hostaway":   # the unit has been away from its host for 11 minutes: the notice shows (patch SF49), in this language
             import host_away
 
@@ -252,6 +377,29 @@ def layout_problems(u, name: str) -> list[str]:
     return bad
 
 
+# Scenarios that show a screen only a patch that is not in firmware/patches/ORDER yet can draw (the patch waits on the branch for its bench proof, plain boot first). They are dropped from every
+# list below while the patch is out of ORDER, and their goldens live on the branch with the patch; when the patch joins ORDER, the scenarios and goldens come back with it.
+import re as _re
+_ORDER = set((ROOT / "firmware" / "patches" / "ORDER").read_text().split()) if (ROOT / "firmware" / "patches" / "ORDER").exists() else set()
+REQUIRES = [
+    (r"^(screen-page-timers-one|screen-page-timers-more|screen-alarms-app)$", "UX13f-timers-and-alarms-at-finger-size.patch"),
+    (r"dicepoker", "UX18-dice-poker.patch"),
+    (r"^game-over-(colormemory|whack|doit|snake|2048)-", "UX15c-game-over-neutral-end-after-sf82.patch"),
+    (r"^mumble-", "UX16-offline-mumble-core.patch"),
+    (r"^game-(riddle|joke|trivia|twenty)-|^game-over-(trivia|twenty)-", "UX17-question-and-answer-game-screens.patch"),
+]
+
+
+def _gate() -> None:
+    for d in (SCENARIOS, SCREENS, LOCK_SCENARIOS, COVER_SCENARIOS, GRID_SCENARIOS, FILMSTRIPS):
+        for name in list(d):
+            if any(_re.search(rx, name) and patch not in _ORDER for rx, patch in REQUIRES):
+                del d[name]
+
+
+_gate()
+
+
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     update = "--update" in sys.argv
@@ -269,8 +417,8 @@ def main() -> int:
         else:
             with vunit.VirtualUnit(profile="screens" if is_screen else "face") as u:
                 run(u, SCREENS[name] if is_screen else SCENARIOS[name])
-                png = u.snapshot()
-                problems = layout_problems(u, name)
+                png = strip_png(u.strip) if name in FILMSTRIPS else u.snapshot()
+                problems = [] if name in FILMSTRIPS else layout_problems(u, name)
         folder = GOLDEN_SCREENS if is_screen else GOLDEN
         gold = folder / f"{name}.png"
         if update:

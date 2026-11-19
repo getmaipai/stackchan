@@ -23,7 +23,7 @@ extern int64_t g_fake_us;
 // A stand-in for the unit: fixed numbers and a few scripted answers, so every page and the sheet can be drawn and judged.
 struct FakeHost : MaipaiPagesHost {
     int hh = 10, mm = 24, ss = 36;
-    bool night_ = false, c24 = false, ring = false, es_ = false, quiet_ = false, muted_ = false, light = true;
+    bool night_ = false, asleep_ = false, c24 = false, ring = false, es_ = false, quiet_ = false, muted_ = false, light = true;
     int vol = 70, bri = 80, bars = 3, bat = 82, tail = 2, frames = 0;
     bool charging = false;
     std::string addr = "192.0.2.10:8780";
@@ -44,6 +44,10 @@ struct FakeHost : MaipaiPagesHost {
     bool night() override { return night_; }
     bool clock24() override { return c24; }
     bool clock_ring() override { return ring; }
+    int cstyle = 0;   // patch UX14: the clock style the unit would have saved (0 classic, 1 ring, 2 date and time)
+    int clock_style() override { return ring ? 1 : cstyle; }
+    void clock_set_style(int s) override { cstyle = s; ring = s == 1; log += "clock_style" + std::to_string(s) + ";"; }
+    bool asleep() override { return asleep_; }
     bool spanish() override { return es_; }
     bool quiet() override { return quiet_; }
     bool muted() override { return muted_; }
@@ -54,10 +58,11 @@ struct FakeHost : MaipaiPagesHost {
     }
     void timer_cancel(uint32_t id) override { for (int i = 0; i < ntm; i++) if (tm[i].id == id) { for (int k = i; k + 1 < ntm; k++) tm[k] = tm[k + 1]; ntm--; break; } log += "cancel;"; }
     void timer_add(int s, const char* l) override { if (ntm < 4) { tm[ntm].id = 100 + ntm; tm[ntm].left_s = s + (int)(g_fake_us / 1000000) - 1; snprintf(tm[ntm].label, sizeof(tm[ntm].label), "%s", l); ntm++; } }
-    int game_count() override { return 8; }  // patch UI15: eight games, the page is a grid with a More tile
-    const char* game_title(int i) override { static const char* n[8] = {"Color Memory", "Whack-a-Mole", "Tic-Tac-Toe", "Do It", "Rock Paper Scissors", "Magic 8 Ball", "Dice and Coin", "Reaction Time"}; return n[i]; }
-    const char* game_id(int i) override { static const char* n[8] = {"memory", "whack", "tictactoe", "bopit", "rps", "eightball", "dice", "reaction"}; return n[i]; }
-    int game_best(int i) override { static const int b[8] = {14, 287, 22, 30, 0, 3, 0, 0}; return b[i]; }
+    // the games the unit lists today (self.game.list): seven data packs and six grid games; the grid games' best is lower-is-better for Memory Match and Mine Finder
+    int game_count() override { return 13; }
+    const char* game_title(int i) override { static const char* n[13] = {"Color Memory", "Whack-a-Mole", "Tic-Tac-Toe", "Do It", "Rock Paper Scissors", "Magic 8 Ball", "Dice and Coin", "Four in a Row", "Memory Match", "Hangman", "Mine Finder", "2048", "Snake"}; return n[i]; }
+    const char* game_id(int i) override { static const char* n[13] = {"memory", "whack", "tictactoe", "bopit", "rps", "eightball", "dice", "connect4", "match", "hangman", "mines", "slide", "snake"}; return n[i]; }
+    int game_best(int i) override { static const int b[13] = {14, 287, 22, 30, 0, 3, 0, 5, 41, 70, 96, 2048, 31}; return b[i]; }
     const char* game_start(int i) override { log += "game" + std::to_string(i) + ";"; return ""; }
     void action(int a) override { log += std::string("action_") + MPG_ACTION_NAMES[a] + ";"; }
     const mpg_tiles_t* tiles(uint32_t* age) override { *age = tile_age; return tl.n ? &tl : nullptr; }
@@ -163,7 +168,7 @@ bool render_hook_cmd(DefaultAvatar* av, const std::string& c, std::istringstream
     }
     if (c == "pset") {
         std::string k; in >> k; std::string v; in >> v; FakeHost& h = g_pages_host; const int n = atoi(v.c_str()); const bool b = v == "on" || v == "1";
-        if (k == "night") h.night_ = b; else if (k == "c24") h.c24 = b; else if (k == "ring") h.ring = b; else if (k == "es") h.es_ = b;
+        if (k == "night") h.night_ = b; else if (k == "asleep") h.asleep_ = b; else if (k == "cstyle") { h.cstyle = n; h.ring = n == 1; } else if (k == "c24") h.c24 = b; else if (k == "ring") h.ring = b; else if (k == "es") h.es_ = b;
         else if (k == "style") h.style_ = n; else if (k == "icons") h.icons_ = b; else if (k == "pics") h.pics_ = b; else if (k == "quiet") h.quiet_ = b; else if (k == "mute") h.muted_ = b; else if (k == "light") h.light = b;
         else if (k == "vol") h.vol = n; else if (k == "bri") h.bri = n; else if (k == "bars") h.bars = n; else if (k == "bat") h.bat = n;
         else if (k == "charging") h.charging = b; else if (k == "tail") h.tail = n; else if (k == "frames") h.frames = n; else if (k == "age") h.tile_age = (uint32_t)n;

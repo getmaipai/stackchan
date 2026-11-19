@@ -211,7 +211,7 @@ def test_first_run_flow_by_taps_ends_with_the_answers():
     with vu.VirtualUnit(profile="screens") as u:
         u.raw("frun start")
         u.advance(600)
-        for tap in ((56, 98), (56, 98)):  # language English, name Astro
+        for tap in ((56, 98), (56, 98)):  # language English, name StackChan (the first one shown, index 6 since the firmware made it the default)
             u.tap(*tap)
             u.advance(300)
         u.raw("frun wifi")  # the Wi-Fi cover reports done
@@ -225,7 +225,7 @@ def test_first_run_flow_by_taps_ends_with_the_answers():
             u.advance(300)
         u.advance(2500)  # "All set!" closes itself after 2 s
         u._sync()
-        assert "firstrun finished 0 0 0" in u.output
+        assert "firstrun finished 0 6 0" in u.output
 
 
 @pytest.mark.skipif(

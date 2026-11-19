@@ -28,7 +28,7 @@ fi
 CXXFLAGS=(-std=gnu++20 -O1 -w -I"$OUT/inc" -I"$HERE" -I"$HERE/stub" -I"$L" -I"$L/src" -DESP_PLATFORM=1 -DMAIPAI_HOST_RENDER=1 -DMD_HOST_SWITCH=1 -DLV_CONF_SKIP=1 -I"$U" -I"$U/lvgl" -I"$U/.." -I"$FW/main" -I"$H")
 CXXFLAGS+=($MAIPAI_RENDER_DEFS)
 OBJS=()
-for f in "${MAIPAI_RENDER_SRC:-$HERE/render.cc}" "${MAIPAI_RENDER_HOOKS:-$HERE/hooks_new.cc}" $MAIPAI_RENDER_EXTRA "$S/eyes.cpp" "$S/mouth.cpp" "$S/default.cpp" "$S/speech_bubble.cpp" "$H/maipai_facefx.cc"; do
+for f in "${MAIPAI_RENDER_SRC:-$HERE/render.cc}" "${MAIPAI_RENDER_HOOKS:-$HERE/hooks_new.cc}" $MAIPAI_RENDER_EXTRA "$S/eyes.cpp" "$S/mouth.cpp" "$S/default.cpp" "$S/speech_bubble.cpp" "$H/maipai_facefx.cc" "$HERE/mumble_stub.cc"; do
   o="$OUT/obj/$(basename "$f").o"; nice -n 15 clang++ "${CXXFLAGS[@]}" -c "$f" -o "$o"; OBJS+=("$o")
 done
 for f in $MAIPAI_RENDER_CFILES; do o="$OUT/obj/$(basename "$f").o"; nice -n 15 clang "${CFLAGS[@]}" -c "$f" -o "$o"; OBJS+=("$o"); done

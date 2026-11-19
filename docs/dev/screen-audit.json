@@ -1,4 +1,46 @@
 {
+ "screen-apps-wall": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-games-wall": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-timers-app": {
+  "targets": 9,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-settings-general": {
+  "targets": 11,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "screen-settings-network": {
+  "targets": 6,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "screen-settings-faces": {
+  "targets": 8,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "screen-settings-info": {
+  "targets": 6,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
  "more-menu": {
   "targets": 6,
   "fails": 0,
@@ -21,6 +63,216 @@
   "targets": 6,
   "fails": 0,
   "warnings": 1,
+  "failures": []
+ },
+ "first-run-1": {
+  "targets": 7,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "first-run-2": {
+  "targets": 9,
+  "fails": 0,
+  "warnings": 9,
+  "failures": []
+ },
+ "first-run-4": {
+  "targets": 5,
+  "fails": 0,
+  "warnings": 5,
+  "failures": []
+ },
+ "first-run-5": {
+  "targets": 2,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "first-run-6": {
+  "targets": 0,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "first-run-next": {
+  "targets": 2,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-camera-on": {
+  "targets": 0,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-subtitles": {
+  "targets": 0,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-timers-running": {
+  "targets": 2,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-clock": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-classic": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-ring": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-datetime": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-classic-asleep": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-ring-asleep": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-datetime-asleep": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-datetime-12h": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "clock-tap-to-datetime": {
+  "targets": 1,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-timers": {
+  "targets": 3,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-timers-one": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-timers-more": {
+  "targets": 2,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-alarms-app": {
+  "targets": 2,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-games": {
+  "targets": 13,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-games-scrolled": {
+  "targets": 13,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-games-end": {
+  "targets": 13,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "screen-page-actions": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 4,
+  "failures": []
+ },
+ "screen-control-sheet": {
+  "targets": 3,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "screen-control-sheet-tiles": {
+  "targets": 7,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "es-control-sheet": {
+  "targets": 3,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "es-control-sheet-tiles": {
+  "targets": 7,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "es-apps-wall": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "es-settings-general": {
+  "targets": 11,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "es-settings-info": {
+  "targets": 6,
+  "fails": 0,
+  "warnings": 1,
+  "failures": []
+ },
+ "es-page-timers": {
+  "targets": 3,
+  "fails": 0,
+  "warnings": 0,
+  "failures": []
+ },
+ "es-page-actions": {
+  "targets": 4,
+  "fails": 0,
+  "warnings": 4,
   "failures": []
  }
 }

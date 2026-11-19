@@ -23,6 +23,6 @@ Plug nothing unusual into the robot, keep a hand near the power, and watch the h
 
 ## What is not built yet
 
-The host's routes are designed (they are in the plan) and the lease and the token are tested, but the playground window does not show the picker yet.
+The host's routes are designed (they are in the plan), the lease and the token are tested, and the playground's side (one connection at a time, the lease kept alive, every refusal in words) is built and tested against a stand-in host. The host does not serve the routes yet and the playground window does not show the picker yet.
 
 Back: [index](index.md).

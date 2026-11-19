@@ -48,22 +48,22 @@
   "fails": 0
  },
  "first-run-1": {
-  "fails": 5
+  "fails": 0
  },
  "first-run-2": {
-  "fails": 20
+  "fails": 0
  },
  "first-run-4": {
-  "fails": 8
+  "fails": 0
  },
  "first-run-5": {
-  "fails": 1
+  "fails": 0
  },
  "first-run-6": {
   "fails": 0
  },
  "first-run-next": {
-  "fails": 2
+  "fails": 0
  },
  "more-games": {
   "fails": 0
@@ -72,6 +72,9 @@
   "fails": 0
  },
  "more-version": {
+  "fails": 0
+ },
+ "screen-alarms-app": {
   "fails": 0
  },
  "screen-apps-wall": {
@@ -107,8 +110,14 @@
  "screen-page-timers": {
   "fails": 0
  },
+ "screen-page-timers-more": {
+  "fails": 0
+ },
+ "screen-page-timers-one": {
+  "fails": 0
+ },
  "screen-page-timers-running": {
-  "fails": 3
+  "fails": 0
  },
  "screen-settings-faces": {
   "fails": 0
@@ -126,6 +135,6 @@
   "fails": 0
  },
  "screen-timers-app": {
-  "fails": 7
+  "fails": 0
  }
 }

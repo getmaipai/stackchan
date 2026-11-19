@@ -55,3 +55,7 @@ Failing today: see `docs/dev/screen-audit.md`. `host/tests/test_screen_audit.py`
 
 One **page indicator** everywhere (swipe pages, wizard steps, games wall pages): the same dots at the bottom center, fixed size and spacing, accent for the active one, muted for the others, inside a safe area no content may enter. A swipe left or right changes the page; where a swipe is not obvious there are also next and previous targets. The Done or back control sits in the same place on every screen. Content that does not fit one page goes to more pages: it is never clipped, shrunk below the minimums or allowed to overflow. The host dashboard web pages use the same structure (left tabs, right scrolling pane) so the two feel alike (`docs/plan/dashboard-structure.md`).
 
+## Documented exceptions (owner, 2026-11-18)
+
+- **The lock keypad is no longer an exception.** It is four columns and three rows of 70 by 56 px keys with 8 px gaps (patch UX13g; three columns by four rows of 56 px keys did not fit under the dots row, and the owner chose the 4 by 3 pad that meets the standard).
+- **Boards.** A game board cell may be under 56 px when the board fills the play field and a finger places one piece at a time, never under 24 px and never with a different kind of target closer than 8 px (`docs/plan/screen-standards-audit.md`, batch 6).

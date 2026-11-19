@@ -27,3 +27,7 @@ While a playground session holds a robot, the robot shows the remote-control cue
 ## Tests
 
 Lease and scope: `host/tests/test_playground_lease.py`. The route tests (two virtual units registered as robots, a second session refused, expiry without heartbeats, a forbidden tool refused, the stream throttled) are written with the routes.
+
+## Client side (playground track, 2026-11-18)
+
+The playground's adapter is built against the routes above and tested against a fake host that uses the host's own lease and scope code: `scripts/virtual-unit/backends.py` (`Simulation`, `Live`, `BackendManager`) and `scripts/virtual-unit/fake_host.py`; tests `host/tests/test_playground_backends.py`. It keeps one active connection (taking a second robot releases the first), renews the lease every 5 seconds from `tick()`, falls back to the Simulation with the host's reason when the lease is lost, shows a LIVE banner, and turns every refusal into a sentence (another playground holds it, the robot is offline, the token is wrong, the host cannot be reached). Not yet: the host does not serve the routes, and `view.py` and the page have no picker (the proposed `GET /backends`, `POST /backend` and `backend` field are in `docs/plan/view-requests.md`); the live state stream (Server-Sent Events) and the snapshot throttle are not used by the adapter yet (it polls `state` and `snapshot`).

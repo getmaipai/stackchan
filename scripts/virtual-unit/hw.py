@@ -16,6 +16,11 @@ What is real and what is a stand-in (also in docs/dev/virtual-unit-3d.md):
 from __future__ import annotations
 
 import math
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import power_model  # noqa: E402  (the draw, the drain and the charge: schema/power-model.json, every number a placeholder until the bench measures it)
 
 LEVEL_TIRED_1, LEVEL_TIRED_2, LEVEL_SLEEP = 20, 10, 5  # patch T01: MB_LEVEL_CHIRP, MB_LEVEL_ASK, MB_LEVEL_SLEEP
 SLEEP_GRACE_MS = 8000  # patch T01: MB_SLEEP_GRACE_MS, the words stay on screen this long before the power goes
@@ -82,6 +87,11 @@ class Hardware:
         self.dance = ""
         self.dance_started = 0
         self.events: list[str] = []
+        self.power = power_model.PowerModel()
+        self.drain = False       # off by default: the battery stays where the person put it. On, it drains on the battery and charges on a cable as the fake clock runs (set key "drain")
+        self.load: dict = {}     # what the rest of the rig knows about the load now (brightness, speaking, servo_moving, camera, ring, mic, screen): overrides the model's idle state
+        self._last_tick: int | None = None
+        self._bat_f = float(self.battery)
 
     # ---- what the person does ------------------------------------------------------------------------
 
@@ -112,6 +122,10 @@ class Hardware:
             if value and not self.serial_possible:
                 return "No plugged cable goes to a computer, and only a computer carries serial data. Choose the computer as a cable's source first."
             self.serial = bool(value)
+        elif key == "drain":
+            self.drain = bool(value)
+            self._last_tick = None
+            self.events.append("battery drain " + ("on: the level follows the load as time passes" if self.drain else "off: the level stays where it is"))
         elif key == "wifi":
             self.wifi = bool(value)
             self.events.append("Wi-Fi on" if self.wifi else "Wi-Fi off")
@@ -240,8 +254,40 @@ class Hardware:
             return 0
         return 2 if self.battery <= LEVEL_TIRED_2 else 1
 
+    def load_state(self) -> dict:
+        """The load the model prices now: what the rig says, plus what the body knows (Wi-Fi, a dance moving both servos, a screen that is off with the power)."""
+        st = {"wifi": self.wifi, "servo_moving": 2 if self.dance else 0, "speaking": bool(self.dance), "ring": 0.6 if self.dance else 0.0}
+        st.update(self.load)
+        return st
+
+    def draw_ma(self) -> float:
+        return 0.0 if not self.on else self.power.draw_ma(self.load_state())
+
+    def hours_left(self) -> float | None:
+        d = self.draw_ma()
+        return None if d <= 0 or self.vbus else self.power.hours_left(self.battery, d)
+
+    def _drain_tick(self, now: int) -> None:
+        if self._last_tick is None:
+            self._last_tick = now
+            self._bat_f = float(self.battery)
+            return
+        dt, self._last_tick = max(0, now - self._last_tick), now
+        if dt == 0 or not self.on:
+            return
+        if abs(self._bat_f - self.battery) >= 1.0:   # the person moved the slider: start from there
+            self._bat_f = float(self.battery)
+        draw = self.draw_ma()
+        if self.vbus:
+            self._bat_f = min(100.0, self._bat_f + self.power.charge_percent(self.supply()["input_ma"], draw, dt, self._bat_f))
+        else:
+            self._bat_f = max(0.0, self._bat_f - self.power.drain_percent(draw, dt))
+        self.battery = int(round(self._bat_f))
+
     def tick(self, now: int) -> str | None:
         """Time-driven changes. Returns "power_off" when the unit has just gone to sleep on a flat battery (patch T01)."""
+        if self.drain:
+            self._drain_tick(now)
         if self.on and not self.vbus and self.battery <= LEVEL_SLEEP:
             if self.sleep_started is None:
                 self.sleep_started = now
@@ -269,7 +315,8 @@ class Hardware:
                                   "rule": LIMITER_CABLE_RULE},
                 "sources": {k: v[0] for k, v in SOURCES.items()},
                 "carried": self.carried, "orient": self.orient, "booting": self.boot_started is not None,
-                "sleeping_soon": self.sleep_started is not None, "events": self.events[-6:]}
+                "sleeping_soon": self.sleep_started is not None, "events": self.events[-6:],
+                "power": {"draw_ma": self.draw_ma(), "hours_left": self.hours_left(), "drain": self.drain, "basis": self.power.basis}}
 
 
 def keyframe_at(name: str, t_ms: int):
