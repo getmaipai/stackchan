@@ -98,7 +98,7 @@ class PantryTalk:
                 if record is None:
                     return words["none"], False
                 if game_id == "jokes":
-                    return record.text, False  # one joke per turn, nothing to answer
+                    return " ... ".join(part.strip() for part in record.text.split("|")), False  # setup, a beat, punchline; nothing to answer
                 if game_id == "trivia":
                     wrong = record.extra.split("|")
                     choices = [record.answer, *wrong]

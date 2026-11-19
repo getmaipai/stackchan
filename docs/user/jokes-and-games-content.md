@@ -4,7 +4,7 @@ Off by default. When you turn it on, your own model writes jokes, riddles, trivi
 
 ## Turn it on
 
-In `robot.toml` set `enabled = true` under `[packages.pantry]` and restart the host. You need a model: choose a brain on the [Brain page](choose-a-brain.md) first. Everything is for kids unless you set `adult_humor = true`.
+In `robot.toml` set `enabled = true` under `[packages.pantry]` and restart the host. The first time, the host adds a built-in set of jokes, riddles and trivia questions (100 of each in English, 40 of each in Spanish, French, German, Portuguese and Italian) for the languages you chose. It needs no model, and the card shows **Built-in set**. A record you delete does not come back. To get more, choose a brain on the [Brain page](choose-a-brain.md) so your model can write new ones. Everything is for kids unless you set `adult_humor = true`.
 
 ## What it keeps
 

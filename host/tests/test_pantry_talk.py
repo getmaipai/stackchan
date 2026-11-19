@@ -82,3 +82,8 @@ def test_play_jokes_starts_the_jokes_game_and_a_bare_joke_ask_stays_chat():
         command = parse(said)
         assert command is not None and command.game == "jokes", said
     assert parse("tell me a joke") is None
+
+
+def test_a_seed_joke_is_told_as_setup_then_punchline(tmp_path):
+    talk, _ = make(tmp_path, [Record("joke", "en", "kid", "Why did the egg laugh?|It was a yolk.", "")])
+    assert talk.line("a", "jokes", "en", "go")[0] == "Why did the egg laugh? ... It was a yolk."

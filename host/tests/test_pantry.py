@@ -194,7 +194,7 @@ def test_a_shelf_is_built_unheard_first_and_a_sync_pass_takes_heard_sends_denial
 
 
 def test_the_facade_lists_deletes_and_refuses_for_the_dashboard(tmp_path):
-    pantry = Pantry(tmp_path, good_model)
+    pantry = Pantry(tmp_path, good_model, seed=False)
     assert pantry.refill("joke", "en")["added"] == 2
     view = pantry.view(kind="joke", language="en")
     assert view["total"] == 2 and view["counts"] == {"en:joke": 2} and view["report"]["added"] == 2
@@ -210,7 +210,7 @@ def test_the_dashboard_routes_list_delete_refuse_and_refill_and_stay_local(tmp_p
     from maipai_body.settings_page import PANTRY, SettingsBackend
 
     backend = SettingsBackend.__new__(SettingsBackend)
-    backend.pantry = Pantry(tmp_path, good_model)
+    backend.pantry = Pantry(tmp_path, good_model, seed=False)
     backend.language = "en"
     status, payload = backend.route_post(PANTRY + "/refill", {"kind": "joke", "language": "en"}, True)
     assert status == 200 and payload["added"] == 2
@@ -277,3 +277,30 @@ def test_refill_window_takes_fractional_hours_and_crosses_midnight():
 
     assert in_window(at(21, 45), 21.5, 7.0) and in_window(at(3, 0), 21.5, 7.0) and not in_window(at(21, 15), 21.5, 7.0)
     assert in_window(at(2, 30), 2, 5) and not in_window(at(5, 0), 2, 5)
+
+
+def test_first_run_loads_the_built_in_set_once_and_deleted_records_stay_deleted(tmp_path):
+    from maipai_packages.pantry import Pantry
+
+    pantry = Pantry(tmp_path, None, languages=("en", "es"))
+    assert pantry.seeded == 420  # 300 English and 120 Spanish records; the other languages were not chosen
+    view = pantry.view()
+    assert view["built_in"]["state"] == "Built-in set" and view["built_in"]["records"] == 420 and view["rows"][0]["built_in"] is True
+    first = pantry.library.records("joke", "en")[0]
+    pantry.delete(first.id_hex)
+    again = Pantry(tmp_path, None, languages=("en", "es"))
+    assert again.seeded == 0 and first.id_hex not in {r.id_hex for r in again.library.records()}
+    pantry.never_again(pantry.library.records("riddle", "en")[0].id_hex)
+
+
+def test_never_again_records_are_not_loaded_from_the_seed(tmp_path):
+    from maipai_packages.pantry import Pantry
+    from maipai_packages.pantry.library import Library
+    from maipai_packages.pantry.seed_loader import load_seed, seed_files, seed_records
+
+    library = Library(tmp_path)
+    target = seed_records(seed_files(("en",))[0])[0]
+    library.add([target])
+    library.never_again(target.id_hex)
+    load_seed(library, ("en",))
+    assert target.id_hex not in {r.id_hex for r in library.records()}
