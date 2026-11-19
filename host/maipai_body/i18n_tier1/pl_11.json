@@ -45,6 +45,10 @@
   "Asking your model. This can take a minute.": "Pytam twój model. To może potrwać minutę.",
   "doc.title.about": "O projekcie i prawo",
   "doc.title.index": "MaiPai dla StackChan: instrukcja użytkownika",
-  "doc.title.jokes-and-games-content": "Treści dowcipów i gier (pakiet opcjonalny)"
+  "doc.title.jokes-and-games-content": "Treści dowcipów i gier (pakiet opcjonalny)",
+  "doc.title.offline-lines": "Co mówi robot, gdy nie może połączyć się z domem",
+  "doc.title.offline-mumble": "Pomruk bez słów",
+  "doc.title.question-games": "Dwadzieścia pytań, zagadki, dowcipy i quizy",
+  "doc.title.more-games": "Nowe gry: co działa, a co dopiero będzie"
  }
 }

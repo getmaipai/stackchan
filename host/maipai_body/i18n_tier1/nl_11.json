@@ -45,6 +45,10 @@
   "Asking your model. This can take a minute.": "Je model wordt gevraagd. Dit kan een minuut duren.",
   "doc.title.about": "Over en juridisch",
   "doc.title.index": "MaiPai voor StackChan: gebruikershandleiding",
-  "doc.title.jokes-and-games-content": "Inhoud voor grappen en spellen (optioneel pakket)"
+  "doc.title.jokes-and-games-content": "Inhoud voor grappen en spellen (optioneel pakket)",
+  "doc.title.offline-lines": "Wat de robot zegt als hij thuis niet kan bereiken",
+  "doc.title.offline-mumble": "Het stille gemompel",
+  "doc.title.question-games": "Twintig vragen, raadsels, grappen en quiz",
+  "doc.title.more-games": "Nieuwe spellen: wat werkt en wat nog komt"
  }
 }

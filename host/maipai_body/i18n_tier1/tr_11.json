@@ -45,6 +45,10 @@
   "Asking your model. This can take a minute.": "Modeline soruluyor. Bu bir dakika sürebilir.",
   "doc.title.about": "Hakkında ve yasal",
   "doc.title.index": "StackChan için MaiPai: kullanım kılavuzu",
-  "doc.title.jokes-and-games-content": "Fıkra ve oyun içeriği (isteğe bağlı paket)"
+  "doc.title.jokes-and-games-content": "Fıkra ve oyun içeriği (isteğe bağlı paket)",
+  "doc.title.offline-lines": "Robot eve ulaşamadığında ne söyler",
+  "doc.title.offline-mumble": "Çevrimdışı mırıltı",
+  "doc.title.question-games": "Yirmi soru, bilmeceler, fıkralar ve bilgi yarışması",
+  "doc.title.more-games": "Yeni oyunlar: neler çalışıyor, neler geliyor"
  }
 }

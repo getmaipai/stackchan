@@ -45,6 +45,10 @@
   "Asking your model. This can take a minute.": "Frågar din modell. Det kan ta en minut.",
   "doc.title.about": "Om och juridik",
   "doc.title.index": "MaiPai för StackChan: användarguide",
-  "doc.title.jokes-and-games-content": "Innehåll för skämt och spel (valfritt paket)"
+  "doc.title.jokes-and-games-content": "Innehåll för skämt och spel (valfritt paket)",
+  "doc.title.offline-lines": "Vad roboten säger när den inte når hem",
+  "doc.title.offline-mumble": "Det tysta mumlet",
+  "doc.title.question-games": "Tjugo frågor, gåtor, skämt och frågesporter",
+  "doc.title.more-games": "Nya spel: vad som fungerar och vad som kommer"
  }
 }

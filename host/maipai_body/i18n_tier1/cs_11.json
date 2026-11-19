@@ -45,6 +45,10 @@
   "Asking your model. This can take a minute.": "Ptám se tvého modelu. Může to trvat minutu.",
   "doc.title.about": "O projektu a právní informace",
   "doc.title.index": "MaiPai pro StackChan: uživatelská příručka",
-  "doc.title.jokes-and-games-content": "Obsah vtipů a her (volitelný balíček)"
+  "doc.title.jokes-and-games-content": "Obsah vtipů a her (volitelný balíček)",
+  "doc.title.offline-lines": "Co robot říká, když se nedovolá domů",
+  "doc.title.offline-mumble": "Tichý brumlavý hlas",
+  "doc.title.question-games": "Dvacet otázek, hádanky, vtipy a kvízy",
+  "doc.title.more-games": "Nové hry: co funguje a co teprve přijde"
  }
 }
