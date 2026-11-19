@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 176,
+ "count": 177,
  "tools": {
   "self.assets.abort": "SF90-asset-store-on-the-unit.patch",
   "self.assets.commit": "SF90-asset-store-on-the-unit.patch",
@@ -18,6 +18,7 @@
   "self.audio.sound_info": "116-sound-policy-tools.patch",
   "self.audio_speaker.set_volume": "base firmware (schema/base-tools.json)",
   "self.banner.face_seen": "NX05-face-seen-glyph-and-tool-in-the-banner-strip.patch",
+  "self.banner.set": "SF97-banner-note-from-the-host.patch",
   "self.battery.get_status": "C01-battery-status.patch",
   "self.battery.simulate": "T01-low-battery-ladder.patch",
   "self.bench.asset_use": "SF79-bench-asset-use-probe.patch",
@@ -243,6 +244,10 @@
   },
   "self.banner.face_seen": {
    "seconds": "integer"
+  },
+  "self.banner.set": {
+   "text": "string",
+   "kind": "string"
   },
   "self.battery.get_status": {},
   "self.battery.simulate": {

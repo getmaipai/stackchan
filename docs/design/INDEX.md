@@ -373,6 +373,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/OPEN-DECISIONS.md` (23): Open decisions (2026-11-18)
 - `docs/plan/bug-claims.md` (10): Bug claims
 - `docs/plan/camera-frames-path.md` (50): Camera frames to the host (feature 8g): the path today, where it breaks, the smallest fix
+- `docs/plan/cloud-brain-firmware-test.md` (64): Cloud brain test: can our firmware use the vendor's hosted servers?
 - `docs/plan/coding-companion-package.md` (36): Coding companion and agent tools (package design, for review before building)
 - `docs/plan/custom-wake-word.md` (42): A wake word the family chooses (feature 8e): what the unit needs
 - `docs/plan/dance-vectors.md` (40): Dance vectors for the host director (from the virtual unit's session, patch SF51)
@@ -530,6 +531,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/configs/sdkconfig.avatar.defaults` (2): Build kind "avatar": the bench image with the encrypted link and the camera frames to the host (self.avatar.st
 - `firmware/configs/sdkconfig.bench.defaults` (3): no header
 - `firmware/configs/sdkconfig.cam640.defaults` (3): Build kind "cam640": the bench image with the camera at 640 by 480 (YUYV, about 16 frames a second) instead of
+- `firmware/configs/sdkconfig.cloudtest.defaults` (5): The cloud brain test image (patch SF96): never the default, never in a release. The unit runs the vendor's pub
 - `firmware/configs/sdkconfig.full.defaults` (7): Build kind "full": every optional module compiled in and no bench tools: the size and static RAM of the one-im
 - `firmware/configs/sdkconfig.gate.defaults` (2): Gate and soak builds only (not committed as a product setting): the memory line at WARN every 10 seconds.
 - `firmware/configs/sdkconfig.heaptrace.defaults` (3): Build kind "heap" (bench plus a live-allocation trace from boot: self.bench.heap_trace). Costs about 40 KB of 
@@ -693,7 +695,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (358): no header
+- `firmware/patches/ORDER` (359): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -813,6 +815,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF93-pantry-on-the-unit.patch` (375): The content pantry on the unit, device side (owner decision 25; core SF92; design docs/design/content-pantry.m
 - `firmware/patches/SF94-pantry-tellings-on-the-question-screens.patch` (202): Telling from the unit's own pantry with no host (owner decisions 25 and 26; screens UX17; core SF92 and device
 - `firmware/patches/SF95-2048-large-tiles-on-one-line.patch` (19): In 2048 the tiles of 1024 and above (four digits) wrapped onto two lines in the 20 px font (found by the playg
+- `firmware/patches/SF96-cloud-brain-test-image-kind.patch` (299): A separate image kind, cloudtest, for trying the vendor's hosted brain with the owner's own account (never the
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -2177,6 +2180,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_cli_run_and_example.py` (27): The documented install path: `stackchan run` starts the host; the first-run config template ships."""
 - `host/tests/test_clip_render.py` (118): G4b: the render-side logic (stamping, packing), with a fake synthesizer.
 - `host/tests/test_cloud_review_1.py` (125): ruff: noqa: E501
+- `host/tests/test_cloudtest_never_default.py` (37): The cloud brain test image is never the default and never in a release: no default config turns it on, the rel
 - `host/tests/test_coding_companion.py` (227): The coding companion package: a cleaned status shows on the light, is spoken only from a fixed phrase, and nev
 - `host/tests/test_command_bus.py` (444): ruff: noqa: E501
 - `host/tests/test_config_switches.py` (33): The robot.toml switches [remote] enabled and [home] url do something."""
@@ -2622,7 +2626,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/asset-kinds.json` (84): no header
 - `schema/base-tools.json` (11): no header
 - `schema/memory-budget.json` (894): no header
-- `schema/tools.json` (728): no header
+- `schema/tools.json` (733): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/bench-train.py` (421): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
 - `scripts/bench-trains/plain-proof.json` (17): no header

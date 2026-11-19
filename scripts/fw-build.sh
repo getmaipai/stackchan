@@ -41,7 +41,7 @@ export MAIPAI_MICROLINK_DIR="$TREE/deps/microlink"
 cd "$FW"
 # Generated inputs (the CMake rule for the language header runs too late for the first build, and the bench clips need macOS say and ffmpeg).
 python3 xiaozhi-esp32/scripts/gen_lang.py --language en-US --output xiaozhi-esp32/main/assets/lang_config.h
-if { [ "$KIND" = bench ] || [ "$KIND" = talkover ] || [ "$KIND" = linkpsk ] || [ "$KIND" = aec ] || [ "$KIND" = heap ] || [ "$KIND" = avatar ] || [ "$KIND" = cam640 ] || [ "$KIND" = irnfc ]; } && [ ! -f main/hal/maipai_bench_clips.c ]; then python3 "$ROOT/scripts/fw-bench-clips.py" "$FW"; fi
+if { [ "$KIND" = bench ] || [ "$KIND" = talkover ] || [ "$KIND" = linkpsk ] || [ "$KIND" = aec ] || [ "$KIND" = heap ] || [ "$KIND" = avatar ] || [ "$KIND" = cam640 ] || [ "$KIND" = irnfc ] || [ "$KIND" = nofontbench ] || [ "$KIND" = leanbench ]; } && [ ! -f main/hal/maipai_bench_clips.c ]; then python3 "$ROOT/scripts/fw-bench-clips.py" "$FW"; fi
 D="$PWD/sdkconfig.defaults"
 if [ -n "$OVERLAYS" ]; then IFS=';' read -ra X <<< "$OVERLAYS"; for f in "${X[@]}"; do D="$D;$PWD/$f"; done; fi
 if [ -n "${FW_BUILD:-}" ]; then printf 'CONFIG_MAIPAI_FW_BUILD=%s\n' "$FW_BUILD" > sdkconfig.build.defaults; D="$D;$PWD/sdkconfig.build.defaults"; fi  # the signed-update build number of this image
