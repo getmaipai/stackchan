@@ -50,10 +50,11 @@ DETAIL['more/network-away']=async v=>{add(v,...detailHead(T('Away from home'),'m
  const peer=h('input',{class:'tx',type:'text',inputmode:'decimal',autocomplete:'off',value:d.peer||'',placeholder:'100.x.x.x','aria-label':T('Home address'),name:'ts-'+Math.random().toString(36).slice(2)});
  const state=T('ts.state.'+d.phase);
  const out=h('div',{});
- add(v,grp(T('Set up in three steps'),
+ const warn=h('div',{class:'ok2',style:'background:color-mix(in srgb,var(--warn) 16%,var(--grp))'},d.key_note||'');
+ add(v,d.key_ok?grp(T('Set up in three steps'),
    rowEl({label:T('1. Get an access code'),icon:'key',value:T('Opens Tailscale'),go:()=>window.open(TS_LINK,'_blank','noopener,noreferrer')}),
    rowEl({label:T('2. Paste the code'),icon:'lock',control:code}),
-   rowEl({label:T('3. Send it to the robot'),icon:'check',go:async()=>{if(!code.value.trim()){toast(T('Paste the access code first.'),'bad');return}const r=await save(unitPath(id,'travel'),{key:code.value});if(r.ok){code.value='';again()}}})),
+   rowEl({label:T('3. Send it to the robot'),icon:'check',go:async()=>{if(!code.value.trim()){toast(T('Paste the access code first.'),'bad');return}const r=await save(unitPath(id,'travel'),{key:code.value});if(r.ok){code.value='';again()}}})):warn,
   grp(null,
    rowEl({label:T('Status'),value:state}),
    swRow(T('Use it away'),!!d.enabled,async on=>(await save(unitPath(id,'travel'),{enabled:on})).ok,{icon:'remote',help:T('ts.about_body')})),

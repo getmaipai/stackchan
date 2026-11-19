@@ -79,10 +79,10 @@ Every feature on one page. Scan the table, then open the page for the ones you c
 | Feature | What it does | Runs on | Page |
 |---|---|---|---|
 | **Wi-Fi setup page** | A setup code on the robot screen, a short window and a lock after wrong tries. Shown on a real robot after a Wi-Fi wipe (2026-11-18): name, address and code are readable; the address wraps over two lines. | Robot | [Getting started](getting-started.md) |
-| **Away from home (Tailscale)** | The robot joins your private network by itself when it cannot reach your host, using a one-time key. Works from any Wi-Fi: a friend's house, a hotel, the office. | Robot | [Away from home](use-it-anywhere.md) |
+| **Away from home (Tailscale)** | Built, not yet proven on a unit: the robot is meant to join your private network by itself when it cannot reach your host, using a one-time key, from any Wi-Fi. No unit has joined a real network yet. | Robot | [Away from home](use-it-anywhere.md) |
 | **Local or Home, side by side** | What you get with your own model and what Home adds, and what replaces each internet feature of the factory firmware. | Robot and host | [Local vs Home](local-vs-home.md) |
 | **Several robots, one host** | One host serves each robot by its own ID. | Robot | [Install the host](install-the-host.md) |
-| **Wi-Fi roaming** | The robot can move to a stronger access point on the same network. | Robot | [Away from home](use-it-anywhere.md) |
+| **Wi-Fi roaming** | Built, not yet proven on a unit: the robot is meant to move to a stronger access point on the same network. | Robot | [Away from home](use-it-anywhere.md) |
 | **Remote cue on the robot** | Every remote action shows a purple cue on the robot that cannot be turned off. Remote access is off by default. | Robot | [Security](security.md) |
 | **Remote controls on the settings page** | Beep, flash, find my robot (works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. | Robot | [Settings](settings.md) |
 | **Network test and version screen** | Settings, Network: a plain check of Wi-Fi, your host and the private network, and the version. | Robot | [Troubleshooting](troubleshooting.md) |

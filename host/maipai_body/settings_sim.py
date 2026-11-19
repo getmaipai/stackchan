@@ -353,7 +353,7 @@ def _sim_photo(_unit: str) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
 
 
-def build(data_dir: Path, *, language: str = "en", next_unit: bool = False) -> tuple[SettingsBackend, dict[str, SimUnit]]:
+def build(data_dir: Path, *, language: str = "en", next_unit: bool = False, link_secure: Any = True) -> tuple[SettingsBackend, dict[str, SimUnit]]:
     """A backend wired to two stand-in units, with every store in ``data_dir``."""
     units = {KITCHEN: SimUnit(KITCHEN, next_unit=next_unit), DEN: SimUnit(DEN, online=False, version="1.5.0-maipai.2")}
 
@@ -384,6 +384,7 @@ def build(data_dir: Path, *, language: str = "en", next_unit: bool = False) -> t
             call,
             reactions=extras_mod.ReactionStore(data_dir / "reactions.json"),
             clock=extras_mod.ClockStore(data_dir / "clock.json"),
+            link_secure=(link_secure if callable(link_secure) else None if link_secure is None else (lambda _u, v=bool(link_secure): v)),
         ),
         people=extras_mod.PeopleStore(data_dir / "people.json"),
         device=device_mod.UnitDevice(call),

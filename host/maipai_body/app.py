@@ -3117,7 +3117,11 @@ def _unit_extras(voice):
     def call(name, arguments, *, device_id=None, timeout=6.0):
         return _device_tool_reply(voice, name, arguments, device_id, timeout)
 
-    return UnitExtras(call)
+    def link_secure(unit_id):
+        link = getattr(voice, "link", None)
+        return link is not None and link.view(unit_id).get("connected_encrypted") is True
+
+    return UnitExtras(call, link_secure=link_secure)
 
 
 def _device_tool_reply(voice, name, arguments, device_id, timeout):

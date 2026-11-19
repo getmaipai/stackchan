@@ -71,6 +71,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "person_applied": "{name}'s face color and caption size were sent to the unit.",
         "bad_file": "The file {path} could not be read. Fix or remove it; the built-in choices are used meanwhile.",
         "travel_key": "A Tailscale auth key is 16 to 200 letters, numbers or dashes with no spaces (it starts with tskey-). Paste the whole key and try again.",
+        "travel_plain_link": "This robot's link to the hub is not encrypted, so the key was not sent (a key sent in the clear could be read on your Wi-Fi). Type the key on the robot's own Wi-Fi setup page instead, or turn on the encrypted link and try again.",
         "travel_saved": "Saved on the unit. It joins Tailscale the next time it cannot reach your hub, then erases the key.",
         "travel_forgot": "The unit forgot its Tailscale key, the hub address and its place on your Tailscale network.",
         "travel_nothing": "Paste a Tailscale auth key or the hub's Tailscale address, or choose Forget the key.",
@@ -104,6 +105,7 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "person_applied": "El color de cara y el tamano de subtitulos de {name} se enviaron a la unidad.",
         "bad_file": "No se pudo leer el archivo {path}. Corrigelo o quitalo; mientras tanto se usan las opciones incluidas.",
         "travel_key": "Una clave de Tailscale tiene de 16 a 200 letras, numeros o guiones, sin espacios (empieza por tskey-). Pega la clave entera y vuelve a intentarlo.",
+        "travel_plain_link": "El enlace de este robot con el hub no esta cifrado, asi que la clave no se envio (una clave enviada sin cifrar se podria leer en tu Wi-Fi). Escribe la clave en la pagina de configuracion Wi-Fi del propio robot, o activa el enlace cifrado y vuelve a intentarlo.",
         "travel_saved": "Guardada en la unidad. Se une a Tailscale la proxima vez que no llegue a tu hub y despues borra la clave.",
         "travel_forgot": "La unidad olvido su clave de Tailscale, la direccion del hub y su lugar en tu red de Tailscale.",
         "travel_nothing": "Pega una clave de Tailscale o la direccion de Tailscale del hub, o elige Olvidar la clave.",
@@ -528,8 +530,10 @@ class UnitExtras:
         now: Callable[[], float] = time.time,
         local_zone: Callable[[], str | None] = guess_zone,
         timeout: float = 6.0,
+        link_secure: Callable[[str], bool] | None = None,
     ) -> None:
         self._tool = _Tools(call, timeout)
+        self._link_secure = link_secure
         self.reactions = reactions or ReactionStore()
         self.clock = clock or ClockStore()
         self._now = now
@@ -679,6 +683,15 @@ class UnitExtras:
 
     # ---- travel key (firmware TN01 to TN06): the unit joins the private network from another Wi-Fi ----
 
+    def key_link_ok(self, unit_id: str) -> bool:
+        """True only when the unit's live link is the encrypted one. Unknown or failing counts as plain."""
+        if self._link_secure is None:
+            return False
+        try:
+            return self._link_secure(unit_id) is True
+        except Exception:
+            return False
+
     def travel_view(self, unit_id: str, lang: str | None = None) -> dict[str, Any]:
         """What the unit says about Tailscale, in plain fields. The key is never part of the answer."""
         if not unit_id:
@@ -704,6 +717,8 @@ class UnitExtras:
             "phase": phase,
             "route": shown.get("route", "home"),
             "last_error": last,
+            "key_ok": self.key_link_ok(unit_id),
+            "key_note": "" if self.key_link_ok(unit_id) else say(lang, "travel_plain_link"),
             "ready_to_use": bool(shown.get("key_saved") or shown.get("joined")) and bool(shown.get("peer_saved")),
         }
 
@@ -719,6 +734,8 @@ class UnitExtras:
         peer = values.get("peer")
         arguments: dict[str, object] = {}
         forget = values.get("forget") is True
+        if not forget and isinstance(key, str) and key.strip() and not self.key_link_ok(unit_id):
+            raise ExtrasError(say(lang, "travel_plain_link"))
         if forget:
             arguments["forget"] = True
         else:

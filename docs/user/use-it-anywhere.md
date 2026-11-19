@@ -8,16 +8,20 @@ The robot can reach your host or hub from any Wi-Fi, such as a friend's house, a
 - You give it a one-time key on the Wi-Fi setup page. The key is never stored in a firmware image.
 - Your own devices talk to each other over the private network. Your conversations stay on your machines.
 
+## Status: built, not yet proven on a unit
+
+The code is in the release images and the host tests pass. No robot has joined a real private network with a real key yet, so treat this page as the plan. The first real run is on the maintainers' list.
+
 ## Set it up
 
-1. Install Tailscale on the computer that runs the host, and sign in.
-2. In the Tailscale admin page, create a one-time auth key for the robot.
-3. Open the robot's Wi-Fi setup page (see [Getting started](getting-started.md)) and type the key in the key field, with your Wi-Fi and the setup code.
-4. Take the robot to another Wi-Fi. After 3 failed tries to reach your host, it joins your private network and the screen shows its link state.
+1. Install Tailscale on the computer that runs the host, and sign in on that computer.
+2. In the Tailscale admin page, create a one-time auth key for the robot. Mark it as ephemeral and give it the tag `tag:robot`.
+3. Find the host computer's Tailscale address. It looks like `100.x.x.x` and is shown in the Tailscale app and the admin page next to that computer.
+4. In the settings page, open **Home**, then **Away from home**. Type the host's `100.x.x.x` address under **Home address** and save it.
+5. Give the robot the key. The settings page sends the key only when the link to the robot is encrypted. If it is not, the page says so and does not send it. Then type the key on the robot's own Wi-Fi setup page (see [Getting started](getting-started.md)), in the key field, with your Wi-Fi and the setup code.
+6. Take the robot to another Wi-Fi. After 3 failed tries to reach your host, it joins your private network and the screen shows its link state. The key is erased from the robot after it joins.
 
-![The setup page with the one-time key field.](../images/tailscale-settings.svg)
-
-*The setup page with the one-time key field. A placeholder drawing, not a real screenshot.*
+An access rule keeps the robot's reach small. In your Tailscale policy, let `tag:robot` reach only the host's robot port, and nothing else. The host cannot read your policy, so check it in the admin page.
 
 ## What it contacts
 

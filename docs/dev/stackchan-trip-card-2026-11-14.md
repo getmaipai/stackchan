@@ -1,5 +1,7 @@
 # StackChan trip card: using the robot away from home (2026-11-14)
 
+> **Legacy (2026-11-19).** This card describes the laptop-relay stopgap. The gateway fallback it needs was cut from the firmware, so the relay has no partner on the current base. The current plan is the robot joining the private network itself: see `docs/user/use-it-anywhere.md` and `docs/design/travel-2026-11-16.md`. Do not follow this card on a trip.
+
 For the owner on the road. Plain words. Written from the firmware 0.2.102 source and the relay v2 program; **nothing here has run with a real
 robot through the relay yet**, so each "not verified" note below is a real gap. An HTML copy for a phone is `data-scratch/trip-card.html`.
 

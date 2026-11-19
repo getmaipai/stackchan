@@ -12,6 +12,7 @@ Made by `python3 scripts/readiness.py` from the repository; do not edit by hand.
 | Update the robot | **blocked** | signed update patches: 2 file(s), e.g. `155-host-url-tools-removed-and-signed-updates.patch`; update cover frames: 4 file(s), e.g. `host/tests/golden/screens/cover-update-0.png` | a release key and a signed image installed on a robot; a first update from one real release to the next |
 | Privacy switches: mute, camera off, always-on cues | **partly** | privacy page: 1 file(s), e.g. `docs/user/mute-and-camera-off.md`; camera on and muted frames: 2 file(s), e.g. `host/tests/golden/screens/screen-camera-on.png` | the cues seen and heard on a robot with a real finger (bench 2026-11-18 proved tap on, hold off and no toggle while muted with a test touch) |
 | Lock the robot with a passcode | **partly** | lock patches: 4 file(s), e.g. `LK01-lock-core.patch`; lock screen and keypad frames: 5 file(s), e.g. `host/tests/golden/screens/lock-keypad-empty.png`; lock page: 1 file(s), e.g. `docs/user/lock.md` | a person locking and unlocking on a robot (bench 2026-11-18: five wrong codes lock it out and the lockout survives a restart); 3 known lock bug(s) still open as expected-fail tests |
+| Use the robot on another Wi-Fi (away from home) | **blocked** | tailnet client patches: 3 file(s), e.g. `MF01-music-feature-task-stack-6144.patch`; away page and tests: 2 file(s), e.g. `host/tests/test_stackchan_tailnet_travel.py`; user page: 1 file(s), e.g. `docs/user/use-it-anywhere.md` | a real join: one tagged one-time key, a second Wi-Fi and a voice reply over the private route (the only real-unit run so far reached the control server with a fake key and was refused); the client's memory measured together with games and packs (floor: 25 KB steady, 15 KB lowest) |
 | Parent view: what the robot is doing, in plain words | **partly** | parent view code: 1 file(s), e.g. `host/maipai_body/settings_ui_family.py`; plan: 1 file(s), e.g. `docs/plan/parent-view.md` | the page's buttons measured at phone width (48 px); a parent using it on a phone |
 | Docs a friend can follow | **partly** | user pages: 56 file(s), e.g. `docs/user/about.md`; claims check: 1 file(s), e.g. `scripts/docs-claims-check.py`; screens from the virtual unit: 19 file(s), e.g. `docs/images/vu-clock.png` | the pages read aloud to someone who has never seen the robot (the host side was walked through on 2026-11-19 from an empty home with the virtual unit and fixed; no real person has done it) |
 
@@ -31,12 +32,16 @@ Made by `python3 scripts/readiness.py` from the repository; do not edit by hand.
 - firmware: sign two releases and prove the update path with the real key: accepted, refused on a wrong signature, and rolled back when the new image fails to start
 - bench: run that on a robot and record it
 
-Totals: 0 done, 7 partly, 3 blocked.
+**Use the robot on another Wi-Fi (away from home)**
+- owner: make one tagged one-time Tailscale key for the bench run
+- firmware: run the real join on a unit: roaming, the region fix, a voice reply over the private route and the combined memory gate
+
+Totals: 0 done, 7 partly, 4 blocked.
 
 ## What gates the first release, in one list
 - A release key and a signed image (blocks install and update).
 - A published web flasher and a host installer that needs no terminal.
-- Hands-on checks on a robot: first run, pairing from a phone, lock, privacy cues, the first spoken reply, the head's own timings.
+- Hands-on checks on a robot: first run, pairing from a phone, lock, privacy cues, the first spoken reply, the head's own timings, and one real away-from-home join with a one-time key on a second Wi-Fi.
 - Finger test on the glass (owner, 2026-11-18): press Skip and Back on every first-run step, the keypad keys, every control sheet tile, both sliders, the four settings tabs, the timer delete button, the games wall tiles and the Quiet now and Vision off tiles; note any press that misses, hits the next target or needs a second try (the audit that lists them is docs/dev/screen-audit.md).
 - Native-speaker review of the five languages after English and Spanish.
 
