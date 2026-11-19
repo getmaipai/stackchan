@@ -56,3 +56,5 @@ In: the shared screen (core, drawing), its host test (`game_over_core_test.c`: 5
 Not in, the firmware track's: wiring each game's end into `mgo::build` (`maipai_grid.cc` `finish()`, `maipai_games.cc` `end_locked()`), the touch routing, the restart, the sound calls, and the memory row. These need the game state machines, which are changing in SF76 and SF77.
 
 Not yet proven on a unit: the touch feel of the buttons, the sound timing, the restart.
+
+A graphical overhaul of this screen (a drawn emblem per outcome, a count-up score, pressed buttons, six languages) is designed and prototyped as a look level in `docs/design/game-over-look.md`; this page describes the screen as it is until the bench lets the new look become the default.

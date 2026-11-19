@@ -6,6 +6,10 @@
 //   flag                                 Mine Finder: switch flagging on or off
 //   advance MS                           run the clock in 30 ms ticks (falls, bounces, pulses, flips, pops, the board shake)
 //   over won|lost|draw|over|timeup|SCORE TEXT|BEST TEXT|NEWBEST 0 or 1|en or es   the shared game-over screen (patch UX15) over the game, drawn by the unit's own code
+//   over ... |en|LOOK|T_MS|PRESSED   (patch UX15d) after the language (en, es, fr, de, pt or it) three more fields, all optional: the look level (0 today's screen, 1 the new look still, 2 moving), the time in
+//                                        ms after the screen appeared (the motion is played to it in 30 ms steps), and the pressed button (1 Play again, 2 Quit)
+//   overpop T_MS | overpress N           the same screen later: play its motion on to T_MS, or press a button (0 lets go)
+//   overwidths                           the width in px of every word of the screen in every language (`word KIND LANG WIDTH`), for the test that none is too wide
 //   qa riddle|joke or riddle|WORDS|ANSWER|CHARS SHOWN (-1 all)|REVEALED 0 or 1|en or es   the question and answer game screens (patch UX17)
 //   qa trivia|QUESTION|A1;A2;A3;A4|N|TOTAL|SCORE|RESULT 0 1 2|CHOSEN|RIGHT|lang
 //   qa twenty|QUESTION|N|GUESS 0 or 1|lang
@@ -98,6 +102,10 @@
 #define HAVE_GAME_OVER 1
 #endif
 
+#ifdef HAVE_MGO_LOOK
+static mgo::Screen s_over = {};   // the game-over screen last built by `over` (patch UX15d)
+static uint32_t s_over_t = 0;
+#endif
 static uint8_t s_buf[320 * 240 * 2];
 static uint32_t g_now = 1000;
 static std::vector<std::vector<uint8_t>> s_strip;
@@ -340,15 +348,50 @@ int main()
             std::string rest; std::getline(in, rest);
             std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
             for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
-            while (f.size() < 5) f.push_back("");
+            while (f.size() < 8) f.push_back("");
+#ifdef HAVE_MGO_LOOK   /* patch UX15d: the look levels, six languages, the motion and the pressed state */
+            {
+                static const char* const names[6] = {"en", "es", "fr", "de", "pt", "it"};
+                int lang = 0;
+                for (int k = 0; k < 6; k++) if (f[4] == names[k]) lang = k;
+                const int res = f[0] == "won" ? MGO_WON : f[0] == "lost" ? MGO_LOST : f[0] == "over" ? MGO_OVER : f[0] == "timeup" ? MGO_TIMEUP : MGO_DRAW;
+                mgo::g_look = f[5].empty() ? 0 : atoi(f[5].c_str());
+                s_over = mgo::build_lang(lv_layer_top(), res, f[1].c_str(), f[2].c_str(), f[3] == "1", lang);
+                mgo::g_look = 0;
+                s_over_t = 0;
+                const uint32_t to = f[6].empty() ? 0 : (uint32_t)atoi(f[6].c_str());
+                for (uint32_t tt = 0; tt <= to; tt += 30) mgo::set_pop(s_over, tt);
+                if (to > 0) mgo::set_pop(s_over, to);
+                if (!f[7].empty()) mgo::set_pressed(s_over, atoi(f[7].c_str()));
+            }
+#else
 #ifdef HAVE_MGO_NEUTRAL   /* patch UX15c: the neutral ends exist; without it the tree's screen has only won, lost and draw */
             const int res = f[0] == "won" ? MGO_WON : f[0] == "lost" ? MGO_LOST : f[0] == "over" ? MGO_OVER : f[0] == "timeup" ? MGO_TIMEUP : MGO_DRAW;
 #else
             const int res = f[0] == "won" ? MGO_WON : f[0] == "lost" ? MGO_LOST : MGO_DRAW;
 #endif
             mgo::build(lv_layer_top(), res, f[1].c_str(), f[2].c_str(), f[3] == "1", f[4] == "es");
+#endif
 #else
             printf("this firmware tree has no game-over screen (patch UX15)\n");
+#endif
+#ifdef HAVE_MGO_LOOK
+        } else if (c == "overpop") {
+            uint32_t to; in >> to;
+            for (uint32_t tt = s_over_t; tt <= to; tt += 30) mgo::set_pop(s_over, tt);
+            mgo::set_pop(s_over, to);
+            s_over_t = to;
+        } else if (c == "overpress") {
+            int b; in >> b;
+            mgo::set_pressed(s_over, b);
+        } else if (c == "overwidths") {
+            static const char* const names[6] = {"en", "es", "fr", "de", "pt", "it"};
+            for (int lang = 0; lang < MGO_LANGS; lang++) {
+                for (int r = MGO_WON; r <= MGO_TIMEUP; r++) printf("word title %s %d\n", names[lang], mgo::pen_text_w(mgo_title_l(r, lang), &lv_font_montserrat_24));
+                for (int b = MGO_BTN_AGAIN; b <= MGO_BTN_QUIT; b++) printf("word button %s %d\n", names[lang], mgo::pen_text_w(mgo_button_label_l(b, lang), &lv_font_montserrat_20));
+                printf("word newbest %s %d\n", names[lang], mgo::pen_text_w(mgo_new_best_label_l(lang), &lv_font_montserrat_16));
+            }
+            fflush(stdout);
 #endif
         } else if (c == "qa") {
 #ifdef HAVE_QA
@@ -617,6 +660,30 @@ int main()
             std::string what; in >> what;
             lv_obj_t* cur = nullptr;
             auto show = [&](lv_obj_t* o) { if (cur) lv_obj_delete(cur); cur = o; diff_frame(); };
+#ifdef HAVE_MGO_LOOK
+            if (what == "over") {   // patch UX15d: the game-over screen's motion, a frame every 30 ms from RESULT's screen to MS: play over won|lost|draw|over|timeup NEWBEST LOOK MS
+                std::string res; int nb, look, ms; in >> res >> nb >> look >> ms;
+                const int r = res == "won" ? MGO_WON : res == "lost" ? MGO_LOST : res == "over" ? MGO_OVER : res == "timeup" ? MGO_TIMEUP : MGO_DRAW;
+                mgo::g_look = look;
+                mgo::Screen sc = mgo::build_lang(lv_layer_top(), r, "Score 120", "Best 90", nb != 0, 0);
+                mgo::g_look = 0;
+                cur = sc.root;
+                diff_frame();   // the screen appears: the whole glass changes, as it does for every game-over look, so the numbers below start from the first frame of the screen itself
+                s_have_prev = false; s_d_frames = s_d_changed = s_d_bbox = s_d_bbox_max = s_d_tiles = s_d_tiles_max = 0; s_d_outside = 0; s_d_dirty = s_d_dirty_max = 0;
+                diff_frame();
+                uint32_t before = 0;
+                for (int tt = 30; tt <= ms; tt += 30) {
+                    mgo_rect_t rr[MGO2_MAX_RECTS];
+                    const int nr = sc.st != nullptr ? mgo_dirty(r, nb, sc.st->num_len, before, (uint32_t)tt, rr) : 0;
+                    s_dirty.clear();
+                    if (sc.st != nullptr && look >= MGO_LOOK_FULL) for (int i = 0; i < nr; i++) s_dirty.push_back({rr[i].x, rr[i].y, rr[i].w, rr[i].h});
+                    mgo::set_pop(sc, (uint32_t)tt);
+                    diff_frame();
+                    before = (uint32_t)tt;
+                }
+                s_dirty.clear();
+            }
+#endif
 #ifdef HAVE_PONG
             if (what == "pong") {
                 int ticks, aim; in >> ticks >> aim;

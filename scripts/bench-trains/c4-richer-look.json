@@ -222,7 +222,7 @@
    "expect": {
     "ok": true,
     "gaps_ms": {
-     "max": 120
+     "max": 100
     }
    },
    "wait": 5
@@ -298,7 +298,7 @@
    "expect": {
     "ok": true,
     "gaps_ms": {
-     "max": 120
+     "max": 100
     }
    },
    "wait": 5
@@ -374,7 +374,7 @@
    "expect": {
     "ok": true,
     "gaps_ms": {
-     "max": 120
+     "max": 100
     }
    },
    "wait": 5
@@ -404,6 +404,6 @@
  ],
  "person": [
   "look at the screen while level 0, 1 and 2 are on: the board should be the old one, the gradient board with rimmed discs, and the same with soft shadows; say if any level flickers or tears when a disc falls",
-  "the three results that matter are in result.json: box times (us_per_redraw per technique), frame gaps per look (gaps_ms), and the heap numbers before, in the game, and per look"
+  "the results that matter are in result.json: box times (us_per_redraw per technique; the unit measured flat 8,490 on 2026-11-19), frame gaps per look (gaps_ms: the pass gate is a worst gap of 100 ms, which is the plain look's 81 ms with 19 ms of room; the 60 ms rule of the budget is not met even by the plain look), and the heap numbers before, in the game, and per look"
  ]
 }

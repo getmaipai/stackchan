@@ -233,6 +233,32 @@ GRID_SCENARIOS = {
     "game-maze-near-goal": ["game c4 3", "maze 4|520|en", "snap {out}"],
     "game-maze-other-es": ["game c4 3", "maze 9|260|es", "snap {out}"],
 }
+# The new look of the shared game-over screen (patch UX15d, docs/design/game-over-look.md): each outcome on three sample games, the neutral ends, the six languages, moments of the motion and the pressed buttons.
+# The `over` fields: result|score|best|new best|language|look level|ms after it appeared|pressed button. Look 2 is the new look moving; at 2000 ms every motion has ended.
+def _over(result, score, best, nb, lang="en", look=2, ms=2000, pressed=""):
+    return ["game c4 3", f"over {result}|{score}|{best}|{nb}|{lang}|{look}|{ms}|{pressed}", "snap {out}"]
+for _g, _score, _best in (("c4", "Score 38", "Best 30"), ("rps", "Match 2 to 1", "Best 3"), ("tictactoe", "Wins 3", "Best 22")):
+    for _res, _nb in (("won", 0), ("lost", 0), ("draw", 0), ("won", 1)):
+        _o = "newbest" if _nb else _res
+        GRID_SCENARIOS[f"game-over-look-{_o}-{_g}"] = _over(_res, _score, "" if _nb else _best, _nb)
+GRID_SCENARIOS["game-over-look-timeup-whack"] = _over("timeup", "Score 120", "Best 287", 0)
+GRID_SCENARIOS["game-over-look-over-doit"] = _over("over", "Score 12", "Best 30", 0)
+GRID_SCENARIOS["game-over-look-newbest-colormemory"] = _over("over", "Round 15", "", 1)
+for _lg in ("en", "es", "fr", "de", "pt", "it"):
+    GRID_SCENARIOS[f"game-over-look-won-lang-{_lg}"] = _over("won", "Score 66" if _lg == "en" else {"es": "Puntos 66", "fr": "Score 66", "de": "Punkte 66", "pt": "Pontos 66", "it": "Punti 66"}[_lg], "Best 70", 0, _lg)
+    GRID_SCENARIOS[f"game-over-look-newbest-lang-{_lg}"] = _over("over", "Score 301", "", 1, _lg)
+GRID_SCENARIOS["game-over-look-lost-lang-de"] = _over("lost", "Punkte 12", "Beste 30", 0, "de")
+GRID_SCENARIOS["game-over-look-timeup-lang-es"] = _over("timeup", "Puntos 120", "Mejor 287", 0, "es")
+GRID_SCENARIOS["game-over-look-won-confetti"] = _over("won", "Score 66", "Best 70", 0, ms=660)
+GRID_SCENARIOS["game-over-look-won-landing"] = _over("won", "Score 66", "Best 70", 0, ms=210)
+GRID_SCENARIOS["game-over-look-lost-rain"] = _over("lost", "Score 12", "Best 30", 0, ms=700)
+GRID_SCENARIOS["game-over-look-draw-squeeze"] = _over("draw", "Match 1 to 1", "Best 3", 0, ms=600)
+GRID_SCENARIOS["game-over-look-timeup-sweep"] = _over("timeup", "Score 120", "Best 287", 0, ms=900)
+GRID_SCENARIOS["game-over-look-newbest-glitter"] = _over("won", "Score 301", "", 1, ms=600)
+GRID_SCENARIOS["game-over-look-won-pressed-again"] = _over("won", "Score 66", "Best 70", 0, pressed=1)
+GRID_SCENARIOS["game-over-look-lost-pressed-quit"] = _over("lost", "Score 12", "Best 30", 0, pressed=2)
+GRID_SCENARIOS["game-over-look-won-still"] = _over("won", "Score 66", "Best 70", 0, look=1)
+GRID_SCENARIOS["game-over-look-newbest-still"] = _over("won", "Score 301", "", 1, look=1)
 
 # Filmstrips: the frames a scenario collects with ("strip",) steps, half size, three to a row. The flip of a clock style change (patch UX14b) is 240 ms.
 # a strip step runs one renderer frame (33 ms) and takes the picture without running another, so the eight frames after the tap span the 240 ms flip
@@ -432,6 +458,7 @@ REQUIRES = [
     (r"^game(-over)?-hilo", "UX21-higher-or-lower.patch"),
     (r"^game(-over)?-reversi", "UX22-reversi.patch"),
     (r"^game-battleship", "UX23-battleship-lite.patch"),
+    (r"^game-over-look", "UX15d-game-over-look.patch"),
     (r"^game-pong", "UX24-pong.patch"),
     (r"^game-flyer", "UX25-flyer.patch"),
     (r"^game-c4-look", "UX26-four-in-a-row-richer-look-bench.patch"),

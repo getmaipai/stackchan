@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Frame cost of every game from the host renderer (docs/plan/games-visual-budget.md): for a run of each game, how much of the glass changes from one frame to the next, as pixels changed and as the
-area of the bounding box of the change (what a flush of only the changed rectangle costs). The unit's flush cost is estimated from the one measured number we have (a full-screen flush of 153,600 bytes
-takes 26 to 35 ms, taken as 30 ms, `docs/design/picture-faces-2026-11-16.md`), so 0.39 ms per 1,000 pixels of a 16 bit picture. Two models of the flush: only the 16 by 16 pixel tiles that changed (several small dirty rectangles, what SF78 does for the grid games), or one rectangle round everything that changed. Drawing time is not in this: the renderer's host milliseconds do not carry over
-to the chip. Usage: games_cost.py [--json]. Placement: host-side development tool. Upstream: none."""
+area of the bounding box of the change (what a flush of only the changed rectangle costs). The unit's cost is taken from the box times the bench measured on the unit (2026-11-19, self.game.bench_box,
+a 100 by 100 pixel box drawn and flushed): a flat box takes 8,490 microseconds, so 0.849 ms per 1,000 pixels, draw and flush together (a full 320 by 240 screen is about 65 ms; the display flush alone runs
+about 2.4 MB/s). The earlier figure here, 0.39 ms per 1,000 pixels, came from a 30 ms full-screen flush that the bench did not confirm. Each technique costs its own multiple of the flat box (UNIT_BOX_US).
+Two models of the flush: only the 16 by 16 pixel tiles that changed (several small dirty rectangles, what SF78 does for the grid games), or one rectangle round everything that changed. The renderer's host
+milliseconds do not carry over to the chip. Usage: games_cost.py [--json]. Placement: host-side development tool. Upstream: none."""
 import json
 import re
 import subprocess
@@ -11,7 +13,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GRID = ROOT / ".runs" / "vu-screens" / "grid" / "grid_render"
-MS_PER_PIXEL = 30.0 / (320 * 240)
+# Measured on the unit, microseconds to draw and flush one 100 by 100 pixel box (bench, 2026-11-19): the K of every estimate in the budget.
+UNIT_BOX_US = {"flat": 8490, "radius": 9075, "circle": 9879, "gradient": 9317, "shadow-small": 13182, "shadow": 20875, "alpha": 9798, "outline": 10133}
+MS_PER_PIXEL = UNIT_BOX_US["flat"] / 1000.0 / 10000.0   # 0.000849 ms a pixel: 65 ms for a full screen
 
 RUNS = {
     "Four in a Row (a disc falls)": ["game c4 3", "diffbegin", "drop 3 1", "advance 700", "drop 4 2", "advance 700", "diffend c4"],
@@ -27,6 +31,12 @@ RUNS = {
     "Pong (a rally)": ["game c4 3", "diffbegin", "play pong 400 18", "diffend pong"],
     "Balance (a lean)": ["game c4 3", "diffbegin", "play balance 4 900", "diffend balance"],
     "Maze (a roll)": ["game c4 3", "diffbegin", "play maze 4 700", "diffend maze"],
+    "Game over, today's (won)": ["game c4 3", "diffbegin", "play over won 0 0 1800", "diffend gover0"],
+    "Game over, new look (won, confetti)": ["game c4 3", "diffbegin", "play over won 0 2 1800", "diffend gover_won"],
+    "Game over, new look (lost, rain)": ["game c4 3", "diffbegin", "play over lost 0 2 1800", "diffend gover_lost"],
+    "Game over, new look (draw)": ["game c4 3", "diffbegin", "play over draw 0 2 1800", "diffend gover_draw"],
+    "Game over, new look (new best)": ["game c4 3", "diffbegin", "play over won 1 2 1800", "diffend gover_nb"],
+    "Game over, new look (time's up)": ["game c4 3", "diffbegin", "play over timeup 0 2 1800", "diffend gover_time"],
     "Flappy-style flyer (flying)": ["game c4 3", "diffbegin", "play flyer 4 600", "diffend flyer"],
 }
 LINE = re.compile(r"cost (\S+) frames (\d+) changed_px (\d+) bbox_px (\d+) bbox_px_max (\d+) tile_px (\d+) tile_px_max (\d+)(?: outside_dirty (\d+) dirty_px (\d+) dirty_px_max (\d+))?")

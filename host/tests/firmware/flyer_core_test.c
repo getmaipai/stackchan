@@ -109,16 +109,23 @@ int main(void)
                     for (int i = 0; i < n; i++) hit |= FL_BIRD_X >= r[i].x && fl_bird_top(s) >= r[i].y && FL_BIRD_X + FL_BIRD <= r[i].x + r[i].w && fl_bird_top(s) + FL_BIRD <= r[i].y + r[i].h;
                     CHECK(hit);
                 }
-                for (int i = 0; i < FL_PIPES; i++) {   /* every column a pipe covers in only one of the two states (its edges, or all of it after a wrap) is inside a rectangle that spans the sky */
+                for (int i = 0; i < FL_PIPES; i++) {   /* every column a pipe covers in only one of the two states (its edges, or all of it after a wrap) is inside a rectangle (below) */
                     const int la = (a.px[i] >> 4) - 3, lb = (b.px[i] >> 4) - 3, w = FL_PIPE_W + 6;
                     for (int x = (la < lb ? la : lb); x < (la > lb ? la : lb) + w; x++) {
                         if (x < 0 || x >= 320) continue;
                         const int in_a = x >= la && x < la + w, in_b = x >= lb && x < lb + w;
                         if (!in_a && !in_b) continue;                                  /* not covered in either state */
                         if (in_a == in_b && a.gap[i] == b.gap[i]) continue;   /* covered in both states by the same pipe: unchanged */
-                        int hit = 0;
-                        for (int j = 0; j < n; j++) hit |= x >= r[j].x && x < r[j].x + r[j].w && r[j].y <= FL_TOP && r[j].y + r[j].h >= FL_BOTTOM;
-                        CHECK(hit);
+                        for (int k = 0; k < 2; k++) {   /* every row a pipe fills in that column, in the state that has the pipe there, is inside some rectangle (the rows of the gap hold only sky and are left out) */
+                            if (k == 0 ? !in_a : !in_b) continue;
+                            const int gap = k == 0 ? a.gap[i] : b.gap[i];
+                            for (int y = FL_TOP; y < FL_BOTTOM; y++) {
+                                if (y >= gap + 2 && y < gap + FL_GAP - 2) continue;
+                                int hit = 0;
+                                for (int j = 0; j < n; j++) hit |= x >= r[j].x && x < r[j].x + r[j].w && y >= r[j].y && y < r[j].y + r[j].h;
+                                CHECK(hit);
+                            }
+                        }
                     }
                 }
                 long px = 0;

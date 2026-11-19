@@ -1,6 +1,6 @@
 # The data-pack games: which can take a richer look
 
-Playground track, 2026-11-18. Critique only, no art. The seven packs (`firmware/games/*.json`) are drawn by one engine, `maipai_games_draw.h`, from a table of shapes, so a look is decided once for all of them. The rules are those of `docs/plan/games-visual-budget.md`: one draw callback, at most 15 LVGL objects (about 2 KB of internal RAM), static gradients and shadows only, dirty rectangles, no per-game bitmaps.
+Playground track, 2026-11-18. Critique only, no art. **Re-read on 2026-11-19:** the bench measured the unit (a full 320 by 240 redraw is about 65 ms, not 30; Four in a Row's richer look failed the gap rule), so every "fits" below is judged by the motion rule of `docs/plan/games-visual-budget.md` section 4: a pack screen may draw its backdrop and shadows once, at entry, and move only small rectangles after. The seven packs (`firmware/games/*.json`) are drawn by one engine, `maipai_games_draw.h`, from a table of shapes, so a look is decided once for all of them. The rules are those of `docs/plan/games-visual-budget.md`: one draw callback, at most 15 LVGL objects (about 2 KB of internal RAM), static gradients and shadows only, dirty rectangles, no per-game bitmaps.
 
 ![The seven packs as the unit draws them today: Tic-Tac-Toe, Whack-a-Mole, Do It, Magic 8 Ball, Dice and Coin, Color Memory, Rock Paper Scissors](../images/games-packs-today.png)
 
