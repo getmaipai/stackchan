@@ -1,0 +1,255 @@
+# Intent: Flappy-style flyer (spec docs/design/flyer.md, rank 8 of docs/plan/more-games.md): a small bird falls, a tap hops it, pipes with a 76 px gap scroll in from the right, one point per pipe passed; a pipe, the sky or the floor ends the game on Game over with the pipes passed (a score-only game, owner decision 33). Fixed point, 30 ticks a second, gaps from a seed. Two new header-only files: the pure core and the screen (ONE object, one draw callback; the whole screen is the tap target). Registering the game, the tap, the tick, the sounds (tick on a pass, thud, lose), the best score and the game-over call are the firmware track's.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_flyer_core.h, maipai_flyer.h (new, ours)
+# Check after a flash: Games, flyer: an amber bird in a dark sky with green pipes moving left; a tap hops it; Pipes N counts up as pipes pass; a hit ends on Game over with the count; the frame cost stays within the frame table.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_flyer_core.h b/firmware/main/hal/maipai_flyer_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_flyer_core.h
+@@ -0,0 +1,153 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Flappy-style flyer (patch UX25; spec docs/design/flyer.md): a small bird falls; a tap hops it up; pipes scroll in from the right with a gap to fly through. One point for every pipe passed. A pipe,
++ * the ceiling or the floor ends the game. A score-only game: it ends on Game over with the number of pipes (owner decision 33). Fixed point (1/16 pixel), 30 ticks a second, no clock of its own (the
++ * caller steps it), no heap. Pure C99, no ESP and no LVGL call. The gaps come from a seed, so a test (and a replay) gets the same course.
++ */
++#ifndef MAIPAI_FLYER_CORE_H
++#define MAIPAI_FLYER_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define FL_TOP 30             /* the sky starts here on the glass (under the header) */
++#define FL_BOTTOM 232         /* and the floor is here */
++#define FL_BIRD_X 80          /* the bird's left edge, px */
++#define FL_BIRD 14            /* the bird is 14 px square for the hit test */
++#define FL_PIPE_W 36
++#define FL_GAP 76
++#define FL_SPACING 160        /* px from one pipe to the next: two pipes on the glass at most, which is what keeps the redrawn area under the motion rule (docs/plan/games-visual-budget.md section 4) */
++#define FL_PIPES 4
++#define FL_GRAVITY 8          /* 1/16 px a tick, every tick */
++#define FL_HOP -88            /* the upward speed a tap sets, 1/16 px a tick (5.5 px) */
++#define FL_FALL_MAX 128       /* the fastest fall (8 px a tick) */
++#define FL_SPEED 40           /* the pipes' speed, 1/16 px a tick (2.5 px) */
++#define FL_TICK_MS 33
++enum { FL_PLAY = 0, FL_OVER };
++enum { FL_E_NONE = 0, FL_E_HOP, FL_E_PASS, FL_E_HIT };
++
++typedef struct {
++    int32_t y, vy;                  /* the bird's top, 1/16 px, and its speed */
++    int32_t px[FL_PIPES];           /* each pipe's left edge, 1/16 px */
++    int16_t gap[FL_PIPES];          /* the top of each pipe's gap, px */
++    uint8_t passed[FL_PIPES];
++    uint16_t score;
++    uint8_t phase;
++    uint8_t event;
++    uint32_t rng;
++    uint32_t ticks;
++} fl_t;
++
++static inline uint32_t fl_rand(fl_t* g)
++{
++    g->rng = g->rng * 1664525u + 1013904223u;
++    return g->rng >> 8;
++}
++
++static inline int fl_new_gap(fl_t* g)
++{
++    const int lo = FL_TOP + 24, hi = FL_BOTTOM - FL_GAP - 24;   /* the gap's top stays 24 px clear of the sky and of the floor */
++    return lo + (int)(fl_rand(g) % (uint32_t)(hi - lo + 1));
++}
++
++static inline void fl_init(fl_t* g, uint32_t seed)
++{
++    memset(g, 0, sizeof(*g));
++    g->rng = seed != 0 ? seed : 1u;
++    g->y = (FL_TOP + (FL_BOTTOM - FL_TOP) / 2 - FL_BIRD / 2) * 16;
++    for (int i = 0; i < FL_PIPES; i++) {
++        g->px[i] = (320 + 80 + i * FL_SPACING) * 16;
++        g->gap[i] = (int16_t)fl_new_gap(g);
++    }
++    g->phase = FL_PLAY;
++}
++
++/* A tap: the bird hops. Returns 1 when it did. */
++static inline int fl_tap(fl_t* g)
++{
++    if (g->phase != FL_PLAY) return 0;
++    g->vy = FL_HOP;
++    g->event = FL_E_HOP;
++    return 1;
++}
++
++/* One tick: gravity, the bird moves, the pipes scroll, a passed pipe scores, a hit ends the game. */
++static inline void fl_step(fl_t* g)
++{
++    if (g->phase != FL_PLAY) return;
++    if (g->event != FL_E_HOP) g->event = FL_E_NONE;
++    g->ticks++;
++    g->vy += FL_GRAVITY;
++    if (g->vy > FL_FALL_MAX) g->vy = FL_FALL_MAX;
++    g->y += g->vy;
++    int furthest = 0;
++    for (int i = 0; i < FL_PIPES; i++) if (g->px[i] > g->px[furthest]) furthest = i;
++    for (int i = 0; i < FL_PIPES; i++) {
++        g->px[i] -= FL_SPEED;
++        if (g->px[i] + FL_PIPE_W * 16 < 0) {   /* off the left: it comes back at the right end with a new gap */
++            g->px[i] = g->px[furthest] + FL_SPACING * 16;
++            g->gap[i] = (int16_t)fl_new_gap(g);
++            g->passed[i] = 0;
++            furthest = i;
++        }
++        if (!g->passed[i] && g->px[i] + FL_PIPE_W * 16 < FL_BIRD_X * 16) { g->passed[i] = 1; g->score++; g->event = FL_E_PASS; }
++    }
++    const int top = g->y >> 4, bottom = top + FL_BIRD;
++    int hit = top < FL_TOP || bottom > FL_BOTTOM;
++    for (int i = 0; i < FL_PIPES && !hit; i++) {
++        const int left = g->px[i] >> 4, right = left + FL_PIPE_W;
++        if (FL_BIRD_X + FL_BIRD > left && FL_BIRD_X < right && (top < g->gap[i] || bottom > g->gap[i] + FL_GAP)) hit = 1;
++    }
++    if (hit) { g->phase = FL_OVER; g->event = FL_E_HIT; }
++}
++
++static inline int fl_bird_top(const fl_t* g) { return g->y >> 4; }
++
++/* ---- dirty rectangles (SF78 pattern): what a step changed on the glass, so the screen invalidates the pipes' strips and the bird, not the whole sky (a full flush is 30 ms before any drawing). ---- */
++typedef struct { int16_t x, y, w, h; } fl_rect_t;
++static inline void fl_set_rect(fl_rect_t* r, int x, int y, int w, int h)
++{
++    if (x < 0) { w += x; x = 0; }
++    if (x + w > 320) w = 320 - x;
++    if (w < 0) w = 0;
++    r->x = (int16_t)x; r->y = (int16_t)y; r->w = (int16_t)w; r->h = (int16_t)h;
++}
++/* The rectangles (glass pixels) that differ between two states, at most FL_PIPES * 4 + 2 = 18: for each pipe that moved a little, only the two thin columns at its edges (a flat colored pipe that shifts
++ * left by 2 or 3 pixels changes only where it starts and where it ended, so its inside is not redrawn); for a pipe that wrapped round to the right end, the whole place it left and the whole place it
++ * took; the bird (old and new place in one); the score line when it changed. A pipe's span includes its lips (3 px each side); every strip has 2 px of margin outside and 4 px inside (the rounded corners). Returns how many. */
++/* A strip of a pipe (columns x0 to x1) is the two parts where the pipe is: from the sky down to a little below the gap's top (the pipe above and its lip), and from a little above the gap's bottom to the
++ * floor. The gap between them holds only sky, which does not change when a pipe shifts, so it is not redrawn: that is 76 of the 202 rows. */
++static inline int fl_strip(fl_rect_t* out, int n, int x0, int x1, int gap)
++{
++    if (x1 <= 0 || x0 >= 320) return n;
++    fl_set_rect(&out[n++], x0, FL_TOP, x1 - x0, gap + 2 - FL_TOP);
++    fl_set_rect(&out[n++], x0, gap + FL_GAP - 2, x1 - x0, FL_BOTTOM - (gap + FL_GAP - 2));
++    return n;
++}
++static inline int fl_dirty(const fl_t* a, const fl_t* b, fl_rect_t* out)
++{
++    int n = 0;
++    for (int i = 0; i < FL_PIPES; i++) {
++        const int la = (a->px[i] >> 4) - 3, lb = (b->px[i] >> 4) - 3, w = FL_PIPE_W + 6;
++        if (lb - la >= -8 && lb - la <= 8) {   // it moved a little (or not at all): two edge columns
++            const int ra = la + w, rb = lb + w;
++            const int l0 = (la < lb ? la : lb) - 2, l1 = (la > lb ? la : lb) + 3 + 4;   // the lip's edge and the body's edge, 3 px inside it, and 4 px more for the rounded corner of radius 3
++            const int r0 = (ra < rb ? ra : rb) - 3 - 4, r1 = (ra > rb ? ra : rb) + 2;
++            if (lb != la) {
++                n = fl_strip(out, n, l0 < 0 ? 0 : l0, l1, b->gap[i]);
++                n = fl_strip(out, n, r0 < 0 ? 0 : r0, r1 > 320 ? 320 : r1, b->gap[i]);
++            }
++            if (la == lb && a->gap[i] != b->gap[i] && lb + w + 2 > 0 && lb - 2 < 320) fl_set_rect(&out[n++], la - 2, FL_TOP, w + 4, FL_BOTTOM - FL_TOP);
++        } else {                                // it wrapped: where it was, and where it is (only the parts a pipe fills)
++            n = fl_strip(out, n, la - 2 < 0 ? 0 : la - 2, la + w + 2 > 320 ? 320 : la + w + 2, a->gap[i]);
++            n = fl_strip(out, n, lb - 2 < 0 ? 0 : lb - 2, lb + w + 2 > 320 ? 320 : lb + w + 2, b->gap[i]);
++        }
++    }
++    const int ya = fl_bird_top(a), yb = fl_bird_top(b), top = (ya < yb ? ya : yb) - 2, bottom = (ya > yb ? ya : yb) + FL_BIRD + 2;
++    fl_set_rect(&out[n++], FL_BIRD_X - 2, top < 0 ? 0 : top, FL_BIRD + 4, bottom - (top < 0 ? 0 : top));
++    if (a->score != b->score) fl_set_rect(&out[n++], 100, 0, 120, 28);   /* the score line is centred and 120 px is wider than "Tubos 100" at 20 px */
++    return n;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_flyer.h b/firmware/main/hal/maipai_flyer.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_flyer.h
+@@ -0,0 +1,86 @@
++// SPDX-License-Identifier: MIT
++// The flyer screen (patch UX25; spec docs/design/flyer.md). Header only, so the host renderer compiles the very same drawing code. The sky, pipes and bird are drawn by ONE object and one draw
++// callback, redrawn by the caller on every step. The whole screen is the tap target (a tap hops the bird); the firmware track wires that, the 33 ms tick, the sounds and the game-over call
++// (Game over with the pipes passed). No ESP call here.
++#ifndef MAIPAI_FLYER_H
++#define MAIPAI_FLYER_H
++
++#include <lvgl.h>
++#include <stdio.h>
++#include "maipai_flyer_core.h"
++
++namespace flys {
++
++inline void rect(lv_layer_t* layer, int x, int y, int w, int h, int radius, uint32_t color, lv_opa_t opa = LV_OPA_COVER)
++{
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.bg_color = lv_color_hex(color);
++    d.bg_opa = opa;
++    d.radius = radius;
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + h - 1)};
++    lv_draw_rect(layer, &d, &a);
++}
++
++inline void draw_sky(lv_event_t* e)
++{
++    const fl_t* g = static_cast<const fl_t*>(lv_event_get_user_data(e));
++    if (g == nullptr) return;
++    lv_layer_t* layer = lv_event_get_layer(e);
++    rect(layer, 0, FL_TOP, 320, FL_BOTTOM - FL_TOP, 0, 0x10243E);                                      // the sky
++    rect(layer, 0, FL_BOTTOM, 320, 240 - FL_BOTTOM, 0, 0x3A5A2E);                                      // the floor
++    for (int i = 0; i < FL_PIPES; i++) {
++        const int x = g->px[i] >> 4;
++        if (x + FL_PIPE_W <= 0 || x >= 320) continue;
++        const int top_h = g->gap[i] - FL_TOP, bot_y = g->gap[i] + FL_GAP;
++        rect(layer, x, FL_TOP, FL_PIPE_W, top_h, 3, 0x3E8E4F);                                           // the pipe above the gap
++        rect(layer, x - 3, g->gap[i] - 10, FL_PIPE_W + 6, 10, 3, 0x5CB86E);                              // its lip
++        rect(layer, x, bot_y, FL_PIPE_W, FL_BOTTOM - bot_y, 3, 0x3E8E4F);                                // the pipe below
++        rect(layer, x - 3, bot_y, FL_PIPE_W + 6, 10, 3, 0x5CB86E);                                       // its lip
++    }
++    rect(layer, FL_BIRD_X, fl_bird_top(g), FL_BIRD, FL_BIRD, 6, g->phase == FL_PLAY ? 0xF2B24A : 0xC0562E);   // the bird, amber (red-orange after the hit)
++    rect(layer, FL_BIRD_X + 9, fl_bird_top(g) + 3, 3, 3, LV_RADIUS_CIRCLE, 0x10141C);                    // its eye
++}
++
++// `g` must outlive the screen. The score is the number of pipes passed, large, in the header.
++inline lv_obj_t* screen(lv_obj_t* parent, const fl_t* g, bool es)
++{
++    lv_obj_t* r = lv_obj_create(parent);
++    lv_obj_remove_style_all(r);
++    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(r, 320, 240);
++    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    lv_obj_t* sky = lv_obj_create(r);
++    lv_obj_remove_style_all(sky);
++    lv_obj_remove_flag(sky, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(sky, 320, 240);
++    lv_obj_set_pos(sky, 0, 0);
++    lv_obj_add_event_cb(sky, draw_sky, LV_EVENT_DRAW_MAIN, const_cast<fl_t*>(g));
++    char a[24];
++    snprintf(a, sizeof(a), es ? "Tubos %d" : "Pipes %d", g->score);
++    lv_obj_t* l = lv_label_create(r);
++    lv_label_set_text(l, a);
++    lv_obj_set_style_text_font(l, &lv_font_montserrat_20, 0);
++    lv_obj_set_style_text_color(l, lv_color_hex(0xE8E8E8), 0);
++    lv_obj_set_width(l, 320);
++    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
++    lv_obj_set_pos(l, 0, 4);
++    return r;
++}
++
++// Invalidate only what a step changed (fl_dirty): the sky object is the first child of the screen root. Call it after each fl_step with the state before and after.
++inline void invalidate_dirty(lv_obj_t* root, const fl_t& before, const fl_t& after)
++{
++    lv_obj_t* sky = lv_obj_get_child(root, 0);
++    fl_rect_t r[FL_PIPES * 4 + 2];
++    const int n = fl_dirty(&before, &after, r);
++    for (int i = 0; i < n; i++) {
++        lv_area_t a = {static_cast<lv_coord_t>(r[i].x), static_cast<lv_coord_t>(r[i].y), static_cast<lv_coord_t>(r[i].x + r[i].w - 1), static_cast<lv_coord_t>(r[i].y + r[i].h - 1)};
++        lv_obj_invalidate_area(sky, &a);
++    }
++}
++
++}  // namespace flys
++
++#endif

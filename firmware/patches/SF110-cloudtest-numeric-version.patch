@@ -1,0 +1,93 @@
+# SF110: the cloud brain test image sends the numeric firmware version to the vendor's update check
+#
+# Intent: the vendor's update check reads a version as dotted numbers and refused "1.6.2-maipai.1", so the cloud test image never reached the vendor. The cloud test image
+#   (CONFIG_MAIPAI_CLOUDTEST) now reports "1.6.2". The other images and our own displays keep the full string. The "camera address is not the paired host" warning is said once per boot.
+# Placement: body (the unit's own update check); cloud test image only for the version, every image for the warning.
+# Upstream: none (MaiPai code only).
+# Check after a flash: cloudtest image: the console shows "Current version: 1.6.2" and a connection to the vendor's check; no "invalid version segment" line.
+# Kconfig: none (uses CONFIG_MAIPAI_CLOUDTEST).
+# Memory cost: 24 bytes of stack for a moment; nothing while the cloud test image is off.
+
+diff --git a/firmware/xiaozhi-esp32/main/ota.cc b/firmware/xiaozhi-esp32/main/ota.cc
+--- a/firmware/xiaozhi-esp32/main/ota.cc
++++ b/firmware/xiaozhi-esp32/main/ota.cc
+@@ -27,6 +27,7 @@
+ #include <vector>
+ 
+ #include <hal/maipai_cloudtest.h>
++#include <hal/maipai_ota_version_core.h>
+ #include <hal/maipai_hosted.h>
+ 
+ #define TAG "Ota"
+@@ -96,6 +97,13 @@ NetworkResult<> Ota::CheckVersion() {
+ 
+     // Check if there is a new firmware version available
+     current_version_ = app_desc->version;
++#if CONFIG_MAIPAI_CLOUDTEST
++    {   // patch SF110: the vendor check reads a version as dotted numbers, so the cloud test image sends the numeric part only
++        char num[24];
++        mov_numeric(app_desc->version, num, sizeof(num));
++        current_version_ = num;
++    }
++#endif
+     ESP_LOGI(TAG, "Current version: %s", current_version_.c_str());
+ 
+     std::string url = GetCheckVersionUrl();
+diff --git a/firmware/xiaozhi-esp32/main/mcp_server.cc b/firmware/xiaozhi-esp32/main/mcp_server.cc
+--- a/firmware/xiaozhi-esp32/main/mcp_server.cc
++++ b/firmware/xiaozhi-esp32/main/mcp_server.cc
+@@ -247,7 +247,11 @@ void McpServer::ParseCapabilities(const cJSON* capabilities) {
+             Settings paired("websocket", false);
+             std::string paired_host = UpdateUrlHost(paired.GetString("url"));
+             if (paired_host.empty() || UpdateUrlHost(url_str) != paired_host) {
+-                ESP_LOGW(TAG, "Ignored a camera address that is not the paired host; the host must send its own address");
++                static bool s_warned = false;   // patch SF110: said once per boot (the host repeats the request)
++                if (!s_warned) {
++                    s_warned = true;
++                    ESP_LOGW(TAG, "Ignored a camera address that is not the paired host; the host must send its own address");
++                }
+                 camera = nullptr;
+             }
+             if (camera) {
+diff --git a/firmware/main/hal/maipai_ota_version_core.h b/firmware/main/hal/maipai_ota_version_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_ota_version_core.h
+@@ -0,0 +1,37 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The numeric part of the firmware's version string (patch SF110). The vendor's update check parses a version as dot separated numbers, so "1.6.2-maipai.1" is refused
++ * ("invalid version segment"). Only the cloud brain test image sends the numeric part. Pure C99.
++ */
++#ifndef MAIPAI_OTA_VERSION_CORE_H
++#define MAIPAI_OTA_VERSION_CORE_H
++
++#include <stddef.h>
++
++// Copies the leading digits-and-dots prefix of `in` ("1.6.2-maipai.1" gives "1.6.2") into out (size n, always terminated when n is 1 or more). A trailing dot is dropped; no digits at all gives "0".
++// Returns the length written.
++static inline size_t mov_numeric(const char* in, char* out, size_t n)
++{
++    size_t len = 0;
++    if (n == 0) return 0;
++    if (n == 1) {
++        out[0] = '\0';
++        return 0;
++    }
++    if (in != 0) {
++        while (in[len] != '\0' && len + 1 < n && ((in[len] >= '0' && in[len] <= '9') || in[len] == '.')) {
++            out[len] = in[len];
++            len++;
++        }
++    }
++    while (len > 0 && out[len - 1] == '.') len--;
++    if (len == 0) {
++        out[0] = '0';
++        len = 1;
++    }
++    out[len] = '\0';
++    return len;
++}
++
++#endif

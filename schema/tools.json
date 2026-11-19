@@ -1,6 +1,6 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 180,
+ "count": 184,
  "tools": {
   "self.assets.abort": "SF90-asset-store-on-the-unit.patch",
   "self.assets.commit": "SF90-asset-store-on-the-unit.patch",
@@ -76,10 +76,13 @@
   "self.filler.play": "TB03-while-it-thinks-filler.patch",
   "self.filler.status": "TB03-while-it-thinks-filler.patch",
   "self.firmware.update": "159-wireless-update-from-paired-host.patch",
+  "self.game.bench_box": "UX26-four-in-a-row-richer-look-bench.patch",
   "self.game.bench_event": "UI13-games-v2-draw-inputs-and-page.patch",
   "self.game.bench_frames": "SF75-bench-grid-frame-recorder.patch",
   "self.game.bench_gaps": "UI15-magic-8-ball-dice-and-gentle-shake.patch",
   "self.game.bench_install": "G02-game-player-and-tools.patch",
+  "self.game.bench_look": "UX26-four-in-a-row-richer-look-bench.patch",
+  "self.game.bench_over": "UX15d-game-over-look.patch",
   "self.game.bench_record": "SF75-bench-grid-frame-recorder.patch",
   "self.game.bench_request_stop": "G02-game-player-and-tools.patch",
   "self.game.bench_swipe": "UI13-games-v2-draw-inputs-and-page.patch",
@@ -90,6 +93,7 @@
   "self.game.start": "G02-game-player-and-tools.patch",
   "self.game.status": "G02-game-player-and-tools.patch",
   "self.game.stop": "G02-game-player-and-tools.patch",
+  "self.lines.say": "SF114-offline-lines-reader.patch",
   "self.link.pair": "SF35-link-pairing-unit.patch",
   "self.listen.test": "TB01-listening-cues.patch",
   "self.lock.bench_key": "LK02-lock-state-tools-and-lock-screen.patch",
@@ -431,6 +435,10 @@
    "size": "integer",
    "version": "string"
   },
+  "self.game.bench_box": {
+   "technique": "string",
+   "n": "integer"
+  },
   "self.game.bench_event": {
    "event": "integer"
   },
@@ -439,6 +447,15 @@
   "self.game.bench_install": {
    "pack": "string",
    "done": "boolean"
+  },
+  "self.game.bench_look": {
+   "level": "integer"
+  },
+  "self.game.bench_over": {
+   "look": "integer",
+   "result": "integer",
+   "new_best": "integer",
+   "lang": "integer"
   },
   "self.game.bench_record": {
    "on": "integer"
@@ -469,6 +486,9 @@
   },
   "self.game.status": {},
   "self.game.stop": {},
+  "self.lines.say": {
+   "situation": "string"
+  },
   "self.link.pair": {
    "url": "string"
   },

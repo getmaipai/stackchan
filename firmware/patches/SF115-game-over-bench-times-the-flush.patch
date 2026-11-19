@@ -1,0 +1,77 @@
+# SF115: the game-over bench times the real flush; the other games' game-over taps show the pressed look
+#
+# Intent: self.game.bench_over timed only the draw call (the panel queue absorbed the flush), so a two-object screen read 61 to 75 us. It now waits until the display driver reports the frame sent
+#   (the flushing flag, at most 200 ms) before it stops the clock, for the entry frame and for every step. The game-over taps of the pack games and the question games call set_pressed on touch down
+#   like the grid games do. The bench tool exists only in bench images; the tap line changes nothing visible (the action follows at once).
+# Placement: unit (body half).
+# Upstream: none (MaiPai code only).
+# Check after a flash: game-over-look train: look 1 mean is in milliseconds (a real frame), not microseconds.
+# Kconfig: none (rides on CONFIG_MAIPAI_GAMES_BENCH for the timing).
+# Memory cost: none.
+
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -58,6 +58,8 @@
+ #include <nvs.h>
+ #include <mcp_server.h>
+ #include <atomic>
++#include <esp_rom_sys.h>
++#include "src/display/lv_display_private.h"   // patch SF115: the flushing flag
+ #include <cstdio>
+ #include <cstring>
+ #include <strings.h>
+@@ -1266,6 +1268,15 @@ const char* maipai_grid_scores_json(const char* id)
+ }
+ 
+ #if CONFIG_MAIPAI_GAMES_BENCH
++// Patch SF115: waits (at most 200 ms) until the display driver has sent the last frame to the panel, so a bench time covers the draw AND the flush.
++static void wait_flushed()
++{
++    lv_display_t* d = lv_display_get_default();
++    if (d == nullptr) return;
++    const int64_t t0 = esp_timer_get_time();
++    while (d->flushing && esp_timer_get_time() - t0 < 200000) esp_rom_delay_us(20);
++}
++
+ bool maipai_grid_bench_touch(int x, int y)
+ {
+     if (s_grid == nullptr) return false;
+@@ -1351,6 +1362,7 @@ void maipai_grid_register_bench_tools()
+                     mgo::g_look = saved;
+                     const int64_t e0 = esp_timer_get_time();
+                     lv_refr_now(nullptr);   // the screen appears: the one full-screen frame
++                    wait_flushed();   // patch SF115: the clock stops when the panel has the frame, not when the draw call returns
+                     const int64_t entry_us = esp_timer_get_time() - e0;
+                     const size_t free_during = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+                     int64_t sum = 0, worst = 0;
+@@ -1359,6 +1371,7 @@ void maipai_grid_register_bench_tools()
+                         mgo::set_pop(sc, t);
+                         const int64_t t0 = esp_timer_get_time();
+                         lv_refr_now(nullptr);
++                        wait_flushed();   // patch SF115
+                         const int64_t d = esp_timer_get_time() - t0;
+                         sum += d;
+                         if (d > worst) worst = d;
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -784,6 +784,7 @@ void show_game_over(Game* g)
+ void game_over_tap(Game* g, int x, int y)
+ {
+     const int b = mgo_hit(x, y);
++    mgo::set_pressed(g->over, b);   // patch SF115: the pressed look on touch down
+     if (b == MGO_BTN_NONE) return;
+     char id[12], src[8];
+     snprintf(id, sizeof(id), "%s", g->id);
+diff --git a/firmware/main/hal/maipai_qa_game.cc b/firmware/main/hal/maipai_qa_game.cc
+--- a/firmware/main/hal/maipai_qa_game.cc
++++ b/firmware/main/hal/maipai_qa_game.cc
+@@ -391,6 +391,7 @@ const char* start_local_locked(int pk, bool es)
+ void game_over_tap(Qa* g, int x, int y)
+ {
+     const int b = mgo_hit(x, y);
++    mgo::set_pressed(g->over, b);   // patch SF115: the pressed look on touch down
+     if (b == MGO_BTN_NONE) return;
+     char extra[40];
+     snprintf(extra, sizeof(extra), "\"game\":\"%s\"", kGameId[g->st.kind]);

@@ -1,0 +1,477 @@
+{
+ "name": "new-games",
+ "build_dir": "~/esp/stackchan-rebuild/b99/firmware/build-bench",
+ "soak_s": 60,
+ "settle_s": 2,
+ "heap_interval_s": 10,
+ "tolerance_file": "host/tests/golden/tolerance.json",
+ "checks": [
+  {
+   "name": "heap-idle-before",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-during-hilo",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "hilo"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "stop-hilo",
+   "tool": "self.game.stop",
+   "args": {},
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-during-reversi",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "reversi"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "stop-reversi",
+   "tool": "self.game.stop",
+   "args": {},
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-during-dicepoker",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "dicepoker"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "stop-dicepoker",
+   "tool": "self.game.stop",
+   "args": {},
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-during-battleship",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "battleship"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "stop-battleship",
+   "tool": "self.game.stop",
+   "args": {},
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-during-pong",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "pong"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "stop-pong",
+   "tool": "self.game.stop",
+   "args": {},
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-during-flyer",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "flyer"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "stop-flyer",
+   "tool": "self.game.stop",
+   "args": {},
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-during-balance",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "balance"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "stop-balance",
+   "tool": "self.game.stop",
+   "args": {},
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "heap-during-maze",
+   "pre": [
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 0
+     }
+    },
+    {
+     "tool": "self.audio.set_sound_policy",
+     "args": {
+      "enabled": false,
+      "muted": true,
+      "quiet_now": false
+     }
+    },
+    {
+     "tool": "self.game.start",
+     "args": {
+      "name": "maze"
+     }
+    }
+   ],
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true,
+    "total_free": {
+     "min": 24000
+    },
+    "largest_free": {
+     "min": 16000
+    }
+   },
+   "post": [
+    {
+     "tool": "self.game.bench_request_stop",
+     "args": {}
+    },
+    {
+     "tool": "self.privacy.set",
+     "args": {
+      "quiet": 1
+     }
+    }
+   ],
+   "wait": 30
+  },
+  {
+   "name": "stop-maze",
+   "tool": "self.game.stop",
+   "args": {},
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "list-has-eight",
+   "tool": "self.game.list",
+   "expect": {
+    "ok": true
+   }
+  }
+ ],
+ "person": [
+  "each of the eight new games starts from the games list, takes touch (Balance and Maze: tilt), ends on the shared game-over screen and keeps a best score; games never move the head",
+  "the heap-during-<game> checks floor total_free 24,000 and largest 16,000"
+ ],
+ "_notes": "SF111 wiring of eight finished games. Build b88 bench = main + SF108 + UX15d/UX26 + SF109 + UX18b/23/24/25/27/28/29 + SF111."
+}

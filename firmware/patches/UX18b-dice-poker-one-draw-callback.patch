@@ -1,0 +1,177 @@
+# Intent: Dice Poker's screen drawn by ONE draw callback instead of 36 LVGL objects (owner request after docs/plan/games-visual-budget.md: every LVGL object is internal RAM, and 36 of them is about 4.6 KB of the 15.8 KB worst-case headroom). The dice, the pips, the buttons and every word are drawn inside one object like the board games; the screen keeps its call (dpk::screen(parent, state, es)) and its look, owns a copy of the state and frees it with the object. Two LVGL objects with the root.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_dicepoker.h (ours, patch UX18)
+# Check after a flash: Dice Poker looks as before (dice with pips, HOLD under a held die, the hand's name, Roll again and Keep); a game of five rounds plays through; internal free during the game is about 4 KB higher than with UX18 alone.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_dicepoker.h b/firmware/main/hal/maipai_dicepoker.h
+--- a/firmware/main/hal/maipai_dicepoker.h
++++ b/firmware/main/hal/maipai_dicepoker.h
+@@ -1,93 +1,120 @@
+ /*
+  * SPDX-License-Identifier: MIT
+  *
+- * Dice Poker's screen, drawn with LVGL only (patch UX18), so the host renderer draws the unit's own picture. The game over screen is the shared one (maipai_game_over.h).
++ * Dice Poker's screen, drawn with LVGL only (patch UX18), by ONE draw callback (patch UX18b), so the host renderer draws the unit's own picture. The game over screen is the shared one (maipai_game_over.h).
+  */
+ #ifndef MAIPAI_DICEPOKER_H
+ #define MAIPAI_DICEPOKER_H
+ 
+ #include <lvgl.h>
+ #include <stdio.h>
++#include <string.h>
+ #include "maipai_dicepoker_core.h"
+ 
+ namespace dpk {
+ 
+-inline lv_obj_t* tile(lv_obj_t* parent, int x, int y, int w, int h, uint32_t fill, uint32_t edge, int edge_w, int radius)
++// The pips of a die in a 3 by 3 pattern (bit k of the mask: row k / 3, column k % 3).
++inline int pips(int v)
+ {
+-    lv_obj_t* o = lv_obj_create(parent);
+-    lv_obj_remove_style_all(o);
+-    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_set_pos(o, x, y);
+-    lv_obj_set_size(o, w, h);
+-    lv_obj_set_style_bg_color(o, lv_color_hex(fill), 0);
+-    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+-    lv_obj_set_style_radius(o, radius, 0);
+-    lv_obj_set_style_border_width(o, edge_w, 0);
+-    lv_obj_set_style_border_color(o, lv_color_hex(edge), 0);
+-    return o;
++    static const int mask[7] = {0, 0x010, 0x101, 0x111, 0x145, 0x155, 0x16D};   // 1 center; 2 opposite corners; 3 diagonal; 4 corners; 5 corners and center; 6 two columns of three
++    return mask[v < 1 || v > 6 ? 0 : v];
+ }
+ 
+-inline lv_obj_t* words(lv_obj_t* parent, const char* t, const lv_font_t* font, uint32_t rgb, int x, int y, int w, lv_text_align_t align)
++// The view: a copy of the state and the language, owned by the draw object and freed with it (UX18b: the whole screen is ONE draw callback, 2 LVGL objects with the root, not 36).
++struct View {
++    dp_t g;
++    bool es;
++};
++
++inline void box(lv_layer_t* layer, int x, int y, int w, int h, int radius, uint32_t fill, uint32_t edge = 0, int edge_w = 0, lv_opa_t opa = LV_OPA_COVER)
+ {
+-    lv_obj_t* l = lv_label_create(parent);
+-    lv_label_set_text(l, t);
+-    lv_obj_set_style_text_font(l, font, 0);
+-    lv_obj_set_style_text_color(l, lv_color_hex(rgb), 0);
+-    lv_obj_set_style_text_align(l, align, 0);
+-    lv_obj_set_width(l, w);
+-    lv_obj_set_pos(l, x, y);
+-    return l;
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.bg_color = lv_color_hex(fill);
++    d.bg_opa = opa;
++    d.radius = radius;
++    d.border_width = edge_w;
++    d.border_color = lv_color_hex(edge);
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + h - 1)};
++    lv_draw_rect(layer, &d, &a);
+ }
+ 
+-// The pips of a die in a 3 by 3 pattern (bit k of the mask: row k / 3, column k % 3).
+-inline int pips(int v)
++// Text in a box of `w` pixels from `x`, its top at `y` (or centered in `h` pixels when h > 0).
++inline void text(lv_layer_t* layer, const char* t, const lv_font_t* font, uint32_t rgb, int x, int y, int w, int h, lv_text_align_t align)
+ {
+-    static const int mask[7] = {0, 0x010, 0x101, 0x111, 0x145, 0x155, 0x16D};   // 1 center; 2 opposite corners; 3 diagonal; 4 corners; 5 corners and center; 6 two columns of three
+-    return mask[v < 1 || v > 6 ? 0 : v];
++    lv_draw_label_dsc_t d;
++    lv_draw_label_dsc_init(&d);
++    d.color = lv_color_hex(rgb);
++    d.font = font;
++    d.text = t;   // the string outlives the draw: it is static or lives in the view
++    d.align = align;
++    const int top = h > 0 ? y + (h - lv_font_get_line_height(font)) / 2 : y;
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(top), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(top + lv_font_get_line_height(font) + 2)};
++    lv_draw_label(layer, &d, &a);
+ }
+ 
+-inline lv_obj_t* screen(lv_obj_t* parent, const dp_t& g, bool es)
++inline void draw_view(lv_event_t* e)
+ {
+-    lv_obj_t* r = lv_obj_create(parent);
+-    lv_obj_remove_style_all(r);
+-    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_set_size(r, 320, 240);
+-    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
+-    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    const View* v = static_cast<const View*>(lv_event_get_user_data(e));
++    if (v == nullptr) return;
++    lv_layer_t* layer = lv_event_get_layer(e);
++    const dp_t& g = v->g;
++    const bool es = v->es;
+     char head[40], sc[24];
+     snprintf(head, sizeof(head), es ? "Ronda %d de %d" : "Round %d of %d", g.round, DP_ROUNDS);
+     snprintf(sc, sizeof(sc), es ? "Puntos %d" : "Score %d", g.score);
+-    words(r, head, &lv_font_montserrat_16, 0x9AA3B0, 8, 30, 160, LV_TEXT_ALIGN_LEFT);
+-    words(r, sc, &lv_font_montserrat_16, 0xE8E8E8, 212, 30, 100, LV_TEXT_ALIGN_RIGHT);
++    text(layer, head, &lv_font_montserrat_16, 0x9AA3B0, 8, 30, 160, 0, LV_TEXT_ALIGN_LEFT);
++    text(layer, sc, &lv_font_montserrat_16, 0xE8E8E8, 212, 30, 100, 0, LV_TEXT_ALIGN_RIGHT);
+     dp_rect_t b[8];
+     const int n = dp_buttons(&g, b);
+     if (g.phase != DP_PHASE_ROLL) {
+         for (int i = 0; i < DP_DICE; i++) {
+             const bool held = (g.held >> i) & 1;
+-            lv_obj_t* d = tile(r, b[i].x, b[i].y, b[i].w, b[i].h, 0xF4F1E8, held ? 0xF2B24A : 0xB8B2A0, held ? 3 : 1, 10);
++            box(layer, b[i].x, b[i].y, b[i].w, b[i].h, 10, 0xF4F1E8, held ? 0xF2B24A : 0xB8B2A0, held ? 3 : 1);
+             const int m = pips(g.d[i]);
+             for (int k = 0; k < 9; k++) {
+-                if ((m >> k) & 1) tile(d, 8 + (k % 3) * 13, 8 + (k / 3) * 13, 8, 8, 0x1A1A1A, 0x1A1A1A, 0, LV_RADIUS_CIRCLE);
++                if ((m >> k) & 1) box(layer, b[i].x + 8 + (k % 3) * 13, b[i].y + 8 + (k / 3) * 13, 8, 8, LV_RADIUS_CIRCLE, 0x1A1A1A);
+             }
+-            if (held) words(r, es ? "FIJO" : "HOLD", &lv_font_montserrat_14, 0xF2B24A, b[i].x - 4, b[i].y + b[i].h + 2, b[i].w + 8, LV_TEXT_ALIGN_CENTER);
++            if (held) text(layer, es ? "FIJO" : "HOLD", &lv_font_montserrat_14, 0xF2B24A, b[i].x - 4, b[i].y + b[i].h + 2, b[i].w + 8, 0, LV_TEXT_ALIGN_CENTER);
+         }
+-        words(r, dp_rank_name(dp_rank(g.d), es), &lv_font_montserrat_20, 0xFFFFFF, 8, 140, 304, LV_TEXT_ALIGN_CENTER);
++        text(layer, dp_rank_name(dp_rank(g.d), es), &lv_font_montserrat_20, 0xFFFFFF, 8, 140, 304, 0, LV_TEXT_ALIGN_CENTER);
+     } else {
+-        words(r, es ? "Lanza los cinco dados" : "Roll all five dice", &lv_font_montserrat_20, 0xFFFFFF, 8, 96, 304, LV_TEXT_ALIGN_CENTER);
++        text(layer, es ? "Lanza los cinco dados" : "Roll all five dice", &lv_font_montserrat_20, 0xFFFFFF, 8, 96, 304, 0, LV_TEXT_ALIGN_CENTER);
+     }
+     for (int i = (g.phase == DP_PHASE_ROLL ? 0 : DP_DICE); i < n; i++) {
+         const bool keep = b[i].id == DP_B_KEEP, roll = b[i].id == DP_B_ROLL;
+-        lv_obj_t* o = tile(r, b[i].x, b[i].y, b[i].w, b[i].h, keep ? 0x2E7D4F : (roll ? 0x2C3E7A : 0x242424), keep ? 0x7FE0B8 : 0x6A86D8, 1, 12);
+-        lv_obj_t* t = lv_label_create(o);
++        box(layer, b[i].x, b[i].y, b[i].w, b[i].h, 12, keep ? 0x2E7D4F : (roll ? 0x2C3E7A : 0x242424), keep ? 0x7FE0B8 : 0x6A86D8, 1);
+         char again[24];
+         snprintf(again, sizeof(again), es ? "Lanzar (%d)" : "Roll again (%d)", g.rolls_left);   // the re-rolls left are on the button
+         const char* w = keep ? (es ? "Quedarme" : "Keep") : (g.phase == DP_PHASE_ROLL ? (es ? "Lanzar" : "Roll") : again);
+-        lv_label_set_text(t, w);
+-        lv_obj_set_style_text_font(t, strlen(w) > 12 ? &lv_font_montserrat_16 : &lv_font_montserrat_20, 0);
+-        lv_obj_set_style_text_color(t, lv_color_white(), 0);
+-        lv_obj_center(t);
++        text(layer, w, strlen(w) > 12 ? &lv_font_montserrat_16 : &lv_font_montserrat_20, 0xFFFFFF, b[i].x, b[i].y, b[i].w, b[i].h, LV_TEXT_ALIGN_CENTER);
+     }
++}
++
++inline void free_view(lv_event_t* e)
++{
++    lv_free(lv_event_get_user_data(e));
++}
++
++inline lv_obj_t* screen(lv_obj_t* parent, const dp_t& g, bool es)
++{
++    lv_obj_t* r = lv_obj_create(parent);
++    lv_obj_remove_style_all(r);
++    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(r, 320, 240);
++    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    lv_obj_t* d = lv_obj_create(r);   // everything on the screen is drawn by this one object
++    lv_obj_remove_style_all(d);
++    lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(d, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(d, 320, 240);
++    lv_obj_set_pos(d, 0, 0);
++    View* v = static_cast<View*>(lv_malloc(sizeof(View)));
++    v->g = g;
++    v->es = es;
++    lv_obj_add_event_cb(d, draw_view, LV_EVENT_DRAW_MAIN, v);
++    lv_obj_add_event_cb(d, free_view, LV_EVENT_DELETE, v);
+     return r;
+ }
+ 

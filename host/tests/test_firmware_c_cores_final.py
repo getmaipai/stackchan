@@ -24,6 +24,8 @@ PLAIN = [
     "brain_notice_core_test.c",
     "dicepoker_core_test.c",
     "lock_gate_core_test.c",
+    "lines_core_test.c",
+    "ota_version_core_test.c",
     "qa_state_core_test.c",
     "hosted_core_test.c",
     "pantry_core_test.c",

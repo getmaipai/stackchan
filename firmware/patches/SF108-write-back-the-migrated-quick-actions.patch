@@ -1,0 +1,34 @@
+# Intent: A saved quick-actions list that the load moved to the new default (SF101) is written back to flash at that load, so it survives: a build without the migration (an older image flashed over it) used to read the old list again, and the quick actions page showed three chips once more (found when the bench proved builds with and without SF101 on one unit). The load compares the text it would save with the text it read and saves only when they differ; the written text is a fixed point (reading it again changes nothing and writes nothing), which the pages core test checks.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages_unit.cc (ours)
+# Check after a flash: a unit whose saved actions are beep, dance, game: after one boot of this image its saved list reads beep, dance, vision, hello (self.pages.get); flashing an image without SF101 afterwards still shows the four chips.
+# Kconfig: none
+# Memory cost: none (one comparison and at most one flash write at the first boot).
+
+diff --git a/firmware/main/hal/maipai_pages_unit.cc b/firmware/main/hal/maipai_pages_unit.cc
+--- a/firmware/main/hal/maipai_pages_unit.cc
++++ b/firmware/main/hal/maipai_pages_unit.cc
+@@ -156,6 +156,7 @@ uint32_t unix_now()
+ }
+ 
+ // ---- saved choice ----
++bool save_cfg(const mpg_cfg_t& cfg);
+ bool load_cfg(mpg_cfg_t* cfg)
+ {
+     nvs_handle_t h;
+@@ -167,7 +168,14 @@ bool load_cfg(mpg_cfg_t* cfg)
+         }
+         nvs_close(h);
+     }
+-    return mpg_cfg_from_text(cfg, text[0] != '\0' ? text : nullptr) == 1;
++    const bool ok = mpg_cfg_from_text(cfg, text[0] != '\0' ? text : nullptr) == 1;
++    if (ok && text[0] != '\0') {   // patch SF108: a saved list the load moved to a new default (SF101) is written back, so a build without the migration reads it too
++        char now[MPG_TEXT_MAX + 1];
++        if (mpg_cfg_to_text(cfg, now, sizeof(now)) >= 0 && strcmp(now, text) != 0) {
++            save_cfg(*cfg);
++        }
++    }
++    return ok;
+ }
+ 
+ bool save_cfg(const mpg_cfg_t& cfg)

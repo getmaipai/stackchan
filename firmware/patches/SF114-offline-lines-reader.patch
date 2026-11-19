@@ -1,0 +1,391 @@
+# SF114: the offline lines reader (lines by situation: subtitle plus mumble)
+#
+# Intent: with no host and no model the unit answers a situation from a canned line on a pantry shelf: the line is shown as the subtitle (when the subtitle setting allows) and played as the
+#   code-made mumble. The pantry core accepts record kind 5 (line, 100 bytes at most, the extra is the situation tag). The reader (maipai_lines.cc) loads the household language's shelf, picks a line
+#   that is not the last one used for that situation (30 s cooldown per situation), frees the shelf at once, and does nothing when no shelf or no line exists, so the recorded clips stay as they are
+#   then. Hooked: link lost and back (the recorded back clip plays only when no line was said), wake heard with no host, head pet, face tap, lifted, set down, shake, timer done, low battery
+#   (the recorded warning stays). Not hooked yet: loud noise, good night, the three greetings (no event point in the device code). A bench tool self.lines.say drives it.
+# Placement: unit (body half); the host seeds the shelves.
+# Upstream: none (MaiPai code only).
+# Check after a flash: self.lines.say {situation: touch_head} with a seeded line shelf installed shows the subtitle and mumbles (silent at volume 0); with no shelf it answers ok false and nothing changes.
+# Kconfig: none (under the pantry and asset store switches).
+# Memory cost: nothing while idle; while picking, the shelf copy (up to 40 KB PSRAM) and 101 bytes of stack, freed straight after.
+
+diff --git a/firmware/main/hal/board/stackchan_display.cc b/firmware/main/hal/board/stackchan_display.cc
+--- a/firmware/main/hal/board/stackchan_display.cc
++++ b/firmware/main/hal/board/stackchan_display.cc
+@@ -38,6 +38,7 @@
+ #include <hal/maipai_games.h>
+ #include <hal/maipai_facebench.h>
+ #include <hal/maipai_fx.h>
++#include <hal/maipai_lines.h>
+ #include <hal/maipai_pages.h>
+ #include <hal/maipai_pages_unit.h>
+ #if CONFIG_MAIPAI_BANNER_ROW
+@@ -1948,6 +1949,7 @@ void StackChanAvatarDisplay::OnFaceRelease(lv_event_t* event)
+     mtc_move(&s_trace, point.x, point.y, GetHAL().millis());
+     // Patch SF02: a tap turns a switch on, a hold turns it off (the same silent tap never does both).
+     const mtc_kind_t kind     = mtc_classify(&s_trace);
++    if (kind == MTC_KIND_TAP) Application::GetInstance().Schedule([]() { (void)maipai_lines_say("touch_face"); });
+     const mtc_action_t action = (kind == MTC_KIND_TAP || kind == MTC_KIND_HOLD) ? mtc_action_for(s_trace.region0, MTC_KIND_TAP) : MTC_ACTION_NONE;
+     if (action != MTC_ACTION_NONE) {
+         const int bit = action == MTC_ACTION_MUTE ? kPrivMute : (action == MTC_ACTION_VISION ? kPrivVision : kPrivQuiet);
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -28,6 +28,7 @@
+ #include "maipai_assets.h"
+ #include "maipai_hosted.h"
+ #include "maipai_pantry.h"
++#include "maipai_lines.h"
+ #include "maipai_pages_unit.h"
+ #include "maipai_lock.h"
+ #include "maipai_facebench.h"
+@@ -795,6 +796,7 @@ void Hal::xiaozhi_mcp_init()
+     maipai_games_register_tools();
+     maipai_brain_register_tools();  // patch SF98: self.brain.status, self.brain.set_route
+     maipai_pantry_register_tools();  // patch SF93: self.pantry.status, heard, deny
++    maipai_lines_register_tools();   // offline pantry line bench tool
+     maipai_assets_register_tools();  // patch SF90: self.assets.* (nothing unless MAIPAI_ASSET_STORE)
+ 
+     // self.lock.status, set, clear, now and config (patch LK02).
+diff --git a/firmware/main/hal/maipai_sounds.cc b/firmware/main/hal/maipai_sounds.cc
+--- a/firmware/main/hal/maipai_sounds.cc
++++ b/firmware/main/hal/maipai_sounds.cc
+@@ -6,6 +6,7 @@
+  * extra earcons are not in this build, so they answer "missing". The offline clips (patch V02) are in the image.
+  */
+ #include "maipai_sounds.h"
++#include "maipai_lines.h"
+ #include <settings.h>
+ #include "maipai_sounds_core.h"
+ #include "maipai_phrasepack.h"
+@@ -457,7 +458,8 @@ void maipai_sounds_link_event(int event)
+         }
+     }
+     if (back_clip) {
+-        (void)phrase_run(MS_GRP_BACK, false, false);  // "I'm back", only after a long outage, through the same limits
++        if (!maipai_lines_say("back_online"))
++            (void)phrase_run(MS_GRP_BACK, false, false);  // "I'm back", only after a long outage, through the same limits
+     }
+ #else
+     (void)event;
+@@ -467,7 +469,7 @@ void maipai_sounds_link_event(int event)
+ void maipai_sounds_wake_offline()
+ {
+ #if CONFIG_MAIPAI_OFFLINE_PHRASES
+-    (void)phrase_run(-1, false, true);
++    if (!maipai_lines_say("wake_heard_offline")) (void)phrase_run(-1, false, true);
+ #else
+     if (!maipai_muted()) {
+         Application::GetInstance().PlaySound(Lang::Sounds::OGG_VIBRATION);
+diff --git a/firmware/main/hal/maipai_daily.cc b/firmware/main/hal/maipai_daily.cc
+--- a/firmware/main/hal/maipai_daily.cc
++++ b/firmware/main/hal/maipai_daily.cc
+@@ -7,6 +7,7 @@
+  */
+ #include "maipai_cloudtest.h"
+ #include "maipai_daily.h"
++#include "maipai_lines.h"
+ #include "maipai_battery_core.h"
+ #include "maipai_hourly_core.h"
+ #include "maipai_link_quiet_core.h"
+@@ -84,6 +85,7 @@ void low_battery_poll()
+         // A chirp at every step; the spoken request is the host's. The unit shows the words so a person who
+         // is not listening still sees them.
+         maipai_sounds_play("low_battery");
++        (void)maipai_lines_say("battery_low");
+         const char* text = mb_text(language_is_spanish() ? MB_LANG_ES : MB_LANG_EN, ev);
+         if (text[0] != '\0') {
+             hal_bridge::notice(text, 6000);
+@@ -202,6 +204,7 @@ void maipai_link_poll(bool refused)
+     }
+     if (sound) {
+         ESP_LOGW(TAG, "Home has been unreachable for 3 minutes: the offline tone");
++        (void)maipai_lines_say("cannot_reach_home");
+         (void)maipai_sounds_play("offline");  // through the sound policy: silent at night and when muted
+         maipai_sounds_link_event(MAIPAI_LINK_OFFLINE_SOUNDED);  // patch V02: coming back may say "I'm back"
+     }
+diff --git a/firmware/main/hal/maipai_mood.cc b/firmware/main/hal/maipai_mood.cc
+--- a/firmware/main/hal/maipai_mood.cc
++++ b/firmware/main/hal/maipai_mood.cc
+@@ -6,6 +6,7 @@
+  * most once every 15 minutes (and at a day change), so flash wear stays far below the limit. No task, no timer.
+  */
+ #include "maipai_mood.h"
++#include "maipai_lines.h"
+ 
+ #if CONFIG_MAIPAI_MOOD
+ #include "maipai_mood_core.h"
+@@ -14,6 +15,7 @@
+ #include <esp_log.h>
+ #include <esp_timer.h>
+ #include <mcp_server.h>
++#include <application.h>
+ #include <nvs.h>
+ #include <nvs_flash.h>
+ #include <ctime>
+@@ -116,12 +118,15 @@ int maipai_mood_face()
+ 
+ void maipai_mood_pet()
+ {
+-    std::lock_guard<std::mutex> lock(s_mutex);
+-    load_locked();
+-    const mm_level_t before = s_mood.level;
+-    if (mm_pet(&s_mood, static_cast<uint32_t>(now_ms())) != 0 && s_mood.level != before) {
+-        announce_level(s_mood);
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        load_locked();
++        const mm_level_t before = s_mood.level;
++        if (mm_pet(&s_mood, static_cast<uint32_t>(now_ms())) != 0 && s_mood.level != before) {
++            announce_level(s_mood);
++        }
+     }
++    Application::GetInstance().Schedule([]() { (void)maipai_lines_say("touch_head"); });
+ }
+ 
+ void maipai_mood_tick()
+diff --git a/firmware/main/hal/maipai_pickup.cc b/firmware/main/hal/maipai_pickup.cc
+--- a/firmware/main/hal/maipai_pickup.cc
++++ b/firmware/main/hal/maipai_pickup.cc
+@@ -7,6 +7,7 @@
+  * the unit's own speech through the device state, and ignores the body for 1.5 s after either.
+  */
+ #include "maipai_pickup.h"
++#include "maipai_lines.h"
+ #include "maipai_seek.h"
+ #include "maipai_pickup_core.h"
+ #include "maipai_tbprefs.h"
+@@ -34,6 +35,7 @@ void react(mp_event_t ev)
+     if (st != kDeviceStateIdle) return;  // a conversation is not interrupted by being picked up
+     switch (ev) {
+     case MP_LIFTED:
++        Application::GetInstance().Schedule([]() { (void)maipai_lines_say("pick_up"); });
+         hal_bridge::react_face("surprised", 1500);
+         if (level == 2) (void)maipai_sounds_play("popup");
+         break;
+@@ -41,6 +43,7 @@ void react(mp_event_t ev)
+         hal_bridge::react_face("content", 4000);  // calm, a small smile
+         break;
+     case MP_SET_DOWN:
++        Application::GetInstance().Schedule([]() { (void)maipai_lines_say("put_down"); });
+         hal_bridge::react_face("happy", 1500);
+         if (level == 2) (void)maipai_sounds_play("success");
+         break;
+@@ -73,6 +76,7 @@ void maipai_pickup_feed(float ax, float ay, float az)
+     char extra[48];
+     snprintf(extra, sizeof(extra), "\"axis\":\"%s\"", mp_axis_name(mp_axis(&s_det)));
+     if (ev == MP_SHAKEN) {
++        Application::GetInstance().Schedule([]() { (void)maipai_lines_say("shaken"); });
+         device_events_push("shaken", extra);  // shaken in the hand; the shake of the table is swallowed by the core
+         return;
+     }
+diff --git a/firmware/main/hal/maipai_timers.cc b/firmware/main/hal/maipai_timers.cc
+--- a/firmware/main/hal/maipai_timers.cc
++++ b/firmware/main/hal/maipai_timers.cc
+@@ -4,6 +4,7 @@
+  * On-unit timers and alarms, the device side (patch 091). See maipai_timers.h.
+  */
+ #include "maipai_timers.h"
++#include "maipai_lines.h"
+ #include <sdkconfig.h>
+ #include "maipai_timers_core.h"
+ #include "hal.h"
+@@ -15,6 +16,7 @@
+ #include <stackchan/stackchan.h>
+ #include <esp_log.h>
+ #include <esp_timer.h>
++#include <application.h>
+ #include <nvs.h>
+ #include <nvs_flash.h>
+ #include <atomic>
+@@ -236,6 +238,7 @@ void maipai_timers_tick()
+         hal_bridge::power_keep_awake();
+         if (!(maipai_privacy_bits() & kPrivMute)) {  // patch SF34: muted when it rings is silent, whenever the timer was set
+             hal_bridge::app_play_sound(OGG_NEW_NOTIFICATION);
++            Application::GetInstance().Schedule([]() { (void)maipai_lines_say("timer_done"); });
+         }
+     }
+     if (ms - s_last_pulse_ms >= 200) {
+diff --git a/firmware/main/hal/maipai_pantry_core.h b/firmware/main/hal/maipai_pantry_core.h
+--- a/firmware/main/hal/maipai_pantry_core.h
++++ b/firmware/main/hal/maipai_pantry_core.h
+@@ -26,10 +26,10 @@
+ #define MPY_HDR 16u
+ #define MPY_ENTRY 16u
+ #define MPY_MAX_RECORDS 1024u
+-enum { MPY_JOKE = 1, MPY_RIDDLE, MPY_TRIVIA, MPY_STORY };
++enum { MPY_JOKE = 1, MPY_RIDDLE, MPY_TRIVIA, MPY_STORY, MPY_LINE /* patch SF114: a canned line for a situation; the extra is the situation tag */ };
+ enum { MPY_KID = 0, MPY_ADULT = 1 };
+ /* length caps (bytes): the text, the answer, and the extra */
+-static const uint16_t MPY_TEXT_CAP[5] = {0, 160, 140, 140, 1600};
++static const uint16_t MPY_TEXT_CAP[6] = {0, 160, 140, 140, 1600, 100};
+ #define MPY_ANSWER_CAP 40u
+ #define MPY_EXTRA_CAP 82u
+ 
+@@ -81,7 +81,7 @@ static inline int mpy_parse(const uint8_t* b, uint32_t len, mpy_shelf_t* s)
+     for (uint32_t i = 0; i < s->count; i++) {
+         const uint8_t* e = b + s->index_off + i * MPY_ENTRY;
+         const uint8_t kind = e[8];
+-        if (kind < MPY_JOKE || kind > MPY_STORY || e[9] > s->rating_max) return MPY_E_RECORD;
++        if (kind < MPY_JOKE || kind > MPY_LINE || e[9] > s->rating_max) return MPY_E_RECORD;
+         const uint32_t off = mpy_le24(e + 11), tl = tpz_u16(e + 14);
+         if (tl == 0 || off < texts || (uint64_t)off + tl > len) return MPY_E_RECORD;
+         const uint32_t cap = (uint32_t)MPY_TEXT_CAP[kind] + 1u + MPY_ANSWER_CAP + 1u + MPY_EXTRA_CAP;
+diff --git a/firmware/main/hal/maipai_lines.cc b/firmware/main/hal/maipai_lines.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_lines.cc
+@@ -0,0 +1,65 @@
++/*
++ * SPDX-License-Identifier: MIT
++ * Memory cost: nothing is allocated while idle. A shelf copy (up to 40 KB PSRAM) and the short text (101 bytes stack) exist only during selection/play setup; the shelf is freed immediately after copying the chosen line.
++ */
++#include "maipai_lines.h"
++#include "maipai_assets.h"
++#include "maipai_assets_core.h"
++#include "maipai_lines_core.h"
++#include "maipai_mumble.h"
++#include "maipai_subtitles.h"
++#include "maipai_banner.h"
++#include "maipai_sounds.h"
++#include "maipai_games.h"
++#include "maipai_face.h"
++#include <application.h>
++#include <esp_timer.h>
++#include <mcp_server.h>
++#include <string>
++
++#if CONFIG_MAIPAI_PANTRY && CONFIG_MAIPAI_ASSET_STORE
++namespace {
++constexpr int kPantryKind = 7;
++ml_state_t s_lines = {};
++}
++
++bool maipai_lines_say(const char* situation)
++{
++    if (ml_situation_index(situation) < 0 || Application::GetInstance().GetDeviceState() != kDeviceStateIdle || maipai_games_active()) return false;
++    if (!maipai_sounds_gate("popup") || Application::GetInstance().GetDeviceState() == kDeviceStateSpeaking) return false;
++    uint8_t slots[8];
++    const int n = maipai_assets_slots(kPantryKind, slots);
++    const mf_config_t face = maipai_face_config();
++    const char* language = face.lang < MF_LANG_COUNT ? MF_LANG_CODES[face.lang] : "en";
++    for (int k = 0; k < n; ++k) {
++        uint8_t* bytes = nullptr; size_t len = 0;
++        if (!maipai_assets_load(kPantryKind, slots[k], &bytes, &len, nullptr)) continue;
++        mpy_shelf_t shelf;
++        if (mpy_parse(bytes, (uint32_t)len, &shelf) != MPY_OK) { maipai_assets_free(bytes); continue; }
++        if (strncmp(shelf.lang, language, 2) != 0) { maipai_assets_free(bytes); continue; }
++        const int ix = ml_situation_index(situation);
++        const uint32_t seed = (uint32_t)(esp_timer_get_time() / 1000) + (uint32_t)k * 7919u;
++        const int pick = ml_pick(&shelf, situation, static_cast<uint32_t>(esp_timer_get_time() / 1000), seed, &s_lines);
++        if (pick >= 0 && ix >= 0) {
++            mpy_rec_t rec; mpy_get(&shelf, (uint32_t)pick, &rec);
++            char text[ML_TEXT_MAX + 1];
++            memcpy(text, rec.text, rec.text_len); text[rec.text_len] = '\0';
++            maipai_assets_free(bytes);
++            if (maipai_banner_captions() == MB_CAP_SUBTITLES) maipai_subtitles_say(text, false);
++            maipai_mumble_say(text, 0);
++            return true;
++        }
++        maipai_assets_free(bytes);
++    }
++    return false;
++}
++
++void maipai_lines_register_tools()
++{
++#if CONFIG_MAIPAI_BENCH || CONFIG_MAIPAI_SERIAL_TOOLS
++    McpServer::GetInstance().AddTool("self.lines.say", "Show and mumble a pantry line for one situation tag. Tags: greeting_morning, greeting_day, greeting_evening, goodnight, touch_head, touch_face, pick_up, put_down, shaken, loud_noise, wake_heard_offline, cannot_reach_home, back_online, timer_done, battery_low, thanks, bored, sleepy, happy, curious. Answers {ok} or {ok:false}.",
++        PropertyList({Property("situation", kPropertyTypeString, std::string("greeting_day"))}),
++        [](const PropertyList& p) -> ReturnValue { const bool ok = maipai_lines_say(p["situation"].value<std::string>().c_str()); return std::string(ok ? "{\"ok\":true}" : "{\"ok\":false}"); });
++#endif
++}
++#endif
+diff --git a/firmware/main/hal/maipai_lines.h b/firmware/main/hal/maipai_lines.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_lines.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: MIT */
++#pragma once
++#include <sdkconfig.h>
++#include <stdbool.h>
++
++#if CONFIG_MAIPAI_PANTRY && CONFIG_MAIPAI_ASSET_STORE
++bool maipai_lines_say(const char* situation);
++void maipai_lines_register_tools();
++#else
++inline bool maipai_lines_say(const char*) { return false; }
++inline void maipai_lines_register_tools() {}
++#endif
+diff --git a/firmware/main/hal/maipai_lines_core.h b/firmware/main/hal/maipai_lines_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_lines_core.h
+@@ -0,0 +1,64 @@
++/* SPDX-License-Identifier: MIT */
++#ifndef MAIPAI_LINES_CORE_H
++#define MAIPAI_LINES_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++#include "maipai_pantry_core.h"
++
++#define ML_SITUATION_COUNT 20
++#define ML_COOLDOWN_MS 30000u
++#define ML_TEXT_MAX 100u
++
++static const char* const ML_SITUATIONS[ML_SITUATION_COUNT] = {
++    "greeting_morning", "greeting_day", "greeting_evening", "goodnight", "touch_head", "touch_face",
++    "pick_up", "put_down", "shaken", "loud_noise", "wake_heard_offline", "cannot_reach_home",
++    "back_online", "timer_done", "battery_low", "thanks", "bored", "sleepy", "happy", "curious"
++};
++
++typedef struct {
++    uint32_t last_ms[ML_SITUATION_COUNT];
++    int16_t last_record[ML_SITUATION_COUNT];
++    uint8_t used[ML_SITUATION_COUNT];
++} ml_state_t;
++
++static inline int ml_situation_index(const char* tag)
++{
++    if (tag == 0) return -1;
++    for (int i = 0; i < ML_SITUATION_COUNT; ++i) if (strcmp(tag, ML_SITUATIONS[i]) == 0) return i;
++    return -1;
++}
++
++/* True when the record's extra is exactly the situation tag (the extra is not terminated: the next record's text follows it). */
++static inline int ml_extra_is(const mpy_rec_t* r, const char* tag)
++{
++    const size_t n = strlen(tag);
++    return r->extra_len == n && memcmp(r->extra, tag, n) == 0;
++}
++
++static inline int ml_pick(const mpy_shelf_t* s, const char* situation, uint32_t now_ms, uint32_t seed, ml_state_t* state)
++{
++    const int ix = ml_situation_index(situation);
++    if (ix < 0 || state == 0) return -1;
++    if (state->used[ix] && (uint32_t)(now_ms - state->last_ms[ix]) < ML_COOLDOWN_MS) return -1;
++    int found = 0;
++    for (uint32_t i = 0; i < s->count; ++i) {
++        mpy_rec_t r; mpy_get(s, i, &r);
++        if (r.kind == MPY_LINE && ml_extra_is(&r, situation) && r.text_len <= ML_TEXT_MAX) found++;
++    }
++    if (!found) return -1;
++    uint32_t last = UINT32_MAX;
++    if (found > 1 && state->used[ix] && state->last_record[ix] >= 0 && (uint32_t)state->last_record[ix] < s->count)
++        last = (uint32_t)state->last_record[ix];
++    uint32_t pick = (seed | 1u) % (uint32_t)(found - (last != UINT32_MAX ? 1 : 0));
++    for (uint32_t i = 0; i < s->count; ++i) {
++        mpy_rec_t r; mpy_get(s, i, &r);
++        if (r.kind != MPY_LINE || !ml_extra_is(&r, situation) || r.text_len > ML_TEXT_MAX || i == last) continue;
++        if (pick-- == 0) {
++            state->last_ms[ix] = now_ms; state->last_record[ix] = (int16_t)i; state->used[ix] = 1;
++            return (int)i;
++        }
++    }
++    return -1;
++}
++#endif

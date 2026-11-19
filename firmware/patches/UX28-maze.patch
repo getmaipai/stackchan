@@ -1,0 +1,315 @@
+# Intent: Maze (spec docs/design/maze.md, rank 6 of docs/plan/more-games.md; input docs/design/accelerometer-games.md): an 8 by 8 maze made from a seed (a depth first search: exactly one way between two cells), a marble from the top left to the goal at the bottom right, rolling toward the lean of the unit (SF107, roll and pitch in permille) and stopping against walls; You won with the seconds. Two new header-only files: the pure core (it takes the lean as arguments; the maze, the walls, the marble's movement, a solver, an autopilot, the dirty rectangles) and the screen (floor, walls, goal, marble and time chip in ONE draw callback). Registering the game, reading the lean, the 33 ms tick, the sounds (a tick on a wall, ting at the goal), the best time and the game-over call are the firmware track's.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_maze_core.h, maipai_maze.h (new, ours); reads maipai_games_tilt_analog (SF107)
+# Check after a flash: Games, Maze: a maze with a pale marble top left and an amber goal bottom right; leaning rolls the marble, a wall stops it, it never passes through; a new maze every game; the goal ends on You won with the seconds.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_maze_core.h b/firmware/main/hal/maipai_maze_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_maze_core.h
+@@ -0,0 +1,185 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Maze (patch UX28; spec docs/design/maze.md; input design docs/design/accelerometer-games.md): an 8 by 8 maze made from a seed (a depth first search, so exactly one way between any two cells);
++ * a marble starts in the top left cell and rolls toward the lean of the unit; reaching the bottom right cell wins, with the time. A game with a real ending: it ends on You won with the
++ * seconds (a new maze for the next game). The lean comes in as two permille values (roll right and pitch forward positive) from maipai_games_tilt_analog (patch SF107); this core only takes
++ * them as arguments. The marble stops against a wall, it does not bounce through it. Fixed point (1/256 pixel), 30 ticks a second, no clock of its own, no heap. Pure C99.
++ */
++#ifndef MAIPAI_MAZE_CORE_H
++#define MAIPAI_MAZE_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define MZ_N 8
++#define MZ_CELLS 64
++#define MZ_CELL 24           /* px */
++#define MZ_BX 8              /* the maze's top left on the glass */
++#define MZ_BY 36
++#define MZ_WALL 4            /* wall thickness, centred on the line between two cells */
++#define MZ_R 5               /* the marble's radius, px */
++#define MZ_ACCEL 80          /* 1/256 px a tick, at a full lean (0.31 px) */
++#define MZ_VMAX 1280         /* 1/256 px a tick (5 px) */
++#define MZ_TICK_MS 33
++enum { MZ_N_ = 1, MZ_E = 2, MZ_S = 4, MZ_W = 8 };   /* a bit set in open[cell] means the way that side is open */
++enum { MZ_PLAY = 0, MZ_WON };
++
++typedef struct {
++    uint8_t open[MZ_CELLS];
++    int32_t x, y;            /* the marble's centre in the maze, 1/256 px */
++    int32_t vx, vy;
++    uint8_t phase;
++    uint8_t touched;         /* the marble hit a wall in the last tick, for the sound */
++    uint32_t ticks, rng;
++} mz_t;
++
++static inline uint32_t mz_rand(mz_t* g)
++{
++    g->rng = g->rng * 1664525u + 1013904223u;
++    return g->rng >> 8;
++}
++
++static inline void mz_init(mz_t* g, uint32_t seed)
++{
++    memset(g, 0, sizeof(*g));
++    g->rng = seed != 0 ? seed : 1u;
++    uint8_t seen[MZ_CELLS] = {0}, stack[MZ_CELLS];
++    int sp = 0;
++    stack[sp++] = 0;
++    seen[0] = 1;
++    while (sp > 0) {   /* the recursive backtracker, with its own stack */
++        const int c = stack[sp - 1], x = c % MZ_N, y = c / MZ_N;
++        int nb[4], dir[4], n = 0;
++        if (y > 0 && !seen[c - MZ_N]) { nb[n] = c - MZ_N; dir[n++] = MZ_N_; }
++        if (x < MZ_N - 1 && !seen[c + 1]) { nb[n] = c + 1; dir[n++] = MZ_E; }
++        if (y < MZ_N - 1 && !seen[c + MZ_N]) { nb[n] = c + MZ_N; dir[n++] = MZ_S; }
++        if (x > 0 && !seen[c - 1]) { nb[n] = c - 1; dir[n++] = MZ_W; }
++        if (n == 0) { sp--; continue; }
++        const int k = (int)(mz_rand(g) % (uint32_t)n), d = dir[k], to = nb[k];
++        g->open[c] |= (uint8_t)d;
++        g->open[to] |= (uint8_t)(d == MZ_N_ ? MZ_S : (d == MZ_S ? MZ_N_ : (d == MZ_E ? MZ_W : MZ_E)));
++        seen[to] = 1;
++        stack[sp++] = (uint8_t)to;
++    }
++    g->x = (MZ_CELL / 2) * 256;
++    g->y = (MZ_CELL / 2) * 256;
++    g->phase = MZ_PLAY;
++}
++
++static inline int mz_cell_x(const mz_t* g) { return (g->x >> 8) / MZ_CELL; }
++static inline int mz_cell_y(const mz_t* g) { return (g->y >> 8) / MZ_CELL; }
++static inline int mz_marble_px_x(const mz_t* g) { return MZ_BX + (g->x >> 8); }
++static inline int mz_marble_px_y(const mz_t* g) { return MZ_BY + (g->y >> 8); }
++static inline int mz_seconds(const mz_t* g) { return (int)(g->ticks * MZ_TICK_MS / 1000u); }
++
++/* Does a square of the marble's size at (x256, y256) (1/256 px, the centre) touch a wall? Walls are the closed sides of the cells round it and the outer border. */
++static inline int mz_hits(const mz_t* g, int32_t x256, int32_t y256)
++{
++    const int x0 = (x256 >> 8) - MZ_R, x1 = (x256 >> 8) + MZ_R, y0 = (y256 >> 8) - MZ_R, y1 = (y256 >> 8) + MZ_R;
++    if (x0 < MZ_WALL / 2 || y0 < MZ_WALL / 2 || x1 > MZ_N * MZ_CELL - MZ_WALL / 2 || y1 > MZ_N * MZ_CELL - MZ_WALL / 2) return 1;   /* the outer border */
++    const int cx = (x256 >> 8) / MZ_CELL, cy = (y256 >> 8) / MZ_CELL;
++    for (int r = cy > 0 ? cy - 1 : 0; r <= (cy < MZ_N - 1 ? cy + 1 : MZ_N - 1); r++) {
++        for (int c = cx > 0 ? cx - 1 : 0; c <= (cx < MZ_N - 1 ? cx + 1 : MZ_N - 1); c++) {
++            const uint8_t o = g->open[r * MZ_N + c];
++            if (c < MZ_N - 1 && !(o & MZ_E)) {   /* the wall on this cell's east side: a rectangle round the line between two cells, a thickness wide, a little longer than the cell */
++                const int wx0 = (c + 1) * MZ_CELL - MZ_WALL / 2, wx1 = (c + 1) * MZ_CELL + MZ_WALL / 2, wy0 = r * MZ_CELL - MZ_WALL / 2, wy1 = (r + 1) * MZ_CELL + MZ_WALL / 2;
++                if (x1 > wx0 && x0 < wx1 && y1 > wy0 && y0 < wy1) return 1;
++            }
++            if (r < MZ_N - 1 && !(o & MZ_S)) {   /* and on its south side */
++                const int wy0 = (r + 1) * MZ_CELL - MZ_WALL / 2, wy1 = (r + 1) * MZ_CELL + MZ_WALL / 2, wx0 = c * MZ_CELL - MZ_WALL / 2, wx1 = (c + 1) * MZ_CELL + MZ_WALL / 2;
++                if (x1 > wx0 && x0 < wx1 && y1 > wy0 && y0 < wy1) return 1;
++            }
++        }
++    }
++    return 0;
++}
++
++/* One tick. roll and pitch are permille of a full lean, right and forward positive; the marble rolls toward the lean (forward is up the screen) and stops against a wall. */
++static inline void mz_step(mz_t* g, int roll_pm, int pitch_pm)
++{
++    if (g->phase != MZ_PLAY) return;
++    g->ticks++;
++    g->touched = 0;
++    if (roll_pm > 1000) roll_pm = 1000;
++    if (roll_pm < -1000) roll_pm = -1000;
++    if (pitch_pm > 1000) pitch_pm = 1000;
++    if (pitch_pm < -1000) pitch_pm = -1000;
++    g->vx = (g->vx + roll_pm * MZ_ACCEL / 1000) * 243 / 256;
++    g->vy = (g->vy + -pitch_pm * MZ_ACCEL / 1000) * 243 / 256;
++    if (g->vx > MZ_VMAX) g->vx = MZ_VMAX;
++    if (g->vx < -MZ_VMAX) g->vx = -MZ_VMAX;
++    if (g->vy > MZ_VMAX) g->vy = MZ_VMAX;
++    if (g->vy < -MZ_VMAX) g->vy = -MZ_VMAX;
++    /* one axis at a time, in 1 px pieces so a fast marble cannot jump a wall; against a wall that axis stops (and a quarter of the speed comes back) */
++    for (int axis = 0; axis < 2; axis++) {
++        int32_t v = axis ? g->vy : g->vx;
++        int32_t* pos = axis ? &g->y : &g->x;
++        while (v != 0) {
++            const int32_t step = v > 256 ? 256 : (v < -256 ? -256 : v);
++            const int32_t nx = axis ? g->x : g->x + step, ny = axis ? g->y + step : g->y;
++            if (mz_hits(g, nx, ny)) { g->touched = 1; v = -v / 4; if (axis) g->vy = v; else g->vx = v; break; }
++            *pos += step;
++            v -= step;
++        }
++    }
++    if (mz_cell_x(g) == MZ_N - 1 && mz_cell_y(g) == MZ_N - 1) {   /* in the goal cell, near its middle */
++        const int dx = (g->x >> 8) - ((MZ_N - 1) * MZ_CELL + MZ_CELL / 2), dy = (g->y >> 8) - ((MZ_N - 1) * MZ_CELL + MZ_CELL / 2);
++        if (dx * dx + dy * dy <= 8 * 8) g->phase = MZ_WON;
++    }
++}
++
++/* The way through: the next cell on the one path from `from` to the goal (cell 63), or -1 when already there. */
++static inline int mz_next_toward_goal(const mz_t* g, int from)
++{
++    if (from == MZ_CELLS - 1) return -1;
++    int prev[MZ_CELLS], queue[MZ_CELLS], qh = 0, qt = 0;
++    for (int i = 0; i < MZ_CELLS; i++) prev[i] = -2;
++    prev[MZ_CELLS - 1] = -1;
++    queue[qt++] = MZ_CELLS - 1;   /* search outward from the goal so each cell learns the step toward it */
++    while (qh < qt) {
++        const int c = queue[qh++], o = g->open[c];
++        const int nb[4] = {(o & MZ_N_) ? c - MZ_N : -1, (o & MZ_E) ? c + 1 : -1, (o & MZ_S) ? c + MZ_N : -1, (o & MZ_W) ? c - 1 : -1};
++        for (int k = 0; k < 4; k++) if (nb[k] >= 0 && prev[nb[k]] == -2) { prev[nb[k]] = c; queue[qt++] = nb[k]; }
++    }
++    return prev[from];
++}
++
++/* A plain autopilot (for the tests, the renderer and the playground's fake lean): roll toward the middle of the next cell on the way, with damping. */
++static inline void mz_autopilot(const mz_t* g, int* roll_pm, int* pitch_pm)
++{
++    const int c = mz_cell_y(g) * MZ_N + mz_cell_x(g), nx = mz_next_toward_goal(g, c);
++    int tx = MZ_N * MZ_CELL - MZ_CELL / 2, ty = tx;
++    if (nx >= 0) {   /* aim at the next cell's middle, but first at this cell's middle when the next one is round a corner (so the marble does not cut the corner) */
++        tx = (nx % MZ_N) * MZ_CELL + MZ_CELL / 2;
++        ty = (nx / MZ_N) * MZ_CELL + MZ_CELL / 2;
++        const int cxm = (c % MZ_N) * MZ_CELL + MZ_CELL / 2, cym = (c / MZ_N) * MZ_CELL + MZ_CELL / 2;
++        const int mx = g->x >> 8, my = g->y >> 8;
++        if (tx != cxm && (my - cym > 3 || my - cym < -3)) { tx = cxm; ty = cym; }   /* moving sideways: line up with this cell's row first */
++        if (ty != cym && (mx - cxm > 3 || mx - cxm < -3)) { tx = cxm; ty = cym; }
++    }
++    int rx = (tx - (g->x >> 8)) * 40 - (g->vx >> 8) * 90, ry = (ty - (g->y >> 8)) * 40 - (g->vy >> 8) * 90;
++    if (rx > 1000) rx = 1000;
++    if (rx < -1000) rx = -1000;
++    if (ry > 1000) ry = 1000;
++    if (ry < -1000) ry = -1000;
++    *roll_pm = rx;
++    *pitch_pm = -ry;   /* the marble rolls up the screen on a forward lean, so down the screen (ry positive) is a negative pitch */
++}
++
++/* ---- dirty rectangles (SF78 pattern): what a tick changed on the glass, at most 4: the marble where it was and where it is, the goal when it pulses, the time chip once a second. ---- */
++typedef struct { int16_t x, y, w, h; } mz_rect_t;
++static inline void mz_set_rect(mz_rect_t* r, int x, int y, int w, int h) { r->x = (int16_t)x; r->y = (int16_t)y; r->w = (int16_t)w; r->h = (int16_t)h; }
++static inline int mz_pulse(const mz_t* g) { return (int)((g->ticks / 15u) & 1u); }   /* the goal's ring changes color every half second */
++static inline int mz_dirty(const mz_t* a, const mz_t* b, mz_rect_t* out)
++{
++    int n = 0;
++    const int m = MZ_R + 3;
++    mz_set_rect(&out[n++], mz_marble_px_x(a) - m, mz_marble_px_y(a) - m, 2 * m, 2 * m);
++    mz_set_rect(&out[n++], mz_marble_px_x(b) - m, mz_marble_px_y(b) - m, 2 * m, 2 * m);
++    if (mz_pulse(a) != mz_pulse(b)) mz_set_rect(&out[n++], MZ_BX + (MZ_N - 1) * MZ_CELL, MZ_BY + (MZ_N - 1) * MZ_CELL, MZ_CELL, MZ_CELL);
++    if (mz_seconds(a) != mz_seconds(b)) mz_set_rect(&out[n++], 216, 36, 96, 56);
++    return n;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_maze.h b/firmware/main/hal/maipai_maze.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_maze.h
+@@ -0,0 +1,114 @@
++// SPDX-License-Identifier: MIT
++// The Maze screen (patch UX28; spec docs/design/maze.md). Header only, so the host renderer compiles the very same drawing code. The floor, the walls, the goal and the marble are drawn by ONE object
++// and one draw callback, the time chip too (so the screen has the root and that one object); only what a tick changed is invalidated (mz_dirty). The firmware track wires the lean
++// (maipai_games_tilt_analog, SF107), the 33 ms tick, the sounds and the game-over call (You won with the seconds). No ESP call here.
++#ifndef MAIPAI_MAZE_H
++#define MAIPAI_MAZE_H
++
++#include <lvgl.h>
++#include <stdio.h>
++#include "maipai_maze_core.h"
++
++namespace mzs {
++
++inline void rect(lv_layer_t* layer, int x, int y, int w, int h, int radius, uint32_t color, lv_opa_t opa = LV_OPA_COVER)
++{
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.bg_color = lv_color_hex(color);
++    d.bg_opa = opa;
++    d.radius = radius;
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + h - 1)};
++    lv_draw_rect(layer, &d, &a);
++}
++
++inline void text(lv_layer_t* layer, const char* t, const lv_font_t* font, uint32_t rgb, int x, int y, int w)
++{
++    lv_draw_label_dsc_t d;
++    lv_draw_label_dsc_init(&d);
++    d.color = lv_color_hex(rgb);
++    d.font = font;
++    d.text = t;   // the string outlives the draw: it lives in the view or is static
++    d.align = LV_TEXT_ALIGN_LEFT;
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + lv_font_get_line_height(font) + 2)};
++    lv_draw_label(layer, &d, &a);
++}
++
++struct View {
++    const mz_t* g;
++    bool es;
++};
++
++inline void draw_maze(lv_event_t* e)
++{
++    const View* v = static_cast<const View*>(lv_event_get_user_data(e));
++    if (v == nullptr || v->g == nullptr) return;
++    const mz_t* g = v->g;
++    lv_layer_t* layer = lv_event_get_layer(e);
++    const int span = MZ_N * MZ_CELL;
++    rect(layer, MZ_BX - 3, MZ_BY - 3, span + 6, span + 6, 5, 0x31507A);                                  // the frame
++    rect(layer, MZ_BX, MZ_BY, span, span, 2, 0x10243E);                                                  // the floor
++    for (int c = 0; c < MZ_N; c++) for (int r = 0; r < MZ_N; r++) if (((c + r) & 1) == 0) rect(layer, MZ_BX + c * MZ_CELL, MZ_BY + r * MZ_CELL, MZ_CELL, MZ_CELL, 0, 0x132B49);   // a faint checker
++    const uint32_t ring = mz_pulse(g) ? 0xF2B24A : 0xFFD98A;
++    rect(layer, MZ_BX + (MZ_N - 1) * MZ_CELL + 4, MZ_BY + (MZ_N - 1) * MZ_CELL + 4, MZ_CELL - 8, MZ_CELL - 8, LV_RADIUS_CIRCLE, ring);   // the goal: a pulsing amber disc with a dark center
++    rect(layer, MZ_BX + (MZ_N - 1) * MZ_CELL + 8, MZ_BY + (MZ_N - 1) * MZ_CELL + 8, MZ_CELL - 16, MZ_CELL - 16, LV_RADIUS_CIRCLE, 0x10243E);
++    for (int r = 0; r < MZ_N; r++) {
++        for (int c = 0; c < MZ_N; c++) {
++            const uint8_t o = g->open[r * MZ_N + c];
++            if (c < MZ_N - 1 && !(o & MZ_E)) rect(layer, MZ_BX + (c + 1) * MZ_CELL - MZ_WALL / 2, MZ_BY + r * MZ_CELL - MZ_WALL / 2, MZ_WALL, MZ_CELL + MZ_WALL, 1, 0x8FB4DA);
++            if (r < MZ_N - 1 && !(o & MZ_S)) rect(layer, MZ_BX + c * MZ_CELL - MZ_WALL / 2, MZ_BY + (r + 1) * MZ_CELL - MZ_WALL / 2, MZ_CELL + MZ_WALL, MZ_WALL, 1, 0x8FB4DA);
++        }
++    }
++    const int mx = mz_marble_px_x(g), my = mz_marble_px_y(g);
++    rect(layer, mx - MZ_R + 2, my - MZ_R + 3, 2 * MZ_R, 2 * MZ_R, LV_RADIUS_CIRCLE, 0x000000, LV_OPA_50);   // the marble's shadow
++    rect(layer, mx - MZ_R, my - MZ_R, 2 * MZ_R, 2 * MZ_R, LV_RADIUS_CIRCLE, g->phase == MZ_PLAY ? 0xE8E8E8 : 0xF2B24A);
++    rect(layer, mx - 3, my - 3, 3, 3, LV_RADIUS_CIRCLE, 0xFFFFFF, LV_OPA_70);                              // its highlight
++    char t[16];
++    snprintf(t, sizeof(t), "%d s", mz_seconds(g));
++    text(layer, v->es ? "Tiempo" : "Time", &lv_font_montserrat_16, 0x9AA3B0, 216, 38, 96);
++    text(layer, t, &lv_font_montserrat_20, 0xE8E8E8, 216, 60, 96);
++}
++
++inline void free_view(lv_event_t* e)
++{
++    lv_free(lv_event_get_user_data(e));
++}
++
++// `g` must outlive the screen.
++inline lv_obj_t* screen(lv_obj_t* parent, const mz_t* g, bool es)
++{
++    lv_obj_t* r = lv_obj_create(parent);
++    lv_obj_remove_style_all(r);
++    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(r, 320, 240);
++    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    lv_obj_t* d = lv_obj_create(r);
++    lv_obj_remove_style_all(d);
++    lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(d, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(d, 320, 240);
++    lv_obj_set_pos(d, 0, 0);
++    View* v = static_cast<View*>(lv_malloc(sizeof(View)));
++    v->g = g;
++    v->es = es;
++    lv_obj_add_event_cb(d, draw_maze, LV_EVENT_DRAW_MAIN, v);
++    lv_obj_add_event_cb(d, free_view, LV_EVENT_DELETE, v);
++    return r;
++}
++
++// Invalidate only what a tick changed (mz_dirty): the draw object is the first child of the screen root.
++inline void invalidate_dirty(lv_obj_t* root, const mz_t& before, const mz_t& after)
++{
++    lv_obj_t* d = lv_obj_get_child(root, 0);
++    mz_rect_t r[4];
++    const int n = mz_dirty(&before, &after, r);
++    for (int i = 0; i < n; i++) {
++        lv_area_t a = {static_cast<lv_coord_t>(r[i].x), static_cast<lv_coord_t>(r[i].y), static_cast<lv_coord_t>(r[i].x + r[i].w - 1), static_cast<lv_coord_t>(r[i].y + r[i].h - 1)};
++        lv_obj_invalidate_area(d, &a);
++    }
++}
++
++}  // namespace mzs
++
++#endif

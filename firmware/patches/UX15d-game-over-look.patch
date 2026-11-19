@@ -1,0 +1,779 @@
+# Intent: the shared game-over screen gets a graphical overhaul (docs/design/game-over-look.md), as a look LEVEL: look 0 is today's screen unchanged, 1 the new look still (the default candidate, owner 2026-11-19), 2 the new look with a light motion (the emblem stands still; confetti in two narrow columns, rain, a clasp squeeze, a clock hand and the count-up, each redrawn as a rectangle of its own, at most 3 a step) that stays a bench level until it meets its gates on the unit. The new look is drawn by ONE draw callback on one canvas object (2 objects, was about 12): a gradient backdrop per outcome, a big emblem from primitives (a trophy with turning rays and confetti for a win, a droopy kind face under a rain cloud for a loss, two arms meeting in a clasp for a draw, a finish flag or a clock for a neutral end, a crown over a ribbon with sparkles and gold confetti for a new best), the result word with a shadow, the score counting up, the best chip, two 56 px buttons with a gradient, a rim and a pressed state. Six languages (en, es, fr, de, pt, it) for the words, a flourish of tones per outcome in maipai_game_over_core.h. The callers are unchanged: build() and set_pop() keep their arguments; MGO_POP_MS grows to 1800 so the games keep calling set_pop while the motion plays. self.game.bench_over (bench builds only) shows any outcome at any look and answers the draw and flush times.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_game_over.h, maipai_game_over_core.h and maipai_grid.cc (ours, patches UX15, UX15c, UX26)
+# Check after a flash: the game-over screen of every game shows the new still look (look 1, the default candidate: gradient backdrop, a drawn emblem, the result word, score and best chip, two gradient buttons); look 0 (today's) and look 2 (the lighter motion: confetti in two columns for a win or a new best, rain, a squeeze, a clock hand, a count-up) are reached with self.game.bench_over. On a bench image: self.game.bench_over with look 0, 1 and 2 for result 1 to 5 and new_best 0 and 1 answers us_mean, us_worst, objects and the internal free before and during (docs/design/game-over-look.md, "Bench"); the screen shows and goes away.
+# Kconfig: none
+# Memory cost: look 0 none; look 1 and 2 two LVGL objects and one state of about 150 bytes while the screen shows (the old screen is about 12 objects, an estimated 1.7 KB internal); the draw code is about 6 KB of flash in the bench build only when the look is compiled in (always, as a dead branch at look 0).
+
+diff --git a/firmware/main/hal/maipai_game_over_core.h b/firmware/main/hal/maipai_game_over_core.h
+--- a/firmware/main/hal/maipai_game_over_core.h
++++ b/firmware/main/hal/maipai_game_over_core.h
+@@ -30,7 +30,8 @@
+ #define MGO_BTN_Y 176
+ #define MGO_MARGIN 8
+ #define MGO_BTN_GAP 8
+-#define MGO_POP_MS 160u        /* the face pops when the screen appears: 100 percent to 112 and back, as the grid games' pop */
++#define MGO_FACE_POP_MS 160u   /* the old look's face pops when the screen appears: 100 percent to 112 and back, as the grid games' pop */
++#define MGO_POP_MS 1800u       /* patch UX15d: how long the games keep calling set_pop (the new look moves for up to 1700 ms); the old look's pop is the first 160 */
+ 
+ static inline void mgo_button(int btn, int* x, int* y, int* w, int* h)
+ {
+@@ -88,11 +89,214 @@
+ /* The face's size in permille of its normal size, `elapsed` ms after the screen appeared: 1000 to 1120 and back (the pop). */
+ static inline int mgo_icon_scale(uint32_t elapsed)
+ {
+-    if (elapsed >= MGO_POP_MS) {
++    if (elapsed >= MGO_FACE_POP_MS) {
+         return 1000;
+     }
+-    const int half = (int)(MGO_POP_MS / 2), e = (int)elapsed;
+-    return 1000 + 120 * (e < half ? e : (int)MGO_POP_MS - e) / half;
++    const int half = (int)(MGO_FACE_POP_MS / 2), e = (int)elapsed;
++    return 1000 + 120 * (e < half ? e : (int)MGO_FACE_POP_MS - e) / half;
+ }
+ 
++/* ---- patch UX15d: the look (docs/design/game-over-look.md) ----
++ * The languages of the first run (the order of the firmware's language table: en, es, fr, de, pt, it), the words in plain ASCII, the geometry of the new look, the
++ * count-up, the confetti, the easings and the flourish of tones. Pure functions of the time since the screen appeared, so a host test checks them and the renderer draws any
++ * moment of the motion. The old look stays: look 0 is today's screen, 1 the new one still, 2 the new one moving and with soft shadows (mgo::g_look in maipai_game_over.h). */
++enum { MGO_LANG_EN = 0, MGO_LANG_ES, MGO_LANG_FR, MGO_LANG_DE, MGO_LANG_PT, MGO_LANG_IT, MGO_LANGS };
++
++static inline const char* mgo_title_l(int result, int lang)
++{
++    static const char* const t[5][MGO_LANGS] = {
++        {"You won!", "Ganaste", "Gagne !", "Gewonnen!", "Voce ganhou!", "Hai vinto!"},
++        {"You lost", "Perdiste", "Perdu", "Verloren", "Voce perdeu", "Hai perso"},
++        {"Draw", "Empate", "Egalite", "Unentschieden", "Empate", "Pareggio"},
++        {"Game over", "Fin del juego", "Fin du jeu", "Spiel vorbei", "Fim de jogo", "Fine partita"},
++        {"Time's up", "Se acabo el tiempo", "Temps ecoule", "Zeit ist um", "Tempo esgotado", "Tempo scaduto"}};
++    if (result < MGO_WON || result > MGO_TIMEUP) result = MGO_DRAW;
++    if (lang < 0 || lang >= MGO_LANGS) lang = MGO_LANG_EN;
++    return t[result - 1][lang];
++}
++static inline const char* mgo_button_label_l(int btn, int lang)
++{
++    static const char* const t[2][MGO_LANGS] = {{"Play again", "Otra vez", "Rejouer", "Nochmal", "Outra vez", "Ancora"}, {"Quit", "Salir", "Quitter", "Beenden", "Sair", "Esci"}};
++    if (lang < 0 || lang >= MGO_LANGS) lang = MGO_LANG_EN;
++    return t[btn == MGO_BTN_AGAIN ? 0 : 1][lang];
++}
++static inline const char* mgo_new_best_label_l(int lang)
++{
++    static const char* const t[MGO_LANGS] = {"New best!", "Nuevo record", "Nouveau record", "Neuer Rekord", "Novo recorde", "Nuovo record"};
++    if (lang < 0 || lang >= MGO_LANGS) lang = MGO_LANG_EN;
++    return t[lang];
++}
++
++#define MGO_LOOK_OLD 0
++#define MGO_LOOK_STILL 1
++#define MGO_LOOK_FULL 2
++#define MGO_LOOK_DEFAULT 1     /* the new look, still: the default candidate (owner, 2026-11-19; docs/design/game-over-look.md). Look 2, the motion, is a bench-only level until it meets its gates on the unit */
++
++#define MGO2_BAND_X 56         /* the band of the emblem and the confetti: nothing else moves outside it and the score line */
++#define MGO2_BAND_Y 28
++#define MGO2_BAND_W 208
++#define MGO2_BAND_H 72
++#define MGO2_EMB_X 104         /* the emblem alone, while it drops in: 112 by 72 (the draw's arms need 132: 94 to 226) */
++#define MGO2_EMB_W 112
++#define MGO2_TITLE_Y 100       /* the result word, 24 px font */
++#define MGO2_SCORE_Y 127       /* the score line, 20 px font, counts up */
++#define MGO2_SCORE_X 60
++#define MGO2_SCORE_W 200
++#define MGO2_CHIP_Y 152        /* the best chip, 22 px high */
++#define MGO2_CHIP_H 22
++#define MGO2_ANIM_MS 1700u     /* every motion has ended by now (the callers keep calling set_pop a little longer: MGO_POP_MS) */
++#define MGO2_COUNT_START 200
++#define MGO2_COUNT_MS 700
++#define MGO2_CONFETTI 8       /* eight pieces, four in each of two narrow columns beside the emblem (x 62 to 98 and 222 to 258) */
++#define MGO2_COL_L_X 62
++#define MGO2_COL_R_X 222
++#define MGO2_COL_W 36
++#define MGO2_CONFETTI_END 1700
++#define MGO2_DROP_MS 380
++#define MGO2_MAX_RECTS 40      /* the most rectangles one step can give: 18 confetti pieces and the few parts of an emblem */
++
++/* The easings in permille (0 to 1000; the back easing overshoots a little past 1000). */
++static inline int mgo_ease_out(int p)
++{
++    if (p < 0) p = 0;
++    if (p > 1000) p = 1000;
++    const int q = 1000 - p;
++    return 1000 - (int)((long)q * q * q / 1000000L);
++}
++static inline int mgo_ease_back(int p)
++{
++    if (p < 0) p = 0;
++    if (p > 1000) p = 1000;
++    const double q = (p - 1000) / 1000.0, c1 = 1.70158, c3 = c1 + 1.0;
++    return (int)((1.0 + c3 * q * q * q + c1 * q * q) * 1000.0);
++}
++
++/* How far the emblem is above its place `t` ms after the screen appeared: it drops in from 34 px up with a little overshoot. */
++static inline int mgo_emblem_dy(uint32_t t)
++{
++    if (t >= MGO2_DROP_MS) return 0;
++    return -(34 * (1000 - mgo_ease_back((int)(t * 1000u / MGO2_DROP_MS)))) / 1000;
++}
++
++/* The slow motions (rain, the clock's hand, sparkles, the glint on the cup, the clasp, the count-up) move in steps of 60 ms: what is on the glass is the moment rounded down to 60 ms, so a 30 ms step
++ * between two such moments changes none of their pixels and invalidates nothing for them. The drop of the emblem and the confetti use the exact time. */
++static inline uint32_t mgo_q60(uint32_t t) { return t / 60u * 60u; }
++/* The glint that crosses the cup: its left edge as an offset from the cup's centre, from -14 to +10 between 480 and 900 ms; 0 and not shown outside that. Returns 1 while it shows. */
++static inline int mgo_glint(uint32_t tq, int* dx)
++{
++    if (tq < 480u || tq >= 900u) return 0;
++    *dx = -14 + (int)(24u * (tq - 480u) / 420u);
++    return 1;
++}
++/* How far the clasp rises in its squeeze, 0 to 4 px, between 480 and 720 ms. */
++static inline int mgo_bump(uint32_t tq)
++{
++    if (tq < 480u || tq >= 720u) return 0;
++    const int p = (int)(tq - 480u);
++    return (p < 120 ? p : 240 - p) / 30;
++}
++
++/* The number shown on the score line while it counts up to `target`. */
++static inline int mgo_countup(int target, uint32_t t)
++{
++    if (target <= 0 || t >= (uint32_t)(MGO2_COUNT_START + MGO2_COUNT_MS)) return target;
++    if (t <= (uint32_t)MGO2_COUNT_START) return 0;
++    return (int)((long)target * mgo_ease_out((int)((t - MGO2_COUNT_START) * 1000u / MGO2_COUNT_MS)) / 1000L);
++}
++
++/* The first run of digits in a score line ("Score 66" gives 6, 2 and 66): where it starts, how long it is, its value. Returns 0 when there is none or it is above 99999. */
++static inline int mgo_first_number(const char* s, int* pos, int* len, int* value)
++{
++    for (int i = 0; s != 0 && s[i] != '\0'; i++) {
++        if (s[i] >= '0' && s[i] <= '9') {
++            int n = 0, v = 0;
++            while (s[i + n] >= '0' && s[i + n] <= '9' && n < 6) { v = v * 10 + (s[i + n] - '0'); n++; }
++            if (n >= 6 || (s[i + n] >= '0' && s[i + n] <= '9')) return 0;
++            *pos = i; *len = n; *value = v;
++            return 1;
++        }
++    }
++    return 0;
++}
++
++static inline uint32_t mgo_hash(uint32_t i)
++{
++    i = i * 2654435761u + 40503u;
++    i ^= i >> 15;
++    i *= 2246822519u;
++    i ^= i >> 13;
++    return i;
++}
++
++/* Piece `i` of the confetti `t` ms after the screen appeared (the caller gives the time in 60 ms steps): a small rectangle falling down its column (the even pieces the left one, the odd the right one) at 40 to 90
++ * px a second, so 2 to 5 px a step, wrapping to the top when it reaches the bottom, fading in the last 300 ms. Returns 0 when it is not drawn (not started or over). `color` is an index into the palette the
++ * screen picks (0 to 5). Every piece stays inside its column, so the two columns are all the screen has to redraw. */
++static inline int mgo_confetti(int i, uint32_t t, int* x, int* y, int* w, int* h, int* color, int* opa)
++{
++    if (t >= (uint32_t)MGO2_CONFETTI_END) return 0;
++    const uint32_t hv = mgo_hash((uint32_t)i + 1u);
++    const int t0 = (int)(hv % 400u), v = 40 + (int)((hv >> 16) % 50u);
++    if ((int)t < t0) return 0;
++    *w = 4 + (int)((hv >> 20) % 3u);
++    *h = 6 + (int)((hv >> 22) % 4u);
++    const int col_x = (i & 1) ? MGO2_COL_R_X : MGO2_COL_L_X;
++    *x = col_x + (int)((hv >> 8) % (uint32_t)(MGO2_COL_W - *w));
++    *y = MGO2_BAND_Y + (int)(((uint32_t)(t - (uint32_t)t0) * (uint32_t)v / 1000u) % (uint32_t)(MGO2_BAND_H - *h));
++    *color = (int)((hv >> 26) % 6u);
++    *opa = t > (uint32_t)(MGO2_CONFETTI_END - 300) ? (int)(255u * ((uint32_t)MGO2_CONFETTI_END - t) / 300u) : 255;
++    return 1;
++}
++
++/* Confetti for a win and for a new best. */
++static inline int mgo_has_confetti(int result, int new_best) { return new_best || result == MGO_WON; }
++
++/* What a step of the motion changes on the glass, as few small rectangles as can be: from `before` ms to `after` ms (both since the screen appeared). Everything that moves moves in 60 ms steps (the caller gives
++ * the time rounded down to 60 ms to the drawing), so a 30 ms step between two such moments changes nothing and returns no rectangle. On a 60 ms step: the two confetti columns of a win or a new best (36 by 72
++ * px each), the rain and the tear of a loss (one rectangle), the clasp of a draw (while it squeezes), the clock's hand (Time's up), and the score line while it counts (its text's width, `score_w`, centred).
++ * The emblem of every outcome stands still, the shadows and the backdrop are drawn once, in the frame that shows the screen. Each rectangle is a separate transfer on the unit, so the number of them matters as
++ * much as their area: at most 3 on any step. The last step redraws the moving parts once in their still pose. The screen invalidates exactly these rectangles and the renderer checks that no pixel outside them
++ * changed. Returns how many (at most MGO2_MAX_RECTS). */
++typedef struct { int16_t x, y, w, h; } mgo_rect_t;
++static inline void mgo_set_rect(mgo_rect_t* r, int x, int y, int w, int h) { r->x = (int16_t)x; r->y = (int16_t)y; r->w = (int16_t)w; r->h = (int16_t)h; }
++static inline int mgo_dirty(int result, int new_best, int num_len, int score_w, uint32_t before, uint32_t after, mgo_rect_t* out)
++{
++    int n = 0;
++    if (before >= MGO2_ANIM_MS) return 0;   /* the motion has ended: nothing changes any more */
++    const int last = after >= MGO2_ANIM_MS;
++    if (!(mgo_q60(before) != mgo_q60(after) || last)) return 0;
++    if (mgo_has_confetti(result, new_best)) {
++        mgo_set_rect(&out[n++], MGO2_COL_L_X, MGO2_BAND_Y, MGO2_COL_W, MGO2_BAND_H);
++        mgo_set_rect(&out[n++], MGO2_COL_R_X, MGO2_BAND_Y, MGO2_COL_W, MGO2_BAND_H);
++    } else if (result == MGO_LOST) {
++        mgo_set_rect(&out[n++], 136, 50, 48, 56);   /* the rain and the tear */
++    } else if (result == MGO_DRAW) {
++        if (last || mgo_bump(mgo_q60(before)) || mgo_bump(mgo_q60(after))) mgo_set_rect(&out[n++], 94, 52, 132, 46);
++    } else if (result == MGO_TIMEUP) {
++        mgo_set_rect(&out[n++], 138, 44, 44, 44);   /* the hand */
++    }
++    if (num_len > 0 && score_w > 0 && (before <= (uint32_t)(MGO2_COUNT_START + MGO2_COUNT_MS) + 60u || last)) mgo_set_rect(&out[n++], (320 - score_w) / 2, MGO2_SCORE_Y, score_w, 24);
++    return n;
++}
++
++/* The flourish each moment gets (the unit plays the tones through its tone player at the sound level the household set, 20 ms apart; a game keeps its own clip when it has one):
++ * a short rising run for a win, a slow falling one for a loss, two equal notes for a draw, two falling for a neutral end, a quick glitter for a new best. At most 600 ms in all. */
++typedef struct { uint16_t hz, ms; } mgo_tone_t;
++static const mgo_tone_t MGO_TONES_WON[] = {{523, 90}, {659, 90}, {784, 90}, {1047, 260}};
++static const mgo_tone_t MGO_TONES_LOST[] = {{392, 140}, {330, 140}, {262, 300}};
++static const mgo_tone_t MGO_TONES_DRAW[] = {{440, 140}, {440, 220}};
++static const mgo_tone_t MGO_TONES_OVER[] = {{392, 200}, {330, 320}};
++static const mgo_tone_t MGO_TONES_TIMEUP[] = {{880, 80}, {880, 80}, {660, 260}};
++static const mgo_tone_t MGO_TONES_NEW_BEST[] = {{784, 70}, {988, 70}, {1175, 70}, {1568, 70}, {2093, 320}};
++static inline int mgo_tones(int result, int new_best, const mgo_tone_t** out)
++{
++    if (new_best) { *out = MGO_TONES_NEW_BEST; return (int)(sizeof(MGO_TONES_NEW_BEST) / sizeof(MGO_TONES_NEW_BEST[0])); }
++    switch (result) {
++        case MGO_WON: *out = MGO_TONES_WON; return (int)(sizeof(MGO_TONES_WON) / sizeof(MGO_TONES_WON[0]));
++        case MGO_LOST: *out = MGO_TONES_LOST; return (int)(sizeof(MGO_TONES_LOST) / sizeof(MGO_TONES_LOST[0]));
++        case MGO_OVER: *out = MGO_TONES_OVER; return (int)(sizeof(MGO_TONES_OVER) / sizeof(MGO_TONES_OVER[0]));
++        case MGO_TIMEUP: *out = MGO_TONES_TIMEUP; return (int)(sizeof(MGO_TONES_TIMEUP) / sizeof(MGO_TONES_TIMEUP[0]));
++        default: *out = MGO_TONES_DRAW; return (int)(sizeof(MGO_TONES_DRAW) / sizeof(MGO_TONES_DRAW[0]));
++    }
++}
++
+ #endif
+diff --git a/firmware/main/hal/maipai_game_over.h b/firmware/main/hal/maipai_game_over.h
+--- a/firmware/main/hal/maipai_game_over.h
++++ b/firmware/main/hal/maipai_game_over.h
+@@ -8,16 +8,14 @@
+ #ifndef MAIPAI_GAME_OVER_H
+ #define MAIPAI_GAME_OVER_H
+ 
++#include <math.h>
++#include <stdio.h>
++#include <string.h>
+ #include <lvgl.h>
+ #include "maipai_game_over_core.h"
+ 
+ namespace mgo {
+ 
+-struct Screen {
+-    lv_obj_t* root;
+-    lv_obj_t* icon;   // the face disc, popped by set_pop()
+-};
+-
+ inline lv_obj_t* part(lv_obj_t* parent, int x, int y, int w, int h, uint32_t rgb, int radius)
+ {
+     lv_obj_t* o = lv_obj_create(parent);
+@@ -42,11 +40,409 @@
+     lv_obj_set_width(l, MGO_W);
+     lv_obj_set_pos(l, 0, y);
+     return l;
++}
++
++// ---- patch UX15d: the new look, drawn by ONE draw callback on one canvas object (docs/design/game-over-look.md). The root and the canvas are the only objects: the gradient backdrop, the
++// emblem, the confetti, the result word, the score (counting up), the best chip and both buttons are draw calls. Look 0 (below, build_flat) is the old screen, unchanged.
++inline int g_look = MGO_LOOK_DEFAULT;   // 0 old, 1 new and still, 2 new, moving, with soft shadows. The bench tool self.game.bench_over sets it; nothing else does.
++
++struct State {
++    lv_obj_t* canvas;
++    int result, lang, look, pressed;
++    bool new_best;
++    char score[48], best[48];
++    int num_pos, num_len, num_val;   // the number in the score line that counts up (num_len 0: none)
++    int score_w;                     // the width of the score line's text with a margin: the rectangle the count-up redraws
++    uint32_t t;                      // ms since the screen appeared (the last set_pop)
++    bool settled;                    // the last frame of the motion has been invalidated
++};
++
++struct Screen {
++    lv_obj_t* root;
++    lv_obj_t* icon;   // look 0: the face disc, popped by set_pop(); look 1 and 2: the canvas
++    State* st;        // look 1 and 2: the state the draw callback reads (freed with the canvas)
++};
++
++struct Pen {
++    lv_layer_t* L;
++    int ox, oy;
++};
++inline void pen_fill(const Pen& p, int x, int y, int w, int h, int r, uint32_t c, int opa = 255)
++{
++    if (w < 1 || h < 1) return;
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.base.layer = p.L;
++    d.bg_color = lv_color_hex(c);
++    d.bg_opa = static_cast<lv_opa_t>(opa);
++    d.radius = r;
++    const lv_area_t a = {static_cast<lv_coord_t>(p.ox + x), static_cast<lv_coord_t>(p.oy + y), static_cast<lv_coord_t>(p.ox + x + w - 1), static_cast<lv_coord_t>(p.oy + y + h - 1)};
++    lv_draw_rect(p.L, &d, &a);
++}
++// A box with a vertical gradient (top c1, bottom c2), an optional rim and an optional soft shadow (static things only).
++inline void pen_grad(const Pen& p, int x, int y, int w, int h, int r, uint32_t c1, uint32_t c2, int bw = 0, uint32_t bc = 0, int shadow = 0, int shadow_dy = 0)
++{
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.base.layer = p.L;
++    d.bg_color = lv_color_hex(c1);
++    d.bg_opa = LV_OPA_COVER;
++    d.bg_grad.dir = LV_GRAD_DIR_VER;
++    d.bg_grad.stops_count = 2;
++    d.bg_grad.stops[0].color = lv_color_hex(c1);
++    d.bg_grad.stops[0].opa = LV_OPA_COVER;
++    d.bg_grad.stops[0].frac = 0;
++    d.bg_grad.stops[1].color = lv_color_hex(c2);
++    d.bg_grad.stops[1].opa = LV_OPA_COVER;
++    d.bg_grad.stops[1].frac = 255;
++    d.radius = r;
++    if (bw > 0) {
++        d.border_width = bw;
++        d.border_color = lv_color_hex(bc);
++    }
++    if (shadow > 0) {
++        d.shadow_width = shadow;
++        d.shadow_offset_y = shadow_dy;
++        d.shadow_color = lv_color_black();
++        d.shadow_opa = LV_OPA_50;
++    }
++    const lv_area_t a = {static_cast<lv_coord_t>(p.ox + x), static_cast<lv_coord_t>(p.oy + y), static_cast<lv_coord_t>(p.ox + x + w - 1), static_cast<lv_coord_t>(p.oy + y + h - 1)};
++    lv_draw_rect(p.L, &d, &a);
++}
++inline void pen_disc(const Pen& p, int cx, int cy, int rad, uint32_t c, int opa = 255) { pen_fill(p, cx - rad, cy - rad, 2 * rad, 2 * rad, LV_RADIUS_CIRCLE, c, opa); }
++inline void pen_ring(const Pen& p, int cx, int cy, int rad, int bw, uint32_t c, uint32_t inner = 0, bool fill_inner = false)
++{
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.base.layer = p.L;
++    d.bg_opa = fill_inner ? LV_OPA_COVER : LV_OPA_TRANSP;
++    d.bg_color = lv_color_hex(inner);
++    d.radius = LV_RADIUS_CIRCLE;
++    d.border_width = bw;
++    d.border_color = lv_color_hex(c);
++    const lv_area_t a = {static_cast<lv_coord_t>(p.ox + cx - rad), static_cast<lv_coord_t>(p.oy + cy - rad), static_cast<lv_coord_t>(p.ox + cx + rad - 1), static_cast<lv_coord_t>(p.oy + cy + rad - 1)};
++    lv_draw_rect(p.L, &d, &a);
++}
++inline void pen_seg(const Pen& p, int x1, int y1, int x2, int y2, int w, uint32_t c, int opa = 255)
++{
++    lv_draw_line_dsc_t d;
++    lv_draw_line_dsc_init(&d);
++    d.base.layer = p.L;
++    d.color = lv_color_hex(c);
++    d.width = w;
++    d.opa = static_cast<lv_opa_t>(opa);
++    d.round_start = d.round_end = 1;
++    d.p1.x = p.ox + x1;
++    d.p1.y = p.oy + y1;
++    d.p2.x = p.ox + x2;
++    d.p2.y = p.oy + y2;
++    lv_draw_line(p.L, &d);
++}
++inline void pen_arc(const Pen& p, int cx, int cy, int rad, int a0, int a1, int w, uint32_t c)
++{
++    lv_draw_arc_dsc_t d;
++    lv_draw_arc_dsc_init(&d);
++    d.base.layer = p.L;
++    d.color = lv_color_hex(c);
++    d.width = w;
++    d.rounded = 1;
++    d.center.x = p.ox + cx;
++    d.center.y = p.oy + cy;
++    d.radius = rad;
++    d.start_angle = a0;
++    d.end_angle = a1;
++    lv_draw_arc(p.L, &d);
++}
++inline void pen_text(const Pen& p, const char* s, const lv_font_t* f, uint32_t c, int x, int y, int w, int opa = 255)
++{
++    lv_draw_label_dsc_t d;
++    lv_draw_label_dsc_init(&d);
++    d.base.layer = p.L;
++    d.font = f;
++    d.color = lv_color_hex(c);
++    d.opa = static_cast<lv_opa_t>(opa);
++    d.align = LV_TEXT_ALIGN_CENTER;
++    d.text = s;
++    const lv_area_t a = {static_cast<lv_coord_t>(p.ox + x), static_cast<lv_coord_t>(p.oy + y), static_cast<lv_coord_t>(p.ox + x + w - 1), static_cast<lv_coord_t>(p.oy + y + lv_font_get_line_height(f))};
++    lv_draw_label(p.L, &d, &a);
++}
++inline int pen_text_w(const char* s, const lv_font_t* f)
++{
++    lv_point_t sz;
++    lv_text_get_size(&sz, s, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
++    return sz.x;
++}
++
++inline void backdrop_colors(int result, bool new_best, uint32_t* top, uint32_t* bottom)
++{
++    if (new_best) { *top = 0x3A1F5E; *bottom = 0x0B0612; return; }
++    switch (result) {
++        case MGO_WON: *top = 0x4A3508; *bottom = 0x0A0802; break;
++        case MGO_LOST: *top = 0x1A2A44; *bottom = 0x07090E; break;
++        case MGO_OVER: case MGO_TIMEUP: *top = 0x3A3220; *bottom = 0x0C0B08; break;
++        default: *top = 0x2C3038; *bottom = 0x0A0B0D; break;
++    }
++}
++inline uint32_t word_color(int result, bool new_best)
++{
++    if (new_best) return 0xFFFFFF;
++    return result == MGO_WON ? 0xFFD76A : (result == MGO_LOST ? 0xB9D0F2 : (result == MGO_OVER || result == MGO_TIMEUP) ? 0xF0E2B8 : 0xE8E8E8);
++}
++
++// The emblems: only primitives. `t` is the time since the screen appeared (look 1 draws the last frame of the motion), `mv` true when the motion is on.
++inline void emblem_won(const Pen& p, int dy, uint32_t t, bool mv)
++{
++    const int cx = 160, cy = 64 + dy;
++    for (int k = 0; k < 12; k++) {
++        const float a = static_cast<float>(k * 30) * 3.14159265f / 180.0f, c = cosf(a), s = sinf(a);
++        const int r1 = (k & 1) ? 38 : 47;
++        pen_seg(p, cx + static_cast<int>(c * 27.0f), cy + static_cast<int>(s * 27.0f), cx + static_cast<int>(c * static_cast<float>(r1)), cy + static_cast<int>(s * static_cast<float>(r1)), 4, 0x9A7424);
++    }
++    pen_ring(p, cx - 27, cy + 1, 9, 4, 0xD9951F);                    // the handles
++    pen_ring(p, cx + 27, cy + 1, 9, 4, 0xD9951F);
++    pen_fill(p, cx - 4, cy + 16, 8, 9, 0, 0xC98A1A);                  // the stem
++    pen_grad(p, cx - 15, cy + 24, 30, 8, 3, 0xE0A22A, 0xB87814);      // the base
++    pen_grad(p, cx - 18, cy - 12, 36, 29, 13, 0xFFD76A, 0xD9951F);    // the cup
++    pen_fill(p, cx - 21, cy - 15, 42, 6, 3, 0xFFE9A8);                // the lip
++    pen_fill(p, cx - 12, cy - 6, 4, 16, 2, 0xFFF6D8);                 // the shine
++    pen_disc(p, cx + 3, cy + 2, 4, 0xFFF3C0);
++}
++inline void emblem_lost(const Pen& p, int dy, uint32_t t, bool mv)
++{
++    const int cx = 160;
++    const int cc = 40 + dy;                                           // the cloud
++    pen_disc(p, cx - 14, cc, 11, 0xA9B4C8);
++    pen_disc(p, cx + 3, cc - 6, 14, 0xB7C1D4);
++    pen_disc(p, cx + 18, cc, 11, 0xA9B4C8);
++    pen_fill(p, cx - 25, cc - 2, 51, 13, 6, 0xA9B4C8);
++    pen_fill(p, cx - 25, cc + 7, 51, 4, 2, 0x8D99B0);
++    for (int i = 0; i < 5; i++) {                                     // the rain falls from the cloud to the face
++        const int y0 = 52 + dy + (mv ? static_cast<int>((t * 9u / 100u + static_cast<uint32_t>(i * 7)) % 12u) : (i * 5) % 12);
++        pen_seg(p, cx - 18 + i * 9, y0, cx - 20 + i * 9, y0 + 6, 2, 0x7FB4FF);
++    }
++    const int fy = 82 + dy;                                           // the face: droopy and kind
++    pen_grad(p, cx - 18, fy - 18, 36, 36, LV_RADIUS_CIRCLE, 0x9DBBE6, 0x6F8FBF);
++    pen_disc(p, cx - 12, fy + 8, 4, 0xE79AB0);
++    pen_disc(p, cx + 12, fy + 8, 4, 0xE79AB0);
++    pen_disc(p, cx - 7, fy - 2, 4, 0xFFFFFF);
++    pen_disc(p, cx + 7, fy - 2, 4, 0xFFFFFF);
++    pen_disc(p, cx - 7, fy, 2, 0x10141C);
++    pen_disc(p, cx + 7, fy, 2, 0x10141C);
++    pen_seg(p, cx - 12, fy - 6, cx - 4, fy - 10, 2, 0x2A3550);        // brows that slant up toward the middle
++    pen_seg(p, cx + 12, fy - 6, cx + 4, fy - 10, 2, 0x2A3550);
++    pen_arc(p, cx, fy + 15, 6, 200, 340, 3, 0x10141C);                // a small frown
++    pen_disc(p, cx - 7, fy + 4 + (mv ? static_cast<int>(t / 24u % 9u) : 2), 2, 0xBEE3FF);   // one tear
++}
++inline void emblem_draw(const Pen& p, int dy, uint32_t t, bool mv)
++{
++    const int cx = 160, cy = 68 + dy, up = mv ? mgo_bump(t) : 0;
++    pen_seg(p, 108, cy + 20, 146, cy + 2 - up, 18, 0x7FA0D0);         // two arms meeting: one blue, one amber
++    pen_seg(p, 212, cy + 20, 174, cy + 2 - up, 18, 0xF2B24A);
++    pen_fill(p, 96, cy + 8, 11, 26, 4, 0x4E6A96);
++    pen_fill(p, 213, cy + 8, 11, 26, 4, 0xB07F24);
++    pen_grad(p, cx - 17, cy - 12 - up, 34, 26, 10, 0xF3EFE2, 0xCFC8B4);    // the clasp, squeezed up a little once
++    for (int i = 0; i < 3; i++) pen_seg(p, cx - 7 + i * 7, cy - 6 - up, cx - 7 + i * 7, cy + 4 - up, 2, 0x8E8672);
++}
++inline void emblem_over(const Pen& p, int dy)                         // a finish flag
++{
++    pen_seg(p, 148, 40 + dy, 148, 94 + dy, 4, 0xB8B2A0);
++    for (int r = 0; r < 3; r++)
++        for (int c = 0; c < 5; c++) pen_fill(p, 152 + c * 10, 40 + dy + r * 10, 10, 10, 0, ((r + c) & 1) ? 0x1A1A1A : 0xF4F1E8);
++    pen_disc(p, 148, 38 + dy, 4, 0xF0E2B8);
+ }
++inline void emblem_timeup(const Pen& p, int dy, uint32_t t, bool mv)  // a clock with a sweeping hand
++{
++    const int cx = 160, cy = 66 + dy;
++    pen_ring(p, cx, cy, 28, 5, 0xE9D9A8, 0x1B1A14, true);
++    for (int k = 0; k < 12; k++) {
++        const float a = static_cast<float>(k * 30) * 3.14159265f / 180.0f;
++        pen_seg(p, cx + static_cast<int>(sinf(a) * 21.0f), cy - static_cast<int>(cosf(a) * 21.0f), cx + static_cast<int>(sinf(a) * 23.0f), cy - static_cast<int>(cosf(a) * 23.0f), 2, 0xE9D9A8);
++    }
++    pen_seg(p, cx, cy, cx, cy - 15, 3, 0xF0E2B8);
++    pen_seg(p, cx, cy, cx + 9, cy + 5, 3, 0xF0E2B8);
++    const float s = (mv ? static_cast<float>(t) * 0.36f : 180.0f) * 3.14159265f / 180.0f;
++    pen_seg(p, cx, cy, cx + static_cast<int>(sinf(s) * 19.0f), cy - static_cast<int>(cosf(s) * 19.0f), 2, 0xFF6A5A);
++    pen_disc(p, cx, cy, 3, 0xFF6A5A);
++}
++inline void emblem_new_best(const Pen& p, int dy, uint32_t t, bool mv)  // a crown over a ribbon
++{
++    const int cx = 160;
++    pen_seg(p, cx - 38, 84 + dy, cx - 48, 98 + dy, 10, 0x5B35A8);     // the ribbon's tails, behind its band
++    pen_seg(p, cx + 38, 84 + dy, cx + 48, 98 + dy, 10, 0x5B35A8);
++    pen_grad(p, cx - 44, 76 + dy, 88, 14, 3, 0x9066E8, 0x6A3FC8);
++    pen_seg(p, cx - 20, 62 + dy, cx - 24, 44 + dy, 8, 0xE8A82A);      // the crown's three spikes
++    pen_seg(p, cx, 62 + dy, cx, 38 + dy, 8, 0xE8A82A);
++    pen_seg(p, cx + 20, 62 + dy, cx + 24, 44 + dy, 8, 0xE8A82A);
++    pen_grad(p, cx - 26, 58 + dy, 52, 12, 3, 0xFFD76A, 0xD9951F);
++    pen_disc(p, cx - 24, 41 + dy, 4, 0xFF5A5A);
++    pen_disc(p, cx, 35 + dy, 4, 0xFFFFFF);
++    pen_disc(p, cx + 24, 41 + dy, 4, 0xFF5A5A);
++    pen_disc(p, cx - 14, 64 + dy, 3, 0x4FA0FF);
++    pen_disc(p, cx, 64 + dy, 3, 0x4FA0FF);
++    pen_disc(p, cx + 14, 64 + dy, 3, 0x4FA0FF);
++    static const int8_t sp[4][2] = {{-62, 50}, {62, 56}, {-56, 86}, {58, 90}};   // four sparkles
++    for (int i = 0; i < 4; i++) {   // four sparkles, still
++        const int len = 5;
++        pen_seg(p, cx + sp[i][0] - len, sp[i][1] + dy, cx + sp[i][0] + len, sp[i][1] + dy, 2, 0xFFFFFF);
++        pen_seg(p, cx + sp[i][0], sp[i][1] + dy - len, cx + sp[i][0], sp[i][1] + dy + len, 2, 0xFFFFFF);
++    }
++}
++inline uint32_t confetti_color(int idx, bool gold)
++{
++    static const uint32_t multi[6] = {0xFF5A5A, 0xFFD76A, 0x5AD28C, 0x4FA0FF, 0xE070FF, 0xFFFFFF};
++    static const uint32_t golds[6] = {0xFFD76A, 0xE8A82A, 0xFFF3C0, 0x9066E8, 0xFFD76A, 0xFFFFFF};
++    return gold ? golds[idx] : multi[idx];
++}
+ 
++inline void button(const Pen& p, const State* s, int btn, bool shadows)
++{
++    int x, y, w, h;
++    mgo_button(btn, &x, &y, &w, &h);
++    const bool down = s->pressed == btn, again = btn == MGO_BTN_AGAIN;
++    if (down) {
++        pen_fill(p, x, y + 1, w, h - 1, 12, again ? 0x1C2A6A : 0x1A1C20);
++    } else {
++        pen_grad(p, x, y, w, h, 12, again ? 0x3E5CC0 : 0x3A3D45, again ? 0x25388A : 0x23252B, 1, again ? 0x7FA0F0 : 0x5A5F6B, shadows ? 6 : 0, 3);
++        pen_fill(p, x + 12, y + 3, w - 24, 1, 0, 0xFFFFFF, 60);   // a thin light along the top edge
++    }
++    const char* label = mgo_button_label_l(btn, s->lang);
++    pen_text(p, label, &lv_font_montserrat_20, 0xFFFFFF, x, y + (h - lv_font_get_line_height(&lv_font_montserrat_20)) / 2 + (down ? 2 : 0), w);
++}
++
++// The one draw callback: everything the screen shows, from the state and the time. The clip LVGL gives (the dirty area) decides what is really drawn.
++inline void draw_cb(lv_event_t* e)
++{
++    State* s = static_cast<State*>(lv_event_get_user_data(e));
++    lv_layer_t* layer = lv_event_get_layer(e);
++    if (s == nullptr || layer == nullptr) return;
++    lv_area_t cv;
++    lv_obj_get_coords(s->canvas, &cv);
++    const Pen p = {layer, cv.x1, cv.y1};
++    const bool mv = s->look >= MGO_LOOK_FULL && s->t < MGO2_ANIM_MS;   // false at look 1 and once the motion has ended: every part in its still pose
++    const uint32_t t = mv ? s->t : MGO2_ANIM_MS, tq = mgo_q60(t);    // t exact for the drop and the confetti, tq (60 ms steps) for the slow parts
++    uint32_t top, bottom;
++    backdrop_colors(s->result, s->new_best, &top, &bottom);
++    pen_grad(p, 0, 0, MGO_W, MGO_H, 0, top, bottom);
++    // the emblem and the confetti live in their band: the clip keeps every stroke inside it
++    const lv_area_t clip0 = layer->_clip_area;
++    const lv_area_t band = {static_cast<lv_coord_t>(cv.x1 + MGO2_BAND_X), static_cast<lv_coord_t>(cv.y1 + MGO2_BAND_Y), static_cast<lv_coord_t>(cv.x1 + MGO2_BAND_X + MGO2_BAND_W - 1),
++                            static_cast<lv_coord_t>(cv.y1 + MGO2_BAND_Y + MGO2_BAND_H - 1)};
++    lv_area_t in;
++    const int x1 = clip0.x1 > band.x1 ? clip0.x1 : band.x1, y1 = clip0.y1 > band.y1 ? clip0.y1 : band.y1, x2 = clip0.x2 < band.x2 ? clip0.x2 : band.x2, y2 = clip0.y2 < band.y2 ? clip0.y2 : band.y2;
++    if (x1 <= x2 && y1 <= y2) {
++        in.x1 = static_cast<lv_coord_t>(x1); in.y1 = static_cast<lv_coord_t>(y1); in.x2 = static_cast<lv_coord_t>(x2); in.y2 = static_cast<lv_coord_t>(y2);
++        layer->_clip_area = in;
++        const int dy = 0;   // the emblem stands still: only the confetti, the rain, the clasp, the hand and the count move
++        if (s->new_best) emblem_new_best(p, dy, tq, mv);
++        else if (s->result == MGO_WON) emblem_won(p, dy, tq, mv);
++        else if (s->result == MGO_LOST) emblem_lost(p, dy, tq, mv);
++        else if (s->result == MGO_OVER) emblem_over(p, dy);
++        else if (s->result == MGO_TIMEUP) emblem_timeup(p, dy, tq, mv);
++        else emblem_draw(p, dy, tq, mv);
++        if (mv && mgo_has_confetti(s->result, s->new_best)) {
++            for (int i = 0; i < MGO2_CONFETTI; i++) {
++                int x, y, w, h, c, o;
++                if (mgo_confetti(i, tq, &x, &y, &w, &h, &c, &o)) pen_fill(p, x, y, w, h, i % 3 == 0 ? LV_RADIUS_CIRCLE : 1, confetti_color(c, s->new_best), o);
++            }
++        }
++        layer->_clip_area = clip0;
++    }
++    // the result word, with a dark shadow under it so it reads on any backdrop
++    const char* title = mgo_title_l(s->result, s->lang);
++    pen_text(p, title, &lv_font_montserrat_24, 0x000000, 0, MGO2_TITLE_Y + 2, MGO_W, 150);
++    pen_text(p, title, &lv_font_montserrat_24, word_color(s->result, s->new_best), 0, MGO2_TITLE_Y, MGO_W);
++    if (s->score[0] != '\0') {
++        char line[56];
++        snprintf(line, sizeof(line), "%s", s->score);
++        if (mv && s->num_len > 0) {
++            char num[12];
++            snprintf(num, sizeof(num), "%d", mgo_countup(s->num_val, tq));
++            snprintf(line, sizeof(line), "%.*s%s%s", s->num_pos, s->score, num, s->score + s->num_pos + s->num_len);
++        }
++        pen_text(p, line, &lv_font_montserrat_20, 0xFFFFFF, 0, MGO2_SCORE_Y, MGO_W);
++    }
++    const char* chip = s->new_best ? mgo_new_best_label_l(s->lang) : s->best;
++    if (chip != nullptr && chip[0] != '\0') {
++        const int w = pen_text_w(chip, &lv_font_montserrat_16) + 28, x = (MGO_W - w) / 2;
++        if (s->new_best) {
++            pen_grad(p, x, MGO2_CHIP_Y, w, MGO2_CHIP_H, MGO2_CHIP_H / 2, 0xFFD76A, 0xE09A1E);
++            pen_text(p, chip, &lv_font_montserrat_16, 0x2A1A00, x, MGO2_CHIP_Y + 2, w);
++        } else {
++            pen_fill(p, x, MGO2_CHIP_Y, w, MGO2_CHIP_H, MGO2_CHIP_H / 2, 0x000000, 90);
++            pen_text(p, chip, &lv_font_montserrat_16, 0xB4BCC8, x, MGO2_CHIP_Y + 2, w);
++        }
++    }
++    button(p, s, MGO_BTN_AGAIN, s->look >= MGO_LOOK_FULL);
++    button(p, s, MGO_BTN_QUIT, s->look >= MGO_LOOK_FULL);
++}
++inline void state_deleted(lv_event_t* e) { lv_free(lv_event_get_user_data(e)); }
++
++inline void invalidate(const Screen& s, int x, int y, int w, int h)
++{
++    const lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + h - 1)};
++    lv_obj_invalidate_area(s.icon, &a);
++}
++
++inline Screen build_new(lv_obj_t* parent, int result, const char* score_text, const char* best_text, bool new_best, int lang, int look)
++{
++    Screen s = {};
++    s.root = lv_obj_create(parent);
++    lv_obj_remove_style_all(s.root);
++    lv_obj_remove_flag(s.root, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(s.root, MGO_W, MGO_H);
++    lv_obj_set_pos(s.root, 0, 0);
++    s.icon = lv_obj_create(s.root);
++    lv_obj_remove_style_all(s.icon);
++    lv_obj_remove_flag(s.icon, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(s.icon, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(s.icon, MGO_W, MGO_H);
++    lv_obj_set_pos(s.icon, 0, 0);
++    s.st = static_cast<State*>(lv_malloc(sizeof(State)));
++    if (s.st == nullptr) return s;
++    memset(s.st, 0, sizeof(State));
++    s.st->canvas = s.icon;
++    s.st->result = result;
++    s.st->lang = lang;
++    s.st->look = look;
++    s.st->new_best = new_best;
++    snprintf(s.st->score, sizeof(s.st->score), "%s", score_text != nullptr ? score_text : "");
++    snprintf(s.st->best, sizeof(s.st->best), "%s", best_text != nullptr ? best_text : "");
++    if (!mgo_first_number(s.st->score, &s.st->num_pos, &s.st->num_len, &s.st->num_val)) s.st->num_len = 0;
++    s.st->score_w = pen_text_w(s.st->score, &lv_font_montserrat_20) + 12;
++    if (s.st->score_w > MGO_W) s.st->score_w = MGO_W;
++    lv_obj_add_event_cb(s.icon, draw_cb, LV_EVENT_DRAW_MAIN, s.st);
++    lv_obj_add_event_cb(s.icon, state_deleted, LV_EVENT_DELETE, s.st);
++    return s;
++}
++
++// The motion, `elapsed` ms after the screen appeared (called from the game's tick until MGO_POP_MS has passed): invalidates only what moves this tick.
++inline void set_pop_new(const Screen& s, uint32_t elapsed)
++{
++    State* st = s.st;
++    if (st == nullptr || st->look < MGO_LOOK_FULL) return;
++    if (elapsed > MGO2_ANIM_MS) elapsed = MGO2_ANIM_MS;
++    if (st->settled && elapsed >= MGO2_ANIM_MS) return;
++    const uint32_t before = st->t;
++    st->t = elapsed;
++    if (elapsed >= MGO2_ANIM_MS) st->settled = true;
++    mgo_rect_t r[MGO2_MAX_RECTS];
++    const int n = mgo_dirty(st->result, st->new_best, st->num_len, st->score_w, before, elapsed, r);
++    for (int i = 0; i < n; i++) invalidate(s, r[i].x, r[i].y, r[i].w, r[i].h);
++}
++
++// The pressed state of a button (MGO_BTN_AGAIN, MGO_BTN_QUIT, or MGO_BTN_NONE to let go): the game's touch handler calls it on touch down and again on release.
++inline void set_pressed(const Screen& s, int btn)
++{
++    if (s.st == nullptr || s.st->pressed == btn) return;
++    s.st->pressed = btn;
++    int x, y, w, h;
++    mgo_button(MGO_BTN_AGAIN, &x, &y, &w, &h);
++    invalidate(s, x - 10, y - 4, 2 * MGO_BTN_W + MGO_BTN_GAP + 20, MGO_BTN_H + 14);
++}
++
+ // result: MGO_WON, MGO_LOST, MGO_DRAW, or for a game with no winner MGO_OVER or MGO_TIMEUP (a calm face, no verdict). score_text is the game's own score line ("Score 66", "Cleared in 96 s", "Length 31"), best_text its best line ("Best 70"); both may be empty.
+ // new_best marks the score as beating the old best: the best line is replaced by the amber "New best!" mark.
+-inline Screen build(lv_obj_t* parent, int result, const char* score_text, const char* best_text, bool new_best, bool es)
++inline Screen build_flat(lv_obj_t* parent, int result, const char* score_text, const char* best_text, bool new_best, int lang)
+ {
+     Screen s = {};
+     s.root = lv_obj_create(parent);
+@@ -77,12 +473,12 @@
+         lv_obj_set_style_arc_color(m, lv_color_hex(0x10141C), LV_PART_MAIN);
+         lv_obj_set_style_arc_rounded(m, true, LV_PART_MAIN);
+     }
+-    words(s.root, mgo_title(result, es ? 1 : 0), &lv_font_montserrat_24, 0xFFFFFF, MGO_TITLE_Y);
++    words(s.root, mgo_title_l(result, lang), &lv_font_montserrat_24, 0xFFFFFF, MGO_TITLE_Y);
+     if (score_text != nullptr && score_text[0] != '\0') {
+         words(s.root, score_text, &lv_font_montserrat_20, 0xE8E8E8, MGO_SCORE_Y);
+     }
+     if (new_best) {
+-        words(s.root, mgo_new_best_label(es ? 1 : 0), &lv_font_montserrat_16, 0xF2B24A, MGO_BEST_Y);
++        words(s.root, mgo_new_best_label_l(lang), &lv_font_montserrat_16, 0xF2B24A, MGO_BEST_Y);
+     } else if (best_text != nullptr && best_text[0] != '\0') {
+         words(s.root, best_text, &lv_font_montserrat_16, 0x9AA3B0, MGO_BEST_Y);
+     }
+@@ -93,7 +489,7 @@
+         lv_obj_set_style_border_width(o, 1, 0);
+         lv_obj_set_style_border_color(o, lv_color_hex(b == MGO_BTN_AGAIN ? 0x6A86D8 : 0x4A4A4A), 0);
+         lv_obj_t* t = lv_label_create(o);
+-        lv_label_set_text(t, mgo_button_label(b, es ? 1 : 0));
++        lv_label_set_text(t, mgo_button_label_l(b, lang));
+         lv_obj_set_style_text_font(t, &lv_font_montserrat_20, 0);
+         lv_obj_set_style_text_color(t, lv_color_white(), 0);
+         lv_obj_center(t);
+@@ -102,13 +498,29 @@
+ }
+ 
+ // The pop of the face, `elapsed` ms after the screen appeared (called from the game's tick until MGO_POP_MS has passed).
+-inline void set_pop(const Screen& s, uint32_t elapsed)
++inline void set_pop_flat(const Screen& s, uint32_t elapsed)
+ {
+     if (s.icon != nullptr) {
+         lv_obj_set_style_transform_scale(s.icon, mgo_icon_scale(elapsed) * 256 / 1000, 0);
+     }
+ }
+ 
++// The entry points the games call (the same names and arguments as before). The look level is mgo::g_look at the moment the screen is built; lang is 0 to 5 (en, es, fr, de, pt, it).
++inline Screen build_lang(lv_obj_t* parent, int result, const char* score_text, const char* best_text, bool new_best, int lang)
++{
++    if (g_look == MGO_LOOK_OLD) return build_flat(parent, result, score_text, best_text, new_best, lang);
++    return build_new(parent, result, score_text, best_text, new_best, lang, g_look);
++}
++inline Screen build(lv_obj_t* parent, int result, const char* score_text, const char* best_text, bool new_best, bool es)
++{
++    return build_lang(parent, result, score_text, best_text, new_best, es ? MGO_LANG_ES : MGO_LANG_EN);
++}
++inline void set_pop(const Screen& s, uint32_t elapsed)
++{
++    if (s.st != nullptr) set_pop_new(s, elapsed);
++    else set_pop_flat(s, elapsed);
++}
++
+ }  // namespace mgo
+ 
+ #endif
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -1108,6 +1108,48 @@
+                     lv_obj_delete(box);
+                     char b[120];
+                     snprintf(b, sizeof(b), "{\"ok\":true,\"technique\":\"%s\",\"n\":%d,\"us_per_redraw\":%d}", tech.c_str(), n, static_cast<int>(us));
++                    return std::string(b);
++                });
++    mcp.AddTool("self.game.bench_over", "Bench only (patch UX15d): the shared game-over screen at look 0 (today's), 1 (the new look, still) or 2 (the new look moving, with soft shadows) for result 1 won, 2 lost, 3 draw, 4 game over, 5 time's up, "
++                "new_best 0 or 1, lang 0 to 5 (en, es, fr, de, pt, it). Shows it over everything, plays its motion in 30 ms steps for 2 seconds, one draw and flush each, and answers {ok, look, frames, objects, entry_us (the full-screen frame when it appears), us_mean and us_worst (the motion frames after it), internal_free_before, internal_free_during}. Removes it again.",
++                PropertyList({Property("look", kPropertyTypeInteger, 2, 0, 2), Property("result", kPropertyTypeInteger, 1, 1, 5), Property("new_best", kPropertyTypeInteger, 0, 0, 1), Property("lang", kPropertyTypeInteger, 0, 0, 5)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    LvglLockGuard lock;
++                    const int look = properties["look"].value<int>(), result = properties["result"].value<int>(), lang = properties["lang"].value<int>();
++                    const bool nb = properties["new_best"].value<int>() != 0;
++                    const int saved = mgo::g_look;
++                    const size_t free_before = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
++                    mgo::g_look = look;
++                    mgo::Screen sc = mgo::build_lang(lv_layer_top(), result, "Score 120", "Best 90", nb, lang);
++                    mgo::g_look = saved;
++                    const int64_t e0 = esp_timer_get_time();
++                    lv_refr_now(nullptr);   // the screen appears: the one full-screen frame
++                    const int64_t entry_us = esp_timer_get_time() - e0;
++                    const size_t free_during = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
++                    int64_t sum = 0, worst = 0;
++                    int frames = 0;
++                    for (uint32_t t = 0; t <= 2000; t += 30) {
++                        mgo::set_pop(sc, t);
++                        const int64_t t0 = esp_timer_get_time();
++                        lv_refr_now(nullptr);
++                        const int64_t d = esp_timer_get_time() - t0;
++                        sum += d;
++                        if (d > worst) worst = d;
++                        frames++;
++                    }
++                    int objects = 0;
++                    lv_obj_t* stack[40];
++                    int top = 0;
++                    stack[top++] = sc.root;
++                    while (top > 0) {
++                        lv_obj_t* o = stack[--top];
++                        objects++;
++                        for (uint32_t i = 0; i < lv_obj_get_child_count(o) && top < 40; i++) stack[top++] = lv_obj_get_child(o, static_cast<int32_t>(i));
++                    }
++                    lv_obj_delete(sc.root);
++                    char b[260];
++                    snprintf(b, sizeof(b), "{\"ok\":true,\"look\":%d,\"frames\":%d,\"objects\":%d,\"entry_us\":%d,\"us_mean\":%d,\"us_worst\":%d,\"internal_free_before\":%u,\"internal_free_during\":%u}", look, frames, objects, static_cast<int>(entry_us),
++                             static_cast<int>(sum / frames), static_cast<int>(worst), static_cast<unsigned>(free_before), static_cast<unsigned>(free_during));
+                     return std::string(b);
+                 });
+ }

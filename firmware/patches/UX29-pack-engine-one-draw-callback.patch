@@ -1,0 +1,1148 @@
+# Intent: the seven data-pack games (Tic-Tac-Toe, Whack, Do It, 8 Ball, Dice and Coin, Color Memory, Rock Paper Scissors) drawn by ONE draw callback instead of 15 to 87 LVGL objects a screen (docs/plan/games-pack-engine.md). Display-only: the pack format, the seven .mpk files and every counter, rule and sound are unchanged. Every shape, and every part of the mole, a die, the coin and an icon, is a Node in one block begin() allocates; one canvas object paints the nodes in the order they were made, clipped to their parent the way LVGL clips a child. A change marks the node, commit() invalidates its old and new area only. Measured on the host renderer: 3 objects on every pack (was 46, 64, 44, 47, 49, 15, 87) and 0 differing pixels over 3118 frames against the old drawing.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games_draw.h and maipai_games.cc (ours, patches UI13, UI15, GM04, GM05)
+# Check after a flash: each of the seven packs looks as before (the mole pops and is struck with stars, the dice hop, the coin flips with a glint, the 8 ball wobbles and its window fades in, the Rock Paper Scissors hands bump, Tic-Tac-Toe marks draw themselves in); free internal RAM during a pack game is 0.5 to 4.3 KB higher than before; closing a game frees the block (internal free after closing equals internal free before opening).
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -123,7 +123,7 @@
+     mg_run_t run;
+     lv_obj_t* root;
+     lv_timer_t* timer;
+-    lv_obj_t* obj[MG_MAX_SHAPES];
++    mgd::Node* obj[MG_MAX_SHAPES];  // patch UX29: nodes of one scene, not LVGL objects
+     uint8_t type[MG_MAX_SHAPES];
+     uint8_t text[MG_MAX_SHAPES];
+     int16_t last_ctr[MG_COUNTERS];
+@@ -1048,6 +1048,7 @@
+     lv_obj_set_pos(g->root, 0, 0);
+     lv_obj_set_style_bg_color(g->root, lv_color_black(), 0);
+     lv_obj_set_style_bg_opa(g->root, LV_OPA_COVER, 0);
++    mgd::begin(g->root, &g->pack, &g->parts);  // patch UX29: the one canvas that draws every shape (freed with g->root)
+     for (int i = 0; i < g->pack.n_shapes; i++) {
+         mg_shape_t s;
+         mg_shape_get(&g->pack, i, &s);
+diff --git a/firmware/main/hal/maipai_games_draw.h b/firmware/main/hal/maipai_games_draw.h
+--- a/firmware/main/hal/maipai_games_draw.h
++++ b/firmware/main/hal/maipai_games_draw.h
+@@ -2,7 +2,9 @@
+  * SPDX-License-Identifier: MIT
+  *
+  * How a game's shapes are drawn (patch UI13), with LVGL only: no ESP call, so the host renderer (scripts/fw-face-render/games_render.cc)
+- * draws the very same screens the unit shows. Shapes are built once, hidden, and shown or hidden by the player as the game's state and
++ * draws the very same screens the unit shows. Since patch UX29 the shapes are not LVGL objects: they are nodes of one scene that ONE draw
++ * callback paints (see the drawing layer below), so a screen costs three LVGL objects whatever its shapes. Shapes are built once, hidden, and
++ * shown or hidden by the player as the game's state and
+  * counters change. Besides the plain ones (fill, circle, box, ring, text) there is the LINE (a thick rounded segment, for the Tic-Tac-Toe
+  * crosses and the scissors) and the MOLE: one character built from 19 small shapes that stands in the hole named by a counter and wears
+  * the funny face named by another (grin, goofy tongue, startled, helmet, and the dazed face with stars after a hit).
+@@ -11,6 +13,7 @@
+ #define MAIPAI_GAMES_DRAW_H
+ 
+ #include <math.h>
++#include <string.h>
+ #include <lvgl.h>
+ #include "maipai_games_core.h"
+ #include "maipai_games_input_core.h"
+@@ -28,16 +31,418 @@
+     return size == 0 ? &lv_font_montserrat_14 : (size == 1 ? &lv_font_montserrat_16 : (size == 2 ? &lv_font_montserrat_20 : &lv_font_montserrat_24));  /* patch GM04: size 3 */
+ }
+ 
+-inline lv_obj_t* plain(lv_obj_t* parent)
++/* ---- the drawing layer (patch UX29) ----
++ * A pack's screen used to be one LVGL object for every shape and every part of the mole, a die, the coin and an icon: 15 to 87 objects a
++ * screen, each one a few hundred bytes of internal RAM and a walk of the whole tree on every change. Now every shape is a Node, a small
++ * record in one block that begin() takes for the whole game, and ONE LVGL object (the canvas) draws all of them in one draw callback, in the
++ * order they were made, each one clipped to its parent the way LVGL clips a child. The functions named vo_* take the place of the LVGL calls
++ * the old code made on its objects (same arguments, so the shapes' code reads as before). A change marks the nodes it touches; commit()
++ * invalidates only the old and new area of each, so a still screen costs nothing and a moving one flushes only what moved. */
++struct Scene;
++enum { NK_BOX = 0, NK_TEXT, NK_LINE };
++
++struct Node {
++    Scene* sc;
++    Node* parent;
++    char* text;                     /* NK_TEXT: the words, in the scene's arena */
++    const lv_font_t* font;
++    int16_t x, y, w, h;             /* relative to the parent's content; w or h < 0: the size of the content (a label) */
++    int16_t radius, lx1, ly1, lx2, ly2, cw, ch, lw;
++    int16_t ox1, oy1, ox2, oy2;     /* the area this node covered when it first changed since the last commit */
++    lv_color_t bg, bd, ink;         /* fill, border, and the colour of text or line */
++    uint8_t kind, bg_opa, bd_w, opa, thick, cap;
++    uint8_t hidden : 1, rounded : 1, mid : 1, kids : 1, dirty : 1, old_ok : 1, size_ok : 1;
++};
++
++struct Scene {
++    lv_obj_t* canvas;
++    Node* n;
++    char* arena;
++    uint16_t cnt, cap, arena_used, arena_cap;
++    uint8_t any;
++};
++
++inline Node* node_new(Node* parent, uint8_t kind)
+ {
+-    lv_obj_t* o = lv_obj_create(parent);
+-    lv_obj_remove_style_all(o);
+-    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+-    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++    Scene* sc = parent->sc;
++    if (sc->cnt >= sc->cap) return nullptr;
++    Node* o = &sc->n[sc->cnt++];
++    memset(o, 0, sizeof(*o));
++    o->sc = sc;
++    o->parent = parent;
++    parent->kids = 1;
++    o->kind = kind;
++    o->opa = LV_OPA_COVER;
++    o->hidden = 1;
++    o->bd = o->bg = o->ink = lv_color_black();
++    o->thick = 2;
+     return o;
+ }
+ 
++inline Node* plain(Node* parent) { return node_new(parent, NK_BOX); }
++
++inline void abs_xy(const Node* o, int* ax, int* ay)
++{
++    int x = o->x, y = o->y;
++    if (o->parent != nullptr) {
++        int px, py;
++        abs_xy(o->parent, &px, &py);
++        x += px + o->parent->bd_w;
++        y += py + o->parent->bd_w;
++    }
++    *ax = x;
++    *ay = y;
++}
++
++inline bool shown(const Node* o)
++{
++    for (; o != nullptr; o = o->parent) {
++        if (o->hidden) return false;
++    }
++    return true;
++}
++
++/* The size a node has now: a label's content size is measured the way LVGL measures it (the width the label has, or no limit), a line's is
++ * the far corner of its two points. */
++inline void size_of(Node* o, int* w, int* h)
++{
++    if (o->kind == NK_LINE) {
++        *w = o->lx1 > o->lx2 ? o->lx1 : o->lx2;
++        *h = o->ly1 > o->ly2 ? o->ly1 : o->ly2;
++        if (*w < 0) *w = 0;
++        if (*h < 0) *h = 0;
++        return;
++    }
++    if (o->kind == NK_TEXT && (o->w < 0 || o->h < 0)) {
++        if (!o->size_ok) {
++            lv_point_t sz;
++            lv_text_get_size(&sz, o->text, o->font, 0, 0, o->w >= 0 ? o->w : LV_COORD_MAX, LV_TEXT_FLAG_NONE);
++            o->cw = static_cast<int16_t>(sz.x);
++            o->ch = static_cast<int16_t>(sz.y);
++            o->size_ok = 1;
++        }
++        *w = o->w >= 0 ? o->w : o->cw;
++        *h = o->h >= 0 ? o->h : o->ch;
++        return;
++    }
++    *w = o->w < 0 ? 0 : o->w;
++    *h = o->h < 0 ? 0 : o->h;
++}
++
++/* How far a node draws outside its own box: a label a quarter of a line (LVGL's allowance for slanted letters), a line its width. */
++inline int ext_of(const Node* o)
++{
++    if (o->kind == NK_LINE) return o->thick;
++    if (o->kind == NK_TEXT && o->font != nullptr) return lv_font_get_line_height(o->font) / 4;
++    return 0;
++}
++
++/* The area a node's own pixels can be in, on the canvas. False when it draws nothing (hidden, empty). */
++inline bool own_area(Node* o, lv_area_t* a)
++{
++    if (o->hidden) return false;
++    int ax, ay, w, h;
++    abs_xy(o, &ax, &ay);
++    size_of(o, &w, &h);
++    const int e = ext_of(o);
++    if (o->kind == NK_LINE) {
++        const int x1 = o->lx1 < o->lx2 ? o->lx1 : o->lx2, x2 = o->lx1 > o->lx2 ? o->lx1 : o->lx2;
++        const int y1 = o->ly1 < o->ly2 ? o->ly1 : o->ly2, y2 = o->ly1 > o->ly2 ? o->ly1 : o->ly2;
++        a->x1 = static_cast<lv_coord_t>(ax + x1 - e);
++        a->y1 = static_cast<lv_coord_t>(ay + y1 - e);
++        a->x2 = static_cast<lv_coord_t>(ax + x2 + e);
++        a->y2 = static_cast<lv_coord_t>(ay + y2 + e);
++        return true;
++    }
++    if (w <= 0 || h <= 0) return false;
++    a->x1 = static_cast<lv_coord_t>(ax - e);
++    a->y1 = static_cast<lv_coord_t>(ay - e);
++    a->x2 = static_cast<lv_coord_t>(ax + w - 1 + e);
++    a->y2 = static_cast<lv_coord_t>(ay + h - 1 + e);
++    return true;
++}
++
++/* The area of a node and everything inside it (a node nobody can see covers nothing). */
++inline bool tree_area(Node* o, lv_area_t* out)
++{
++    if (!shown(o)) return false;
++    bool any = false;
++    lv_area_t a;
++    if (own_area(o, &a)) {
++        *out = a;
++        any = true;
++    }
++    if (o->kids) {
++        Scene* sc = o->sc;
++        for (int j = static_cast<int>(o - sc->n) + 1; j < sc->cnt; j++) {
++            Node* c = &sc->n[j];
++            bool inside = false;
++            for (Node* p = c->parent; p != nullptr; p = p->parent) {
++                if (p == o) {
++                    inside = true;
++                    break;
++                }
++            }
++            if (inside && own_area(c, &a) && shown(c)) {
++                if (!any) {
++                    *out = a;
++                    any = true;
++                } else {
++                    out->x1 = a.x1 < out->x1 ? a.x1 : out->x1;
++                    out->y1 = a.y1 < out->y1 ? a.y1 : out->y1;
++                    out->x2 = a.x2 > out->x2 ? a.x2 : out->x2;
++                    out->y2 = a.y2 > out->y2 ? a.y2 : out->y2;
++                }
++            }
++        }
++    }
++    return any;
++}
++
++/* Called before a change: remembers what the node covers now, once, so commit() can invalidate it. */
++inline void touch(Node* o)
++{
++    if (o == nullptr || o->dirty) return;
++    lv_area_t a;
++    o->old_ok = tree_area(o, &a) ? 1 : 0;
++    if (o->old_ok) {
++        o->ox1 = static_cast<int16_t>(a.x1);
++        o->oy1 = static_cast<int16_t>(a.y1);
++        o->ox2 = static_cast<int16_t>(a.x2);
++        o->oy2 = static_cast<int16_t>(a.y2);
++    }
++    o->dirty = 1;
++    o->sc->any = 1;
++}
++
++/* Hands the changes since the last commit to LVGL: the old and the new area of every node that changed. */
++inline void commit(Scene* sc)
++{
++    if (sc == nullptr || !sc->any) return;
++    sc->any = 0;
++    for (int i = 0; i < sc->cnt; i++) {
++        Node* o = &sc->n[i];
++        if (!o->dirty) continue;
++        o->dirty = 0;
++        if (o->old_ok) {
++            const lv_area_t old = {o->ox1, o->oy1, o->ox2, o->oy2};
++            lv_obj_invalidate_area(sc->canvas, &old);
++            o->old_ok = 0;
++        }
++        lv_area_t now;
++        if (tree_area(o, &now)) lv_obj_invalidate_area(sc->canvas, &now);
++    }
++}
++
++inline bool isect(lv_area_t* r, const lv_area_t* a, const lv_area_t* b)
++{
++    const int x1 = a->x1 > b->x1 ? a->x1 : b->x1, y1 = a->y1 > b->y1 ? a->y1 : b->y1;
++    const int x2 = a->x2 < b->x2 ? a->x2 : b->x2, y2 = a->y2 < b->y2 ? a->y2 : b->y2;
++    if (x1 > x2 || y1 > y2) return false;
++    r->x1 = static_cast<lv_coord_t>(x1);
++    r->y1 = static_cast<lv_coord_t>(y1);
++    r->x2 = static_cast<lv_coord_t>(x2);
++    r->y2 = static_cast<lv_coord_t>(y2);
++    return true;
++}
++
++inline bool same_colour(lv_color_t a, lv_color_t b) { return a.red == b.red && a.green == b.green && a.blue == b.blue; }
++
++inline void vo_pos(Node* o, int x, int y)
++{
++    if (o == nullptr || (o->x == x && o->y == y)) return;
++    touch(o);
++    o->x = static_cast<int16_t>(x);
++    o->y = static_cast<int16_t>(y);
++}
++inline void vo_size(Node* o, int w, int h)
++{
++    if (w == LV_SIZE_CONTENT) w = -1;
++    if (h == LV_SIZE_CONTENT) h = -1;
++    if (o == nullptr || (o->w == w && o->h == h)) return;
++    touch(o);
++    o->w = static_cast<int16_t>(w);
++    o->h = static_cast<int16_t>(h);
++    o->size_ok = 0;
++}
++inline void vo_width_set(Node* o, int w) { if (o != nullptr) vo_size(o, w, o->h); }
++/* The width the node had when the screen was last drawn. LVGL's lv_obj_get_width reads the width of the last layout, not the one just set,
++ * and the coin's flip (animate) has always positioned itself with that value, so the first tick after a face change uses the width of the
++ * face before: kept exactly, so the drawing is the same pixel for pixel (a one-line change to size_of would draw it with the new width). */
++inline int vo_width(Node* o) { return o->lw; }
++inline void vo_flag_on(Node* o, lv_obj_flag_t f)
++{
++    if (o == nullptr || f != LV_OBJ_FLAG_HIDDEN || o->hidden) return;
++    touch(o);
++    o->hidden = 1;
++}
++inline void vo_flag_off(Node* o, lv_obj_flag_t f)
++{
++    if (o == nullptr || f != LV_OBJ_FLAG_HIDDEN || !o->hidden) return;
++    touch(o);
++    o->hidden = 0;
++}
++inline void vo_bg(Node* o, lv_color_t c, int) { if (o != nullptr && !same_colour(o->bg, c)) { touch(o); o->bg = c; } }
++inline void vo_bg_opa(Node* o, int a, int) { if (o != nullptr && o->bg_opa != a) { touch(o); o->bg_opa = static_cast<uint8_t>(a); } }
++inline void vo_radius(Node* o, int r, int) { if (o != nullptr && o->radius != r) { touch(o); o->radius = static_cast<int16_t>(r); } }
++inline void vo_bd(Node* o, lv_color_t c, int) { if (o != nullptr && !same_colour(o->bd, c)) { touch(o); o->bd = c; } }
++inline void vo_bd_w(Node* o, int w, int) { if (o != nullptr && o->bd_w != w) { touch(o); o->bd_w = static_cast<uint8_t>(w); } }
++inline void vo_opa(Node* o, int a, int) { if (o != nullptr && o->opa != a) { touch(o); o->opa = static_cast<uint8_t>(a); } }
++inline void vo_thick(Node* o, int w, int) { if (o != nullptr && o->thick != w) { touch(o); o->thick = static_cast<uint8_t>(w); } }
++inline void vo_ink(Node* o, lv_color_t c, int) { if (o != nullptr && !same_colour(o->ink, c)) { touch(o); o->ink = c; } }
++inline void vo_round(Node* o, bool r, int) { if (o != nullptr && o->rounded != (r ? 1 : 0)) { touch(o); o->rounded = r ? 1 : 0; } }
++inline void vo_font(Node* o, const lv_font_t* f, int) { if (o != nullptr && o->font != f) { touch(o); o->font = f; o->size_ok = 0; } }
++inline void vo_align(Node* o, lv_text_align_t a, int) { if (o != nullptr && o->mid != (a == LV_TEXT_ALIGN_CENTER ? 1 : 0)) { touch(o); o->mid = a == LV_TEXT_ALIGN_CENTER ? 1 : 0; } }
++inline void vo_long(Node*, lv_label_long_mode_t) {}   /* every label wraps */
++inline void vo_text(Node* o, const char* s)
++{
++    if (o == nullptr || o->text == nullptr || o->cap == 0) return;
++    size_t len = strlen(s);
++    if (len >= o->cap) len = o->cap - 1u;
++    if (memcmp(o->text, s, len) == 0 && o->text[len] == 0) return;
++    touch(o);
++    memcpy(o->text, s, len);
++    o->text[len] = 0;
++    o->size_ok = 0;
++}
++inline void vo_points(Node* o, const lv_point_precise_t* p, int)
++{
++    if (o == nullptr) return;
++    const int x1 = static_cast<int>(p[0].x), y1 = static_cast<int>(p[0].y), x2 = static_cast<int>(p[1].x), y2 = static_cast<int>(p[1].y);
++    if (o->lx1 == x1 && o->ly1 == y1 && o->lx2 == x2 && o->ly2 == y2) return;
++    touch(o);
++    o->lx1 = static_cast<int16_t>(x1);
++    o->ly1 = static_cast<int16_t>(y1);
++    o->lx2 = static_cast<int16_t>(x2);
++    o->ly2 = static_cast<int16_t>(y2);
++}
++inline Node* vo_line(Node* parent) { return parent == nullptr ? nullptr : node_new(parent, NK_LINE); }
++/* A label with room for `cap` bytes of text (the room comes out of the scene's arena). */
++inline Node* vo_label(Node* parent, int cap)
++{
++    static char none[1] = {0};
++    Node* o = parent == nullptr ? nullptr : node_new(parent, NK_TEXT);
++    if (o == nullptr) return nullptr;
++    o->w = o->h = -1;
++    o->font = &lv_font_montserrat_14;
++    Scene* sc = o->sc;
++    if (sc->arena_used + cap <= sc->arena_cap) {
++        o->text = sc->arena + sc->arena_used;
++        o->cap = static_cast<uint8_t>(cap);
++        sc->arena_used = static_cast<uint16_t>(sc->arena_used + cap);
++        o->text[0] = 0;
++    } else {
++        o->text = none;
++        o->cap = 0;
++    }
++    return o;
++}
++
++/* The ink of a node is clipped to the nodes above it, so the area every ancestor covers (their boxes, not their padding) is the clip. */
++inline bool clip_to_parents(const Node* o, int cx, int cy, lv_area_t* clip)
++{
++    for (const Node* p = o->parent; p != nullptr; p = p->parent) {
++        int ax, ay, w, h;
++        abs_xy(p, &ax, &ay);
++        size_of(const_cast<Node*>(p), &w, &h);
++        const lv_area_t box = {static_cast<lv_coord_t>(cx + ax), static_cast<lv_coord_t>(cy + ay), static_cast<lv_coord_t>(cx + ax + w - 1), static_cast<lv_coord_t>(cy + ay + h - 1)};
++        if (!isect(clip, clip, &box)) return false;
++    }
++    return true;
++}
++
++inline void draw_node(lv_layer_t* layer, Node* o, int cx, int cy, const lv_area_t& clip0, lv_opa_t opa0)
++{
++    if (!shown(o)) return;
++    int ax, ay, w, h;
++    abs_xy(o, &ax, &ay);
++    size_of(o, &w, &h);
++    ax += cx;
++    ay += cy;
++    lv_opa_t opa = opa0;
++    for (const Node* p = o; p != nullptr; p = p->parent) {
++        if (p->opa < LV_OPA_MAX) opa = LV_OPA_MIX2(opa, p->opa);
++    }
++    if (opa <= LV_OPA_MIN) return;
++    const int e = ext_of(o);
++    lv_area_t own = {static_cast<lv_coord_t>(ax - e), static_cast<lv_coord_t>(ay - e), static_cast<lv_coord_t>(ax + w - 1 + e), static_cast<lv_coord_t>(ay + h - 1 + e)};
++    if (o->kind == NK_LINE && (w <= 0 || h <= 0)) own = {static_cast<lv_coord_t>(ax - e), static_cast<lv_coord_t>(ay - e), static_cast<lv_coord_t>(ax + e), static_cast<lv_coord_t>(ay + e)};
++    lv_area_t clip = clip0;
++    if (!isect(&clip, &clip, &own) || !clip_to_parents(o, cx, cy, &clip)) return;
++    layer->_clip_area = clip;
++    layer->opa = opa;
++    const lv_area_t box = {static_cast<lv_coord_t>(ax), static_cast<lv_coord_t>(ay), static_cast<lv_coord_t>(ax + w - 1), static_cast<lv_coord_t>(ay + h - 1)};
++    if (o->kind == NK_BOX) {
++        if (o->bg_opa == 0 && o->bd_w == 0) return;
++        lv_draw_rect_dsc_t d;
++        lv_draw_rect_dsc_init(&d);
++        d.base.layer = layer;
++        d.radius = o->radius;
++        d.bg_opa = o->bg_opa;
++        d.bg_color = o->bg;
++        if (o->bd_w > 0) {
++            d.border_width = o->bd_w;
++            d.border_color = o->bd;
++        }
++        if (opa < LV_OPA_MAX) {
++            d.bg_opa = LV_OPA_MIX2(d.bg_opa, opa);
++            d.border_opa = LV_OPA_MIX2(d.border_opa, opa);
++            d.shadow_opa = LV_OPA_MIX2(d.shadow_opa, opa);
++            d.outline_opa = LV_OPA_MIX2(d.outline_opa, opa);
++            d.bg_image_opa = LV_OPA_MIX2(d.bg_image_opa, opa);
++        }
++        lv_draw_rect(layer, &d, &box);
++    } else if (o->kind == NK_LINE) {
++        lv_draw_line_dsc_t d;
++        lv_draw_line_dsc_init(&d);
++        d.base.layer = layer;
++        d.width = o->thick;
++        d.color = o->ink;
++        d.opa = opa < LV_OPA_MAX ? LV_OPA_MIX2(LV_OPA_COVER, opa) : LV_OPA_COVER;
++        d.round_start = d.round_end = o->rounded;
++        d.p1.x = ax + o->lx1;
++        d.p1.y = ay + o->ly1;
++        d.p2.x = ax + o->lx2;
++        d.p2.y = ay + o->ly2;
++        lv_draw_line(layer, &d);
++    } else {
++        lv_draw_label_dsc_t d;
++        lv_draw_label_dsc_init(&d);
++        d.base.layer = layer;
++        d.text = o->text;
++        d.text_size = {static_cast<int32_t>(o->cw), static_cast<int32_t>(o->ch)};
++        d.flag = (o->w < 0) ? LV_TEXT_FLAG_FIT : LV_TEXT_FLAG_NONE;
++        d.opa = opa < LV_OPA_MAX ? LV_OPA_MIX2(LV_OPA_COVER, opa) : LV_OPA_COVER;
++        d.color = o->ink;
++        d.font = o->font;
++        d.align = o->mid ? LV_TEXT_ALIGN_CENTER : LV_TEXT_ALIGN_AUTO;
++        lv_bidi_calculate_align(&d.align, &d.bidi_dir, o->text);
++        lv_area_t txt_clip;
++        if (!isect(&txt_clip, &box, &layer->_clip_area)) return;
++        layer->_clip_area.y2 = txt_clip.y2;   /* LVGL clips a label's bottom to its box */
++        lv_draw_label(layer, &d, &box);
++    }
++}
++
++inline void draw_cb(lv_event_t* e)
++{
++    Scene* sc = static_cast<Scene*>(lv_event_get_user_data(e));
++    lv_layer_t* layer = lv_event_get_layer(e);
++    if (sc == nullptr || layer == nullptr) return;
++    lv_area_t cv;
++    lv_obj_get_coords(sc->canvas, &cv);
++    const lv_area_t clip0 = layer->_clip_area;
++    const lv_opa_t opa0 = layer->opa;
++    for (int i = 0; i < sc->cnt; i++) sc->n[i].lw = static_cast<int16_t>(sc->n[i].w < 0 ? 0 : sc->n[i].w);   /* the layout LVGL does before it draws */
++    for (int i = 1; i < sc->cnt; i++) {
++        draw_node(layer, &sc->n[i], cv.x1, cv.y1, clip0, opa0);
++        layer->_clip_area = clip0;
++        layer->opa = opa0;
++    }
++}
++
++inline void scene_deleted(lv_event_t* e) { lv_free(lv_event_get_user_data(e)); }
++
+ /* ---- the mole ---- */
+ enum {
+     P_BODY = 0, P_EAR_L, P_EAR_R, P_IN_L, P_IN_R, P_MUZZLE, P_NOSE, P_EYE_L, P_EYE_R, P_PUP_L, P_PUP_R, P_MOUTH, P_TEETH, P_TONGUE,
+@@ -45,42 +450,40 @@
+ };
+ 
+ struct Mole {
+-    lv_obj_t* root;           /* a transparent holder over the whole screen; hiding it hides the mole */
+-    lv_obj_t* part[P_COUNT];
++    Node* root;           /* a transparent holder over the whole screen; hiding it hides the mole */
++    Node* part[P_COUNT];
+     int last_x, last_y, last_face, last_size, last_sx, last_sy;
+ };
+ 
+ constexpr uint32_t kBodyC = 0x8b5a2b, kEarInC = 0xe8a0a8, kMuzzleC = 0xd9b38c, kNoseC = 0xff8fa3, kWhiteC = 0xffffff, kPupilC = 0x101010,
+                    kMouthC = 0x3a0f0f, kTongueC = 0xff5f7a, kHelmetC = 0xf5c518, kRimC = 0xc99700, kStarC = 0xffe045;
+ 
+-inline lv_obj_t* blob(lv_obj_t* parent, uint32_t rgb, int radius)
++inline Node* blob(Node* parent, uint32_t rgb, int radius)
+ {
+-    lv_obj_t* o = plain(parent);
+-    lv_obj_set_style_bg_color(o, lv_color_hex(rgb), 0);
+-    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+-    lv_obj_set_style_radius(o, radius, 0);
++    Node* o = plain(parent);
++    vo_bg(o, lv_color_hex(rgb), 0);
++    vo_bg_opa(o, LV_OPA_COVER, 0);
++    vo_radius(o, radius, 0);
+     return o;
+ }
+ 
+-inline lv_obj_t* tag(lv_obj_t* parent, const char* text, const lv_font_t* font, uint32_t rgb)
++inline Node* tag(Node* parent, const char* text, const lv_font_t* font, uint32_t rgb)
+ {
+-    lv_obj_t* o = lv_label_create(parent);
+-    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+-    lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+-    lv_obj_set_style_text_font(o, font, 0);
+-    lv_obj_set_style_text_color(o, lv_color_hex(rgb), 0);
+-    lv_label_set_text(o, text);
++    Node* o = vo_label(parent, 8);
++    vo_font(o, font, 0);
++    vo_ink(o, lv_color_hex(rgb), 0);
++    vo_text(o, text);
+     return o;
+ }
+ 
+-inline void mole_build(lv_obj_t* parent, Mole* m)
++inline void mole_build(Node* parent, Mole* m)
+ {
+     memset(m, 0, sizeof(*m));
+     m->last_x = m->last_y = m->last_face = m->last_size = -9999;
+     m->root = plain(parent);
+-    lv_obj_set_size(m->root, 320, 240);
+-    lv_obj_set_pos(m->root, 0, 0);
+-    lv_obj_t* r = m->root;
++    vo_size(m->root, 320, 240);
++    vo_pos(m->root, 0, 0);
++    Node* r = m->root;
+     m->part[P_BODY]   = blob(r, kBodyC, 14);
+     m->part[P_EAR_L]  = blob(r, kBodyC, LV_RADIUS_CIRCLE);
+     m->part[P_EAR_R]  = blob(r, kBodyC, LV_RADIUS_CIRCLE);
+@@ -102,14 +505,14 @@
+     m->part[P_STARS]  = tag(r, "* * *", &lv_font_montserrat_14, kStarC);
+ }
+ 
+-inline void put(lv_obj_t* o, int x, int y, int w, int h, bool show)
++inline void put(Node* o, int x, int y, int w, int h, bool show)
+ {
+     if (show) {
+-        lv_obj_set_size(o, w, h);
+-        lv_obj_set_pos(o, x, y);
+-        lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++        vo_size(o, w, h);
++        vo_pos(o, x, y);
++        vo_flag_off(o, LV_OBJ_FLAG_HIDDEN);
+     } else {
+-        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++        vo_flag_on(o, LV_OBJ_FLAG_HIDDEN);
+     }
+ }
+ 
+@@ -127,7 +530,7 @@
+     m->last_sx = star_dx;
+     m->last_sy = star_dy;
+     auto sc = [size](int v) { return (v * size + (v < 0 ? -15 : 15)) / 30; };
+-    lv_obj_t** p = m->part;
++    Node** p = m->part;
+     const int bw = sc(28), bh = sc(34);
+     const int top = by - bh, fy = top + sc(15);
+     const bool helmet = face == MG_FACE_HELMET, dazed = face == MG_FACE_DAZED, startled = face == MG_FACE_STARTLED, tongue = face == MG_FACE_TONGUE;
+@@ -153,7 +556,7 @@
+     if (helmet) { mw = sc(8); mh = sc(3); }
+     if (dazed) { mw = sc(8); mh = sc(3); }
+     const int my = fy + sc(8);
+-    lv_obj_set_style_radius(p[P_MOUTH], mr, 0);
++    vo_radius(p[P_MOUTH], mr, 0);
+     put(p[P_MOUTH], bx - mw / 2, my, mw, mh, true);
+     put(p[P_TEETH], bx - sc(5), my, sc(10), sc(2), face == MG_FACE_GRIN);
+     put(p[P_TONGUE], bx - sc(1), my + sc(2), sc(5), sc(8), tongue);
+@@ -162,24 +565,24 @@
+     put(p[P_X_L], bx - sc(7) - sc(3), ey - sc(8), 12, 16, dazed);
+     put(p[P_X_R], bx + sc(7) - sc(3), ey - sc(8), 12, 16, dazed);
+     if (dazed) {
+-        lv_obj_set_size(p[P_STARS], LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+-        lv_obj_set_pos(p[P_STARS], bx - sc(18) + star_dx, top - sc(7) + star_dy);
+-        lv_obj_remove_flag(p[P_STARS], LV_OBJ_FLAG_HIDDEN);
++        vo_size(p[P_STARS], LV_SIZE_CONTENT, LV_SIZE_CONTENT);
++        vo_pos(p[P_STARS], bx - sc(18) + star_dx, top - sc(7) + star_dy);
++        vo_flag_off(p[P_STARS], LV_OBJ_FLAG_HIDDEN);
+     } else {
+-        lv_obj_add_flag(p[P_STARS], LV_OBJ_FLAG_HIDDEN);
++        vo_flag_on(p[P_STARS], LV_OBJ_FLAG_HIDDEN);
+     }
+-    lv_obj_remove_flag(m->root, LV_OBJ_FLAG_HIDDEN);
++    vo_flag_off(m->root, LV_OBJ_FLAG_HIDDEN);
+ }
+ 
+ /* ---- the die and the coin (patch UI15) ---- */
+ struct Die {
+-    lv_obj_t* box;     /* the white rounded square; the pips are its children */
+-    lv_obj_t* pip[7];  /* top left, top right, middle left, middle, middle right, bottom left, bottom right */
++    Node* box;     /* the white rounded square; the pips are its children */
++    Node* pip[7];  /* top left, top right, middle left, middle, middle right, bottom left, bottom right */
+     int value, side;
+ };
+ struct Coin {
+-    lv_obj_t* body;    /* the gold disc */
+-    lv_obj_t* part[5]; /* heads: a head and shoulders; tails: a star of three crossing lines */
++    Node* body;    /* the gold disc */
++    Node* part[5]; /* heads: a head and shoulders; tails: a star of three crossing lines */
+     int face, dia;
+ };
+ /* ---- the icons (patch GM04) ----
+@@ -244,16 +647,16 @@
+ }
+ 
+ struct Icon {
+-    lv_obj_t* root;
+-    lv_obj_t* blob[kIconBlobs];
+-    lv_obj_t* line[kIconLines];
++    Node* root;
++    Node* blob[kIconBlobs];
++    Node* line[kIconLines];
+     lv_point_precise_t pts[kIconLines][2];
+     int nb, nl;
+     int id, size, x, y, flags;
+     uint16_t colour;
+ };
+ 
+-inline lv_obj_t* icon_build(lv_obj_t* parent, Icon* ic, int nb, int nl)
++inline Node* icon_build(Node* parent, Icon* ic, int nb, int nl)
+ {
+     memset(ic, 0, sizeof(*ic));
+     ic->id   = -1;
+@@ -264,10 +667,10 @@
+         ic->blob[i] = plain(ic->root);
+     }
+     for (int i = 0; i < ic->nl; i++) {
+-        lv_obj_t* o = lv_line_create(ic->root);
+-        lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+-        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+-        lv_obj_set_style_line_rounded(o, true, 0);
++        Node* o = vo_line(ic->root);
++        vo_flag_off(o, LV_OBJ_FLAG_CLICKABLE);
++        vo_flag_on(o, LV_OBJ_FLAG_HIDDEN);
++        vo_round(o, true, 0);
+         ic->line[i] = o;
+     }
+     return ic->root;
+@@ -300,28 +703,28 @@
+     bool self_mirror;
+     const IPart* t = icon_table(id, &self_mirror);
+     mirror = mirror != self_mirror;
+-    lv_obj_set_size(ic->root, size > 0 ? size : 1, size > 0 ? size : 1);
+-    lv_obj_set_pos(ic->root, cx - size / 2, cy - size / 2);
++    vo_size(ic->root, size > 0 ? size : 1, size > 0 ? size : 1);
++    vo_pos(ic->root, cx - size / 2, cy - size / 2);
+     int ib = 0, il = 0;
+     auto sc = [size](int v) { return (v * size + 50) / 100; };
+     for (; t != nullptr && size > 0 && t->kind != K_END; t++) {
+         const int x1 = mirror ? 100 - t->a : t->a;
+         if (t->kind == K_LINE) {
+             if (il >= ic->nl) continue;
+-            lv_obj_t* o = ic->line[il];
++            Node* o = ic->line[il];
+             ic->pts[il][0].x = sc(x1);
+             ic->pts[il][0].y = sc(t->b);
+             ic->pts[il][1].x = sc(mirror ? 100 - t->c : t->c);
+             ic->pts[il][1].y = sc(t->d);
+-            lv_line_set_points(o, ic->pts[il], 2);
+-            lv_obj_set_style_line_width(o, sc(t->e) < 2 ? 2 : sc(t->e), 0);
+-            lv_obj_set_style_line_color(o, icon_color(t->col, colour), 0);
+-            lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++            vo_points(o, ic->pts[il], 2);
++            vo_thick(o, sc(t->e) < 2 ? 2 : sc(t->e), 0);
++            vo_ink(o, icon_color(t->col, colour), 0);
++            vo_flag_off(o, LV_OBJ_FLAG_HIDDEN);
+             il++;
+             continue;
+         }
+         if (ib >= ic->nb) continue;
+-        lv_obj_t* o = ic->blob[ib++];
++        Node* o = ic->blob[ib++];
+         int x = 0, y = 0, w = 0, h = 0, radius = 0;
+         if (t->kind == K_BOX) {
+             x = sc(mirror ? 100 - (t->a + t->c) : t->a); y = sc(t->b); w = sc(t->c); h = sc(t->d); radius = sc(t->e);
+@@ -329,26 +732,27 @@
+             const int r = sc(t->c);
+             x = sc(x1) - r; y = sc(t->b) - r; w = h = 2 * r; radius = LV_RADIUS_CIRCLE;
+         }
+-        lv_obj_set_pos(o, x, y);
+-        lv_obj_set_size(o, w < 1 ? 1 : w, h < 1 ? 1 : h);
+-        lv_obj_set_style_radius(o, radius, 0);
++        vo_pos(o, x, y);
++        vo_size(o, w < 1 ? 1 : w, h < 1 ? 1 : h);
++        vo_radius(o, radius, 0);
+         if (t->kind == K_RING) {
+-            lv_obj_set_style_bg_opa(o, LV_OPA_TRANSP, 0);
+-            lv_obj_set_style_border_width(o, sc(t->e) < 2 ? 2 : sc(t->e), 0);
+-            lv_obj_set_style_border_color(o, icon_color(t->col, colour), 0);
++            vo_bg_opa(o, LV_OPA_TRANSP, 0);
++            vo_bd_w(o, sc(t->e) < 2 ? 2 : sc(t->e), 0);
++            vo_bd(o, icon_color(t->col, colour), 0);
+         } else {
+-            lv_obj_set_style_border_width(o, 0, 0);
+-            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+-            lv_obj_set_style_bg_color(o, icon_color(t->col, colour), 0);
++            vo_bd_w(o, 0, 0);
++            vo_bg_opa(o, LV_OPA_COVER, 0);
++            vo_bg(o, icon_color(t->col, colour), 0);
+         }
+-        lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++        vo_flag_off(o, LV_OBJ_FLAG_HIDDEN);
+     }
+-    for (; ib < ic->nb; ib++) lv_obj_add_flag(ic->blob[ib], LV_OBJ_FLAG_HIDDEN);
+-    for (; il < ic->nl; il++) lv_obj_add_flag(ic->line[il], LV_OBJ_FLAG_HIDDEN);
++    for (; ib < ic->nb; ib++) vo_flag_on(ic->blob[ib], LV_OBJ_FLAG_HIDDEN);
++    for (; il < ic->nl; il++) vo_flag_on(ic->line[il], LV_OBJ_FLAG_HIDDEN);
+ }
+ 
+ constexpr int kMaxDice = 3;
+ struct Parts {
++    Scene* sc;             /* patch UX29: the nodes and the one canvas object that draws them (begin() makes it) */
+     Mole mole;
+     Die die[kMaxDice];
+     Coin coin;
+@@ -360,21 +764,80 @@
+     uint8_t shown[MG_MAX_SHAPES], faded[MG_MAX_SHAPES];
+ };
+ 
+-inline lv_obj_t* die_build(lv_obj_t* parent, Die* d, int side)
++/* How many nodes and bytes of text a pack's screen needs, counted from its shapes (the mole has 20 nodes and 3 short texts, a die 8, the
++ * coin 6, an icon its parts, a text its words). */
++inline void scene_budget(const mg_pack_t* pk, int* nodes, int* arena)
+ {
++    *nodes = 1;
++    *arena = 0;
++    for (int i = 0; i < pk->n_shapes; i++) {
++        mg_shape_t s;
++        mg_shape_get(pk, i, &s);
++        switch (s.type) {
++            case MG_SH_MOLE: *nodes += 1 + P_COUNT; *arena += 3 * 8; break;
++            case MG_SH_DIE: *nodes += 8; break;
++            case MG_SH_COIN: *nodes += 6; break;
++            case MG_SH_ICON: {
++                int nb = kIconBlobs, nl = kIconLines;
++                if (s.cond_ctr == 0xFF) icon_counts(s.text, &nb, &nl);
++                *nodes += 1 + nb + nl;
++                break;
++            }
++            case MG_SH_TEXT: *nodes += 1; *arena += MG_TEXT_LEN + 16; break;
++            default: *nodes += 1; break;
++        }
++    }
++}
++
++/* Makes the one canvas object under `root` (320 by 240, at the corner) and the scene it draws, before the shapes are built. Deleting `root`
++ * (or the canvas) frees the scene. False when there was no memory: no shape is built then and the screen stays empty. */
++inline bool begin(lv_obj_t* root, const mg_pack_t* pk, Parts* parts)
++{
++    parts->sc = nullptr;
++    int nodes, arena;
++    scene_budget(pk, &nodes, &arena);
++    const size_t head = (sizeof(Scene) + 7u) & ~static_cast<size_t>(7u), body = (static_cast<size_t>(nodes) * sizeof(Node) + 7u) & ~static_cast<size_t>(7u);
++    uint8_t* mem = static_cast<uint8_t*>(lv_malloc(head + body + static_cast<size_t>(arena)));
++    if (mem == nullptr) return false;
++    memset(mem, 0, head + body + static_cast<size_t>(arena));
++    Scene* sc = reinterpret_cast<Scene*>(mem);
++    sc->n = reinterpret_cast<Node*>(mem + head);
++    sc->arena = reinterpret_cast<char*>(mem + head + body);
++    sc->cap = static_cast<uint16_t>(nodes);
++    sc->arena_cap = static_cast<uint16_t>(arena);
++    sc->cnt = 1;
++    Node* top = &sc->n[0];
++    top->sc = sc;
++    top->w = 320;
++    top->h = 240;
++    top->opa = LV_OPA_COVER;
++    sc->canvas = lv_obj_create(root);
++    lv_obj_remove_style_all(sc->canvas);
++    lv_obj_remove_flag(sc->canvas, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(sc->canvas, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(sc->canvas, 320, 240);
++    lv_obj_set_pos(sc->canvas, 0, 0);
++    lv_obj_add_event_cb(sc->canvas, draw_cb, LV_EVENT_DRAW_MAIN, sc);
++    lv_obj_add_event_cb(sc->canvas, scene_deleted, LV_EVENT_DELETE, sc);
++    parts->sc = sc;
++    return true;
++}
++
++inline Node* die_build(Node* parent, Die* d, int side)
++{
+     d->side  = side;
+     d->value = -1;
+     d->box   = blob(parent, 0xf8f8f0, side / 6);
+-    lv_obj_set_style_border_color(d->box, lv_color_hex(0x9a9a90), 0);
+-    lv_obj_set_style_border_width(d->box, 2, 0);
+-    lv_obj_set_size(d->box, side, side);
++    vo_bd(d->box, lv_color_hex(0x9a9a90), 0);
++    vo_bd_w(d->box, 2, 0);
++    vo_size(d->box, side, side);
+     static const int8_t pos[7][2] = {{25, 25}, {75, 25}, {25, 50}, {50, 50}, {75, 50}, {25, 75}, {75, 75}};  // percent of the side
+     const int pr = side / 12 + 1;
+     for (int i = 0; i < 7; i++) {
+         d->pip[i] = blob(d->box, 0x181818, LV_RADIUS_CIRCLE);
+-        lv_obj_set_size(d->pip[i], 2 * pr, 2 * pr);
+-        lv_obj_set_pos(d->pip[i], side * pos[i][0] / 100 - pr - 2, side * pos[i][1] / 100 - pr - 2);  // minus the border
+-        lv_obj_add_flag(d->pip[i], LV_OBJ_FLAG_HIDDEN);
++        vo_size(d->pip[i], 2 * pr, 2 * pr);
++        vo_pos(d->pip[i], side * pos[i][0] / 100 - pr - 2, side * pos[i][1] / 100 - pr - 2);  // minus the border
++        vo_flag_on(d->pip[i], LV_OBJ_FLAG_HIDDEN);
+     }
+     return d->box;
+ }
+@@ -392,28 +855,28 @@
+     uint8_t m = (v >= 1 && v <= 6) ? on[v] : 0;
+     for (int i = 0; i < 7; i++) {
+         if ((m >> i) & 1) {
+-            lv_obj_remove_flag(d->pip[i], LV_OBJ_FLAG_HIDDEN);
++            vo_flag_off(d->pip[i], LV_OBJ_FLAG_HIDDEN);
+         } else {
+-            lv_obj_add_flag(d->pip[i], LV_OBJ_FLAG_HIDDEN);
++            vo_flag_on(d->pip[i], LV_OBJ_FLAG_HIDDEN);
+         }
+     }
+ }
+ 
+-inline lv_obj_t* coin_build(lv_obj_t* parent, Coin* c, int dia)
++inline Node* coin_build(Node* parent, Coin* c, int dia)
+ {
+     c->dia  = dia;
+     c->face = -1;
+     c->body = blob(parent, 0xe6b800, LV_RADIUS_CIRCLE);
+-    lv_obj_set_style_border_color(c->body, lv_color_hex(0xb38600), 0);
+-    lv_obj_set_style_border_width(c->body, 4, 0);
+-    lv_obj_set_size(c->body, dia, dia);
++    vo_bd(c->body, lv_color_hex(0xb38600), 0);
++    vo_bd_w(c->body, 4, 0);
++    vo_size(c->body, dia, dia);
+     c->part[0] = blob(c->body, 0xb38600, LV_RADIUS_CIRCLE);  // heads: the head
+     c->part[1] = blob(c->body, 0xb38600, dia / 6);            // heads: the shoulders
+     for (int i = 2; i < 5; i++) {                            // tails: three bars crossing like a star
+         c->part[i] = blob(c->body, 0xb38600, 3);
+     }
+     for (auto* o : c->part) {
+-        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++        vo_flag_on(o, LV_OBJ_FLAG_HIDDEN);
+     }
+     return c->body;
+ }
+@@ -427,17 +890,17 @@
+     c->face = face;
+     const int d = c->dia;
+     const int w = face == 2 ? d / 5 : d;
+-    lv_obj_set_size(c->body, w, d);
+-    lv_obj_set_pos(c->body, x - w / 2, y - d / 2);
++    vo_size(c->body, w, d);
++    vo_pos(c->body, x - w / 2, y - d / 2);
+     const bool heads = face == 0, tails = face == 1;
+     const int inner = d - 8;  // inside the border
+-    auto put_in = [&](lv_obj_t* o, int ox, int oy, int ow, int oh, bool show) {
++    auto put_in = [&](Node* o, int ox, int oy, int ow, int oh, bool show) {
+         if (show) {
+-            lv_obj_set_size(o, ow, oh);
+-            lv_obj_set_pos(o, ox, oy);
+-            lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++            vo_size(o, ow, oh);
++            vo_pos(o, ox, oy);
++            vo_flag_off(o, LV_OBJ_FLAG_HIDDEN);
+         } else {
+-            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            vo_flag_on(o, LV_OBJ_FLAG_HIDDEN);
+         }
+     };
+     put_in(c->part[0], inner / 2 - inner / 8, inner / 5, inner / 4, inner / 4, heads);
+@@ -451,68 +914,70 @@
+ 
+ /* Builds one shape under `parent`, hidden. `pts` is where a LINE keeps its two points (they must outlive the object); `mole` is filled
+  * in for a MOLE shape. Returns the object the player shows and hides. */
+-inline lv_obj_t* build_shape(lv_obj_t* parent, const mg_shape_t& s, lv_point_precise_t* pts, Parts* parts)
++inline Node* build_shape(lv_obj_t* /* the screen's root: begin() took it */, const mg_shape_t& s, lv_point_precise_t* pts, Parts* parts)
+ {
++    if (parts->sc == nullptr) return nullptr;
++    Node* parent = parts->sc->n;
+     switch (s.type) {
+         case MG_SH_FILL: {
+-            lv_obj_t* o = plain(parent);
+-            lv_obj_set_size(o, 320, 240);
+-            lv_obj_set_pos(o, 0, 0);
+-            lv_obj_set_style_bg_color(o, color_of(s.colour), 0);
+-            lv_obj_set_style_bg_opa(o, (s.h > 0 && s.h < 255) ? static_cast<lv_opa_t>(s.h) : static_cast<lv_opa_t>(LV_OPA_COVER), 0);  /* patch GM04: h is the opacity */
++            Node* o = plain(parent);
++            vo_size(o, 320, 240);
++            vo_pos(o, 0, 0);
++            vo_bg(o, color_of(s.colour), 0);
++            vo_bg_opa(o, (s.h > 0 && s.h < 255) ? static_cast<lv_opa_t>(s.h) : static_cast<lv_opa_t>(LV_OPA_COVER), 0);  /* patch GM04: h is the opacity */
+             return o;
+         }
+         case MG_SH_CIRCLE:
+         case MG_SH_RING: {
+-            lv_obj_t* o = plain(parent);
+-            lv_obj_set_size(o, s.w * 2, s.w * 2);
+-            lv_obj_set_pos(o, s.x - s.w, s.y - s.w);
+-            lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
++            Node* o = plain(parent);
++            vo_size(o, s.w * 2, s.w * 2);
++            vo_pos(o, s.x - s.w, s.y - s.w);
++            vo_radius(o, LV_RADIUS_CIRCLE, 0);
+             if (s.type == MG_SH_CIRCLE) {
+-                lv_obj_set_style_bg_color(o, color_of(s.colour), 0);
+-                lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++                vo_bg(o, color_of(s.colour), 0);
++                vo_bg_opa(o, LV_OPA_COVER, 0);
+             } else {
+-                lv_obj_set_style_border_color(o, color_of(s.colour), 0);
+-                lv_obj_set_style_border_width(o, s.aux > 0 ? s.aux : 2, 0);
++                vo_bd(o, color_of(s.colour), 0);
++                vo_bd_w(o, s.aux > 0 ? s.aux : 2, 0);
+             }
+             return o;
+         }
+         case MG_SH_BOX: {
+-            lv_obj_t* o = plain(parent);
+-            lv_obj_set_size(o, s.w, s.h);
+-            lv_obj_set_pos(o, s.x, s.y);
+-            lv_obj_set_style_radius(o, s.aux, 0);
+-            lv_obj_set_style_bg_color(o, color_of(s.colour), 0);
+-            lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++            Node* o = plain(parent);
++            vo_size(o, s.w, s.h);
++            vo_pos(o, s.x, s.y);
++            vo_radius(o, s.aux, 0);
++            vo_bg(o, color_of(s.colour), 0);
++            vo_bg_opa(o, LV_OPA_COVER, 0);
+             return o;
+         }
+         case MG_SH_LINE: {
+-            lv_obj_t* o = lv_line_create(parent);
+-            lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+-            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            Node* o = vo_line(parent);
++            vo_flag_off(o, LV_OBJ_FLAG_CLICKABLE);
++            vo_flag_on(o, LV_OBJ_FLAG_HIDDEN);
+             pts[0].x = s.x;
+             pts[0].y = s.y;
+             pts[1].x = s.w;
+             pts[1].y = s.h;
+-            lv_line_set_points(o, pts, 2);
+-            lv_obj_set_style_line_width(o, s.aux > 0 ? s.aux : 2, 0);
+-            lv_obj_set_style_line_color(o, color_of(s.colour), 0);
+-            lv_obj_set_style_line_rounded(o, true, 0);
++            vo_points(o, pts, 2);
++            vo_thick(o, s.aux > 0 ? s.aux : 2, 0);
++            vo_ink(o, color_of(s.colour), 0);
++            vo_round(o, true, 0);
+             return o;
+         }
+         case MG_SH_MOLE:
+             mole_build(parent, &parts->mole);
+             return parts->mole.root;
+         case MG_SH_DIE: {
+-            lv_obj_t* o = die_build(parent, &parts->die[parts->n_dice < kMaxDice ? parts->n_dice : kMaxDice - 1], s.w > 0 ? s.w : 60);
++            Node* o = die_build(parent, &parts->die[parts->n_dice < kMaxDice ? parts->n_dice : kMaxDice - 1], s.w > 0 ? s.w : 60);
+             if (parts->n_dice < kMaxDice) parts->n_dice++;
+-            lv_obj_set_pos(o, s.x - s.w / 2, s.y - s.w / 2);
+-            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            vo_pos(o, s.x - s.w / 2, s.y - s.w / 2);
++            vo_flag_on(o, LV_OBJ_FLAG_HIDDEN);
+             return o;
+         }
+         case MG_SH_COIN: {
+-            lv_obj_t* o = coin_build(parent, &parts->coin, s.w > 0 ? s.w : 80);
+-            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            Node* o = coin_build(parent, &parts->coin, s.w > 0 ? s.w : 80);
++            vo_flag_on(o, LV_OBJ_FLAG_HIDDEN);
+             return o;
+         }
+         case MG_SH_ICON: {  // patch GM04
+@@ -523,17 +988,17 @@
+             return icon_build(parent, ic, nb, nl);
+         }
+         default: {  // MG_SH_TEXT
+-            lv_obj_t* o = lv_label_create(parent);
+-            lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
+-            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            Node* o = vo_label(parent, MG_TEXT_LEN + 16);
++            vo_flag_off(o, LV_OBJ_FLAG_CLICKABLE);
++            vo_flag_on(o, LV_OBJ_FLAG_HIDDEN);
+             const lv_font_t* font = font_for(s.aux);
+             const int width       = s.w > 0 ? s.w : 280;
+-            lv_obj_set_style_text_font(o, font, 0);
+-            lv_obj_set_style_text_color(o, color_of(s.colour), 0);
+-            lv_obj_set_style_text_align(o, LV_TEXT_ALIGN_CENTER, 0);
+-            lv_label_set_long_mode(o, LV_LABEL_LONG_WRAP);
+-            lv_obj_set_width(o, width);
+-            lv_obj_set_pos(o, s.x - width / 2, s.y - lv_font_get_line_height(font) / 2);
++            vo_font(o, font, 0);
++            vo_ink(o, color_of(s.colour), 0);
++            vo_align(o, LV_TEXT_ALIGN_CENTER, 0);
++            vo_long(o, LV_LABEL_LONG_WRAP);
++            vo_width_set(o, width);
++            vo_pos(o, s.x - width / 2, s.y - lv_font_get_line_height(font) / 2);
+             return o;
+         }
+     }
+@@ -548,17 +1013,17 @@
+     *by = g.y + g.h - 6;
+ }
+ 
+-inline bool icon_apply(Parts* P, lv_obj_t* o, const mg_shape_t& s, const mg_run_t& r, uint32_t now, uint32_t t_app, uint32_t t_state);
++inline bool icon_apply(Parts* P, Node* o, const mg_shape_t& s, const mg_run_t& r, uint32_t now, uint32_t t_app, uint32_t t_state);
+ 
+ /* Shows or hides every shape for the run's present state and counters; texts get their counters filled in. */
+-inline void draw_state(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type, const uint8_t* text, Parts* parts, bool es, uint32_t now_ms = 0)
++inline void draw_state(const mg_run_t& r, Node* const* obj, const uint8_t* type, const uint8_t* text, Parts* parts, bool es, uint32_t now_ms = 0)
+ {
+     if (r.state != parts->last_state) {
+         parts->last_state = r.state;
+         parts->state_ms   = now_ms;
+     }
+     for (int i = 0; i < r.p->n_shapes; i++) {
+-        lv_obj_t* o = obj[i];
++        Node* o = obj[i];
+         if (o == nullptr) {
+             continue;
+         }
+@@ -571,7 +1036,7 @@
+             if (type[i] == MG_SH_TEXT) {
+                 char buf[MG_TEXT_LEN + 16];
+                 mg_text(&r, text[i], es ? 1 : 0, buf, sizeof(buf));
+-                lv_label_set_text(o, buf);
++                vo_text(o, buf);
+             } else if (type[i] == MG_SH_MOLE) {
+                 mg_shape_t s;
+                 mg_shape_get(r.p, i, &s);
+@@ -608,12 +1073,13 @@
+                 }
+                 coin_show(&parts->coin, r.ctr[s.cond_ctr], s.x, s.y);
+             }
+-            lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
++            vo_flag_off(o, LV_OBJ_FLAG_HIDDEN);
+         } else {
+             parts->shown[i] = 0;
+-            lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
++            vo_flag_on(o, LV_OBJ_FLAG_HIDDEN);
+         }
+     }
++    commit(parts->sc);
+ }
+ 
+ /* ---- motion (patch UI15) ----
+@@ -633,7 +1099,7 @@
+ 
+ /* Patch GM04: puts an icon shape at its place for this moment. A popping icon grows from half size with an overshoot in 300 ms after it appears;
+  * a bumping icon (the fist that counts the beats) rises and falls once in 560 ms after each state is entered. Returns true while it moves. */
+-inline bool icon_apply(Parts* P, lv_obj_t* o, const mg_shape_t& s, const mg_run_t& r, uint32_t now, uint32_t t_app, uint32_t t_state)
++inline bool icon_apply(Parts* P, Node* o, const mg_shape_t& s, const mg_run_t& r, uint32_t now, uint32_t t_app, uint32_t t_state)
+ {
+     Icon* ic = nullptr;
+     for (int k = 0; k < P->n_icons; k++) {
+@@ -666,13 +1132,13 @@
+     }
+ }
+ 
+-inline bool animate(const mg_run_t& r, lv_obj_t* const* obj, const uint8_t* type, lv_point_precise_t (*pts)[2], Parts* P, uint32_t now)
++inline bool animate(const mg_run_t& r, Node* const* obj, const uint8_t* type, lv_point_precise_t (*pts)[2], Parts* P, uint32_t now)
+ {
+     bool busy = false;
+     const mg_pack_t* pk = r.p;
+     const bool is_ball = strcmp(pk->id, "eightball") == 0, is_ttt = strcmp(pk->id, "tictactoe") == 0;
+     for (int i = 0; i < pk->n_shapes; i++) {
+-        lv_obj_t* o = obj[i];
++        Node* o = obj[i];
+         if (o == nullptr || !P->shown[i]) {
+             continue;
+         }
+@@ -708,23 +1174,23 @@
+                     y = -4.0f * expf(-(t - 100.0f) / 90.0f) * fabsf(sinf((t - 100.0f) / 38.0f));  // landing: bounces and settles
+                 }
+                 if (t < 450.0f) busy = true;
+-                lv_obj_set_pos(o, s.x - s.w / 2 + (int)x, s.y - s.w / 2 + (int)y);
++                vo_pos(o, s.x - s.w / 2 + (int)x, s.y - s.w / 2 + (int)y);
+             }
+         } else if (type[i] == MG_SH_COIN) {
+             const float t = (float)(now - P->coin_ms);
+             float y = 0;
+             if (P->coin_face == 2) y = -12.0f * sinf(t / 70.0f); else if (t < 420.0f) y = -9.0f * expf(-t / 110.0f) * fabsf(sinf(t / 42.0f));
+-            const int w = lv_obj_get_width(o);
+-            lv_obj_set_pos(o, s.x - w / 2, s.y - s.w / 2 + (int)y);
+-            lv_obj_t* glint = P->coin.part[4];
++            const int w = vo_width(o);
++            vo_pos(o, s.x - w / 2, s.y - s.w / 2 + (int)y);
++            Node* glint = P->coin.part[4];
+             if (P->coin_face != 2 && t < 260.0f) {  // a glint runs across the face after it lands
+                 const int inner = s.w - 8;
+-                lv_obj_set_size(glint, inner / 8, inner / 3);
+-                lv_obj_set_pos(glint, (int)((inner - inner / 8) * (t / 260.0f)), inner / 6);
+-                lv_obj_set_style_bg_color(glint, lv_color_hex(0xfff4b0), 0);
+-                lv_obj_remove_flag(glint, LV_OBJ_FLAG_HIDDEN);
++                vo_size(glint, inner / 8, inner / 3);
++                vo_pos(glint, (int)((inner - inner / 8) * (t / 260.0f)), inner / 6);
++                vo_bg(glint, lv_color_hex(0xfff4b0), 0);
++                vo_flag_off(glint, LV_OBJ_FLAG_HIDDEN);
+             } else {
+-                lv_obj_add_flag(glint, LV_OBJ_FLAG_HIDDEN);
++                vo_flag_on(glint, LV_OBJ_FLAG_HIDDEN);
+             }
+             if (P->coin_face == 2 || t < 420.0f) busy = true;
+         } else if (is_ball && ((i >= 1 && i <= 10) || (type[i] == MG_SH_TEXT && s.y >= 80 && s.y <= 100 && s.x == 160))) {
+@@ -743,12 +1209,12 @@
+             }
+             int ox, oy;
+             shape_origin(s, &ox, &oy);
+-            lv_obj_set_pos(o, ox + (int)dx, oy + (int)dy);
++            vo_pos(o, ox + (int)dx, oy + (int)dy);
+             if (i >= 4 && answered && tk < 380.0f) {
+-                lv_obj_set_style_opa(o, (lv_opa_t)(255.0f * ease_out(tk / 380.0f)), 0);  // fades in out of the fog
++                vo_opa(o, (lv_opa_t)(255.0f * ease_out(tk / 380.0f)), 0);  // fades in out of the fog
+                 P->faded[i] = 1;
+             } else if (P->faded[i]) {
+-                lv_obj_set_style_opa(o, LV_OPA_COVER, 0);
++                vo_opa(o, LV_OPA_COVER, 0);
+                 P->faded[i] = 0;
+             }
+         } else if (is_ttt && type[i] == MG_SH_LINE && t_app < 330.0f) {
+@@ -756,23 +1222,24 @@
+             const float p     = ease_out((t_app - delay) / 200.0f);
+             pts[i][1].x = (lv_value_precise_t)(s.x + (s.w - s.x) * p);
+             pts[i][1].y = (lv_value_precise_t)(s.y + (s.h - s.y) * p);
+-            lv_line_set_points(o, pts[i], 2);
++            vo_points(o, pts[i], 2);
+             busy = true;
+         } else if (is_ttt && type[i] == MG_SH_LINE && t_app >= 330.0f && (pts[i][1].x != s.w || pts[i][1].y != s.h)) {
+             pts[i][1].x = s.w;
+             pts[i][1].y = s.h;
+-            lv_line_set_points(o, pts[i], 2);
++            vo_points(o, pts[i], 2);
+         } else if (is_ttt && type[i] == MG_SH_RING && t_app < 300.0f) {
+             const float k = 0.3f + 0.7f * ease_back(t_app / 260.0f);  // an O grows in with a little overshoot
+             const int d   = (int)(2.0f * s.w * k);
+-            lv_obj_set_size(o, d, d);
+-            lv_obj_set_pos(o, s.x - d / 2, s.y - d / 2);
++            vo_size(o, d, d);
++            vo_pos(o, s.x - d / 2, s.y - d / 2);
+             busy = true;
+-        } else if (is_ttt && type[i] == MG_SH_RING && t_app >= 300.0f && lv_obj_get_width(o) != 2 * s.w) {
+-            lv_obj_set_size(o, 2 * s.w, 2 * s.w);
+-            lv_obj_set_pos(o, s.x - s.w, s.y - s.w);
++        } else if (is_ttt && type[i] == MG_SH_RING && t_app >= 300.0f && vo_width(o) != 2 * s.w) {
++            vo_size(o, 2 * s.w, 2 * s.w);
++            vo_pos(o, s.x - s.w, s.y - s.w);
+         }
+     }
++    commit(P->sc);
+     return busy;
+ }
+ 

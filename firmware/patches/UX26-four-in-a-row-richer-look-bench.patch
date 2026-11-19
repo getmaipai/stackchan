@@ -1,0 +1,164 @@
+# Intent: BENCH ONLY. A richer look for Four in a Row, switchable at run time so one image measures both looks, built only from what docs/plan/games-visual-budget.md says fits: no extra LVGL objects (still the one draw callback), a vertical gradient backdrop and board, holes with a light edge and an inner floor, discs with a darker rim, the face and a pale highlight made of plain rectangles, a light edge along the top of the board, no bitmaps; level 2 adds soft shadows (the board blur 8, each disc blur 5). Level 0 is the look of before, unchanged. Two bench tools: self.game.bench_look (level 0 to 2) and self.game.bench_box (the unit's own microseconds to draw and flush a 100 by 100 pixel box of a technique, which calibrates the budget's estimates). Not for a release image: it lives in the bench tool block and the draw branch is dead at level 0.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_grid.cc (ours; SF74, SF78 and the grid drawing)
+# Check after a flash: bench build only. Start Four in a Row; self.game.bench_look level 1 and 2 show the richer board at once, level 0 the old one; heap, frame gaps and box times as in docs/plan/games-richer-look-bench.md.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -323,8 +323,75 @@
+         rect(layer, g->lay.x0 + (i % GSN_COLS) * g->lay.cw + 2, g->lay.y0 + (i / GSN_COLS) * g->lay.ch + 2, g->lay.cw - 4, g->lay.ch - 4, food ? LV_RADIUS_CIRCLE : 6,
+              food ? 0xE04848 : (head ? 0xB4F08F : 0x4CAF50));
+     }
++}
++
++// ---- Patch UX26 (bench only): a richer look for Four in a Row, switchable at run time so one image measures both looks (self.game.bench_look: 0 plain, 1 gradients and highlights, 2 adds soft shadows).
++// It follows docs/plan/games-visual-budget.md: only the one draw callback (no extra LVGL objects), gradients and shadows on the static parts, a highlight and a rim made of plain rectangles on the
++// discs, no bitmaps. Level 0 is the look of before, unchanged.
++int s_look = 0;
++
++uint32_t shade(uint32_t c, int pct)   // pct 100 keeps the color, 70 is darker, 130 lighter (clamped)
++{
++    int r = ((c >> 16) & 255) * pct / 100, g = ((c >> 8) & 255) * pct / 100, b = (c & 255) * pct / 100;
++    if (r > 255) r = 255;
++    if (g > 255) g = 255;
++    if (b > 255) b = 255;
++    return (static_cast<uint32_t>(r) << 16) | (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
+ }
+ 
++void grad_rect(lv_layer_t* layer, int x, int y, int w, int h, int radius, uint32_t top, uint32_t bottom, int shadow = 0, int shadow_dy = 0)
++{
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.bg_color = rgb(top);
++    d.bg_opa = LV_OPA_COVER;
++    d.radius = radius;
++    d.bg_grad.dir = LV_GRAD_DIR_VER;
++    d.bg_grad.stops_count = 2;
++    d.bg_grad.stops[0].color = rgb(top);
++    d.bg_grad.stops[0].opa = LV_OPA_COVER;
++    d.bg_grad.stops[0].frac = 0;
++    d.bg_grad.stops[1].color = rgb(bottom);
++    d.bg_grad.stops[1].opa = LV_OPA_COVER;
++    d.bg_grad.stops[1].frac = 255;
++    if (shadow > 0) {
++        d.shadow_width = shadow;
++        d.shadow_offset_y = shadow_dy;
++        d.shadow_color = lv_color_black();
++        d.shadow_opa = LV_OPA_50;
++    }
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + h - 1)};
++    lv_draw_rect(layer, &d, &a);
++}
++
++// A disc with depth, from plain rectangles: a darker rim, the face a little up and to the left, and a pale highlight. Level 2 adds a soft shadow under it.
++void rich_disc(lv_layer_t* layer, int x, int y, int d, uint32_t color)
++{
++    if (s_look >= 2) {
++        lv_draw_rect_dsc_t sd;
++        lv_draw_rect_dsc_init(&sd);
++        sd.bg_opa = LV_OPA_TRANSP;
++        sd.radius = LV_RADIUS_CIRCLE;
++        sd.shadow_width = 5;
++        sd.shadow_offset_y = 2;
++        sd.shadow_color = lv_color_black();
++        sd.shadow_opa = LV_OPA_60;
++        lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + d - 1), static_cast<lv_coord_t>(y + d - 1)};
++        lv_draw_rect(layer, &sd, &a);
++    }
++    rect(layer, x, y, d, d, LV_RADIUS_CIRCLE, shade(color, 68));                              // the rim
++    rect(layer, x + 2, y + 1, d - 5, d - 5, LV_RADIUS_CIRCLE, color);                          // the face
++    rect(layer, x + d / 4, y + d / 6, d / 4, d / 5, LV_RADIUS_CIRCLE, 0xFFFFFF, LV_OPA_50);    // the highlight
++}
++
++// A hole of the board: a dark socket with a lighter inner floor low and to the right, so it looks cut into the blue.
++void rich_hole(lv_layer_t* layer, int x, int y, int d)
++{
++    rect(layer, x - 1, y - 1, d + 2, d + 2, LV_RADIUS_CIRCLE, 0x0E2A6E);                      // a thin light edge round the socket
++    rect(layer, x, y, d, d, LV_RADIUS_CIRCLE, 0x040A1C);                                       // the socket
++    rect(layer, x + 2, y + 3, d - 4, d - 4, LV_RADIUS_CIRCLE, 0x08142F);                       // the floor of the socket, shifted down: a shadow on the top left
++}
++
+ void draw_cb(lv_event_t* e)
+ {
+     Grid* g = static_cast<Grid*>(lv_event_get_user_data(e));
+@@ -341,6 +408,33 @@
+         draw_mines(g, layer);
+     } else if (g->kind == kC4) {
+         const int dx = gan_shake_dx(&g->anim, now_ms());
++        if (s_look > 0) {   // patch UX26: the rich look
++            grad_rect(layer, 0, 0, 320, 240, 0, 0x0F1D40, 0x04070F);                                          // the backdrop: a dark blue fading to black
++            grad_rect(layer, g->lay.x0 - 3 + dx, g->lay.y0 - 3, cw * cols + 6, ch * rows + 6, 10, 0x2F66D6, 0x14337C, s_look >= 2 ? 8 : 0, 3);   // the board
++            rect(layer, g->lay.x0 + 4 + dx, g->lay.y0 - 1, cw * cols - 8, 2, 1, 0xFFFFFF, LV_OPA_30);        // a light edge along the top of the board
++            const uint32_t now = now_ms();
++            for (int r = 0; r < rows; r++) {
++                for (int c = 0; c < cols; c++) {
++                    const int i = r * cols + c;
++                    uint8_t v = g->c4.b[i];
++                    if (gan_cell_hidden(&g->anim, i)) v = 0;
++                    const int x = g->lay.x0 + c * cw + 3 + dx, y = g->lay.y0 + r * ch + 3, d = cw - 6;
++                    rich_hole(layer, x, y, d);
++                    if (v == 0) continue;
++                    uint32_t color = v == 1 ? 0xF2B24A : 0xE04848;
++                    bool in_line = false;
++                    for (int k = 0; k < 4; k++) in_line |= g->win_cells[k] == i && (g->flash_left > 0 || g->win_lit);
++                    if (in_line && (g->win_lit || gan_flash_on(&g->anim, i, now))) color = v == 1 ? 0xFFE9A8 : 0xFFA8A8;
++                    rich_disc(layer, x, y, d, color);
++                }
++            }
++            for (int i = 0; i < GC4_CELLS; i++) {   // the discs in flight, over the board
++                const int y = gan_fall_y(&g->anim, i, now_ms());
++                if (y < 0) continue;
++                rich_disc(layer, g->lay.x0 + (i % cols) * cw + 3, y, cw - 6, gan_fall_owner(&g->anim, i) == 1 ? 0xF2B24A : 0xE04848);
++            }
++            return;
++        }
+         rect(layer, g->lay.x0 - 2 + dx, g->lay.y0 - 2, cw * cols + 4, ch * rows + 4, 8, 0x1B3F9B);  // the board behind the discs
+         const uint32_t now = now_ms();
+         for (int r = 0; r < rows; r++) {
+@@ -979,6 +1073,43 @@
+                     snprintf(head, sizeof(head), "{\"ok\":true,\"n\":%d,\"gaps_ms\":%d,\"rows\":", s_sample_n, worst);
+                     return std::string(head) + rows + "}";
+                 });
++    mcp.AddTool("self.game.bench_look", "Bench only (patch UX26): the look of Four in a Row. level 0 plain (before), 1 gradients, rims and highlights, 2 adds soft shadows. Redraws the board at once. Answers {ok, level}.",
++                PropertyList({Property("level", kPropertyTypeInteger, 0, 0, 2)}), [](const PropertyList& properties) -> ReturnValue {
++                    LvglLockGuard lock;
++                    s_look = properties["level"].value<int>();
++                    if (s_grid != nullptr && s_grid->board != nullptr) lv_obj_invalidate(s_grid->board);
++                    char b[48];
++                    snprintf(b, sizeof(b), "{\"ok\":true,\"level\":%d}", s_look);
++                    return std::string(b);
++                });
++    mcp.AddTool("self.game.bench_box", "Bench only (patch UX26): the unit's own time to draw and flush one 100 by 100 pixel box of a visual technique (flat, radius, circle, gradient, shadow-small, shadow, alpha, outline), n times (1 to 100), "
++                "one redraw of only that box each. Answers {ok, technique, n, us_per_redraw}. This is the number that calibrates docs/plan/games-visual-budget.md section 2.",
++                PropertyList({Property("technique", kPropertyTypeString, std::string("flat")), Property("n", kPropertyTypeInteger, 50, 1, 100)}), [](const PropertyList& properties) -> ReturnValue {
++                    LvglLockGuard lock;
++                    const std::string tech = properties["technique"].value<std::string>();
++                    const int n = properties["n"].value<int>();
++                    lv_obj_t* box = lv_obj_create(lv_layer_top());
++                    lv_obj_remove_style_all(box);
++                    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
++                    lv_obj_set_pos(box, 110, 70);
++                    lv_obj_set_size(box, 100, 100);
++                    lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
++                    lv_obj_set_style_bg_color(box, lv_color_hex(0x2C3E7A), 0);
++                    if (tech != "flat") lv_obj_set_style_radius(box, tech == "circle" ? LV_RADIUS_CIRCLE : 14, 0);
++                    if (tech == "gradient") { lv_obj_set_style_bg_grad_color(box, lv_color_hex(0x10141C), 0); lv_obj_set_style_bg_grad_dir(box, LV_GRAD_DIR_VER, 0); }
++                    if (tech == "shadow-small") { lv_obj_set_style_shadow_width(box, 6, 0); lv_obj_set_style_shadow_offset_y(box, 2, 0); lv_obj_set_style_shadow_color(box, lv_color_black(), 0); lv_obj_set_style_shadow_opa(box, LV_OPA_60, 0); }
++                    if (tech == "shadow") { lv_obj_set_style_shadow_width(box, 14, 0); lv_obj_set_style_shadow_offset_y(box, 5, 0); lv_obj_set_style_shadow_color(box, lv_color_black(), 0); lv_obj_set_style_shadow_opa(box, LV_OPA_60, 0); }
++                    if (tech == "alpha") lv_obj_set_style_bg_opa(box, LV_OPA_50, 0);
++                    if (tech == "outline") { lv_obj_set_style_outline_width(box, 4, 0); lv_obj_set_style_outline_color(box, lv_color_hex(0xF2B24A), 0); }
++                    lv_refr_now(nullptr);
++                    const int64_t t0 = esp_timer_get_time();
++                    for (int i = 0; i < n; i++) { lv_obj_invalidate(box); lv_refr_now(nullptr); }
++                    const int64_t us = (esp_timer_get_time() - t0) / n;
++                    lv_obj_delete(box);
++                    char b[120];
++                    snprintf(b, sizeof(b), "{\"ok\":true,\"technique\":\"%s\",\"n\":%d,\"us_per_redraw\":%d}", tech.c_str(), n, static_cast<int>(us));
++                    return std::string(b);
++                });
+ }
+ #endif
+ #endif
+\ No newline at end of file

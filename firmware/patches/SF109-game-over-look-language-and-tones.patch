@@ -1,0 +1,150 @@
+# SF109: the game-over screen's new look gets the household language and its result tones
+#
+# Intent: the shared game-over screen (UX15d) is built in the household's language (six languages) instead of the two the games had, and plays its result tone table
+#   when the new look is on. Look 0 (today's screen and sounds) is unchanged, and the look stays off by default.
+# Placement: body (the unit's own screen and speaker); no brain half needed, the language is the unit's own setting.
+# Upstream: none (MaiPai code only).
+# Check after a flash: bench train game-over-look: look 0 is pixel-identical to before; look 1 shows the localized text and plays the tones silently at volume 0.
+# Kconfig: none (rides on the existing game-over look switch, bench only).
+# Memory cost: a short-lived PSRAM buffer (under 40 KB) while a tone table plays, freed straight after; nothing while the look is off.
+
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -15,7 +15,7 @@
+ #include "maipai_grid_mines_core.h"
+ #include "maipai_grid_anim_core.h"
+ #include "maipai_grid_input_core.h"
+-#include "maipai_game_over.h"
++#include "maipai_game_over_wire.h"
+ #include "maipai_pages_core.h"
+ #include "maipai_pages.h"
+ #include "maipai_grid_slide_core.h"
+@@ -598,7 +598,8 @@ void finish(Grid* g, int result)
+     }
+     if (best > 0) snprintf(best_text, sizeof(best_text), g->kind == kMines ? (g->es ? "Mejor %d s" : "Best %d s") : (g->es ? "Mejor %d" : "Best %d"), best);
+     if (g->root != nullptr) {
+-        g->over = mgo::build(g->root, mgo_result, score_text, best_text, record, g->es);
++        g->over = mgo::build_lang(g->root, mgo_result, score_text, best_text, record, maipai_mgo_language());   // patch SF109: the household language
++        maipai_mgo_play(mgo_result, record);
+         g->over_shown = 1;
+         mgo::set_pop(g->over, 0);
+     }
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -16,7 +16,7 @@
+ #include "maipai_assets.h"  // patch SF91: installed game packs
+ #include "maipai_qa_game.h"  // patch SF88: the question games the host runs
+ #include "maipai_grid.h"  // patch SF63: the grid games (Four in a Row, Memory Match)
+-#include "maipai_game_over.h"  // patch SF86: the shared game-over screen
++#include "maipai_game_over_wire.h"  // patch SF86: the shared game-over screen
+ #include "maipai_pages.h"
+ #include "maipai_pages_core.h"
+ #include "maipai_games_draw.h"
+@@ -772,7 +772,8 @@ void show_game_over(Game* g)
+     char score_text[40], best_text[40] = "";
+     snprintf(score_text, sizeof(score_text), strcmp(g->id, "tictactoe") == 0 ? (g->es ? "Victorias %d" : "Wins %d") : (g->es ? "Puntos %d" : "Score %d"), score);
+     if (best > 0 && !record) snprintf(best_text, sizeof(best_text), g->es ? "Mejor %d" : "Best %d", best);
+-    g->over = mgo::build(g->root, result, score_text, best_text, record, g->es);
++    g->over = mgo::build_lang(g->root, result, score_text, best_text, record, maipai_mgo_language());   // patch SF109: the household language
++    maipai_mgo_play(result, record);
+     g->over_shown = 1;
+     g->over_at = now_ms();
+     mgo::set_pop(g->over, 0);
+diff --git a/firmware/main/hal/maipai_qa_game.cc b/firmware/main/hal/maipai_qa_game.cc
+--- a/firmware/main/hal/maipai_qa_game.cc
++++ b/firmware/main/hal/maipai_qa_game.cc
+@@ -16,7 +16,7 @@
+ #include "maipai_games_input_core.h"
+ #include "maipai_qa.h"
+ #include "maipai_qa_state_core.h"
+-#include "maipai_game_over.h"
++#include "maipai_game_over_wire.h"
+ #include "maipai_pages.h"
+ #include "maipai_pages_core.h"
+ #include "maipai_banner.h"
+@@ -280,7 +280,8 @@ void show_over(Qa* g, int result, const char* score_text)
+         lv_obj_delete(g->scr);
+         g->scr = nullptr;
+     }
+-    g->over = mgo::build(g->root, result, score_text, best_text, record, g->es);
++    g->over = mgo::build_lang(g->root, result, score_text, best_text, record, maipai_mgo_language());   // patch SF109: the household language
++    maipai_mgo_play(result, record);
+     g->over_shown = true;
+     mgo::set_pop(g->over, 0);
+     if (result == MGO_WON) {
+diff --git a/firmware/main/hal/maipai_game_over_wire.h b/firmware/main/hal/maipai_game_over_wire.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_game_over_wire.h
+@@ -0,0 +1,14 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The device side of the shared game-over screen's new look (patch SF109; the screen is maipai_game_over.h, UX15d). The language the games pass (the household's, six languages,
++ * the firmware's table order) and the tone table played when the screen shows. Both only act on the new look (mgo::g_look above 0): look 0 stays exactly today's screen and sounds.
++ */
++#pragma once
++#include <sdkconfig.h>
++#include "maipai_game_over.h"
++
++// The unit's screen language as the game-over screen numbers it (0 en, 1 es, 2 fr, 3 de, 4 pt, 5 it).
++int maipai_mgo_language();
++// Plays the result's tone table (maipai_game_over_core.h) through the sound policy; does nothing at look 0 (the games' own result sounds play then).
++void maipai_mgo_play(int result, bool new_best);
+diff --git a/firmware/main/hal/maipai_game_over_wire.cc b/firmware/main/hal/maipai_game_over_wire.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_game_over_wire.cc
+@@ -0,0 +1,50 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The device side of the shared game-over screen's new look (patch SF109). See maipai_game_over_wire.h.
++ */
++#include "maipai_game_over_wire.h"
++#include "maipai_face.h"
++#include "maipai_sounds.h"
++#include "maipai_mumble_render_core.h"
++#include <application.h>
++#include <esp_heap_caps.h>
++
++int maipai_mgo_language()
++{
++#if CONFIG_MAIPAI_FACE_CONFIG
++    const int l = maipai_face_config().lang;
++    return l >= 0 && l < MGO_LANGS ? l : 0;
++#else
++    return 0;
++#endif
++}
++
++void maipai_mgo_play(int result, bool new_best)
++{
++    if (mgo::g_look == MGO_LOOK_OLD || !maipai_sounds_gate("popup")) return;
++    const mgo_tone_t* tones = nullptr;
++    const int n = mgo_tones(result, new_best ? 1 : 0, &tones);
++    if (n <= 0 || tones == nullptr) return;
++    size_t total = 0;
++    for (int i = 0; i < n; i++) total += static_cast<size_t>(tones[i].ms) * (MMR_RATE / 1000);
++    int16_t* pcm = static_cast<int16_t*>(heap_caps_malloc(total * sizeof(int16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (pcm == nullptr) return;
++    size_t at = 0;
++    for (int i = 0; i < n; i++) {   // each tone: a sine with a quarter triangle, 5 ms attack, 15 ms fall, at the chime level, as the mumble's notes (maipai_mumble_render_core.h)
++        mm_blip_t b = {0, tones[i].ms, tones[i].hz, tones[i].hz, 100, 0};
++        const size_t len = static_cast<size_t>(tones[i].ms) * (MMR_RATE / 1000);
++        // mmr_render caps a note at MMR_MAX_DUR_MS: longer tones are rendered in pieces
++        size_t done = 0;
++        while (done < len) {
++            const size_t piece = len - done > static_cast<size_t>(MMR_MAX_DUR_MS) * (MMR_RATE / 1000) ? static_cast<size_t>(MMR_MAX_DUR_MS) * (MMR_RATE / 1000) : len - done;
++            mm_blip_t p = b;
++            p.dur_ms = static_cast<uint16_t>(piece / (MMR_RATE / 1000));
++            mmr_render(&p, 0, pcm + at + done, piece);
++            done += piece;
++        }
++        at += len;
++    }
++    (void)Application::GetInstance().GetAudioService().PlayPcm(pcm, total, MMR_RATE);   // PlayPcm copies
++    heap_caps_free(pcm);
++}

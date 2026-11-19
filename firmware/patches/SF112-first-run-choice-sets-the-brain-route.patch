@@ -1,0 +1,42 @@
+# SF112: the first-run brain choice is saved as the unit's brain route
+#
+# Intent: the two equal routes on the first-run screen (UX19) now set the route setting of the leave-hosted work (SF98, namespace mp_brain, key route): the hosted tile saves "hosted", every
+#   own-brain choice saves "custom". The route is written before the first-run done flag, so a later boot never replaces it. Choosing a route contacts no server. The notice shown after
+#   leaving the hosted brain (UX20, SF100) is unchanged.
+# Placement: unit (body half); the brain half is the existing route code that reads this setting.
+# Upstream: none (MaiPai code only).
+# Check after a flash: erase the first-run flag, walk the first-run screen: choosing the own-brain route leaves mp_brain route = custom (self.brain.status), choosing the hosted tile leaves hosted; no network call is made by the choice.
+# Kconfig: none.
+# Memory cost: none (one saved string).
+
+diff --git a/firmware/main/hal/maipai_firstrun_wire.cc b/firmware/main/hal/maipai_firstrun_wire.cc
+--- a/firmware/main/hal/maipai_firstrun_wire.cc
++++ b/firmware/main/hal/maipai_firstrun_wire.cc
+@@ -2,13 +2,15 @@
+  * SPDX-License-Identifier: MIT
+  *
+  * Patch SF09: wires the first-run flow. It starts at the first standby of a unit with no saved answers, hands Wi-Fi to the existing
+- * setup cover, saves the answers (language, name 0 to 6, mode 0 home, 1 own servers, 2 set one up for me) so the flow never shows again, applies the language,
++ * setup cover, saves the answers (language, name 0 to 6, mode 0 home, 1 own servers, 2 set one up for me, 3 hosted) so the flow never shows again, applies the language,
+  * and tells the host through a first_run_done event.
+  */
+ #include "maipai_firstrun_wire.h"
+ #include "maipai_firstrun.h"
++#include "maipai_firstrun_core.h"
+ #include "hal.h"
+ #include "maipai_face.h"
++#include "maipai_hosted_core.h"
+ #include "device_events.h"
+ #include "board/hal_bridge.h"
+ #include <application.h>
+@@ -72,6 +74,10 @@ void finished(int lang, int name, int mode)
+         st.SetInt("lang", lang);
+         st.SetInt("name", name);
+         st.SetInt("mode", mode);
++        // SF98's first-class brain choice is the route itself. First-run only runs when its completion record is absent,
++        // so a later boot cannot replace a route that the person already picked.
++        Settings brain(MHS_ROUTE_NS, true);
++        brain.SetString("route", mode == MFR_MODE_HOSTED ? "hosted" : "custom");
+         st.SetInt("done", 1);
+         char extra[64];
+         std::snprintf(extra, sizeof(extra), "\"lang\":%d,\"name\":%d,\"mode\":%d", lang, name, mode);

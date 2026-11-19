@@ -1,0 +1,394 @@
+# SF111: eight finished game screens are registered in the games list and playable
+#
+# Intent: Higher or Lower, Reversi, Dice Poker, Battleship-lite, Pong, Flyer, Balance and Maze had a finished core and screen but were not in the games list. They are now kinds of the grid game
+#   engine: id, English and Spanish titles, touches, the unit's move, sounds, best score, the shared game-over screen in the household language with its tone table, and the 60 s result hold.
+#   Balance and Maze read the lean (maipai_games_tilt_analog) only while they run. Games never move the head. The list and start tools name the new ids.
+# Placement: unit (body half; the existing own-LLM and Home game tools list games by these ids).
+# Upstream: none (MaiPai code only).
+# Check after a flash: Games list shows the eight new games; each starts, takes touch (Balance and Maze: tilt), ends on the game-over screen and saves a best score; memory gate holds with a game running.
+# Kconfig: none (rides on the grid games switch).
+# Memory cost: nothing while no game runs; while one runs, its object tree and state (measure each on the bench with heap checks).
+
+diff --git a/firmware/main/hal/maipai_grid.cc b/firmware/main/hal/maipai_grid.cc
+--- a/firmware/main/hal/maipai_grid.cc
++++ b/firmware/main/hal/maipai_grid.cc
+@@ -21,6 +21,22 @@
+ #include "maipai_grid_slide_core.h"
+ #include "maipai_grid_snake_core.h"
+ #include "maipai_games_sfx_core.h"
++#include "maipai_hilo_core.h"
++#include "maipai_hilo.h"
++#include "maipai_reversi_core.h"
++#include "maipai_reversi.h"
++#include "maipai_dicepoker_core.h"
++#include "maipai_dicepoker.h"
++#include "maipai_battleship_core.h"
++#include "maipai_battleship.h"
++#include "maipai_pong_core.h"
++#include "maipai_pong.h"
++#include "maipai_flyer_core.h"
++#include "maipai_flyer.h"
++#include "maipai_balance_core.h"
++#include "maipai_balance.h"
++#include "maipai_maze_core.h"
++#include "maipai_maze.h"
+ #include <application.h>
+ #include "maipai_games_draw.h"
+ #include "maipai_games_input_core.h"
+@@ -47,6 +63,7 @@
+ #include <strings.h>
+ 
+ uint32_t maipai_games_take_input_bits();  // patch SF77: maipai_games.cc, the sensors' events (tilts) since the last call
++bool maipai_games_tilt_analog(int* roll_pm, int* pitch_pm);
+ 
+ namespace {
+ const char* const kTag = "MAIPAI-GRID";
+@@ -54,7 +71,8 @@ constexpr uint32_t kTickMs       = 30;
+ constexpr uint32_t kIdleMs       = 10u * 60u * 1000u;  // as the other games: no input for 10 minutes ends it
+ constexpr uint32_t kUnitDelayMs  = 450;                // the unit never answers faster than this (it should look like thinking)
+ constexpr uint32_t kOverHoldMs   = 60000;              // patch SF82: the game-over screen waits for a tap; a minute with none ends the game
+-enum { kC4 = 0, kMatch = 1, kHangman = 2, kMines = 3, kSlide = 4, kSnake = 5, kKinds = 6 };
++enum { kC4 = 0, kMatch = 1, kHangman = 2, kMines = 3, kSlide = 4, kSnake = 5,
++       kHilo, kReversi, kDicePoker, kBattleship, kPong, kFlyer, kBalance, kMaze, kKinds };
+ 
+ struct Info {
+     const char* id;
+@@ -69,6 +87,14 @@ const Info kInfo[kKinds] = {
+     {"mines", "Mine Finder", "Buscaminas", true},
+     {"slide", "2048", "2048", false},
+     {"snake", "Snake", "Culebra", false},
++    {"hilo", "Higher or Lower", "Mayor o menor", false},
++    {"reversi", "Reversi", "Reversi", false},
++    {"dicepoker", "Dice Poker", "Poker de dados", false},
++    {"battleship", "Battleship-lite", "Batalla naval", false},
++    {"pong", "Pong", "Pong", false},
++    {"flyer", "Flyer", "Volador", false},
++    {"balance", "Balance", "Equilibrio", false},
++    {"maze", "Maze", "Laberinto", true},
+ };
+ 
+ // The word lists (patch SF70): letters A to Z only, 3 to 12 letters. They are data in the image for now; a pack of the table kind replaces them later.
+@@ -93,6 +119,15 @@ struct Grid {
+     gmn_t mines;          // Mine Finder
+     gsl_t slide;          // 2048
+     gsn_t snake;          // Snake
++    hl_t hilo;
++    rv_t reversi;
++    dp_t dicepoker;
++    bs_t battleship;
++    pg_t pong;
++    fl_t flyer;
++    bl_t balance;
++    mz_t maze;
++    uint32_t game_step_ms;
+     uint32_t next_step_ms; // Snake: when the snake moves next
+     uint8_t spawn_cell;   // 2048: where the last new tile appeared (255 none)
+     mgo::Screen over;     // patch SF82: the shared game-over screen (root null until the game ends)
+@@ -546,6 +581,37 @@ void end_locked(const char* how)
+     device_events_push("game_ended", extra);
+ }
+ 
++bool more_kind(int kind) { return kind >= kHilo; }
++
++void more_build(Grid* g)
++{
++    switch (g->kind) {
++        case kHilo: g->root = hlo::screen(lv_layer_top(), g->hilo, g->hilo.last_result != 0, g->es); break;
++        case kReversi: g->root = rvs::screen(lv_layer_top(), &g->reversi, g->es); break;
++        case kDicePoker: g->root = dpk::screen(lv_layer_top(), g->dicepoker, g->es); break;
++        case kBattleship: g->root = bsh::screen(lv_layer_top(), &g->battleship, g->es); break;
++        case kPong: g->root = pgs::screen(lv_layer_top(), &g->pong, g->es); break;
++        case kFlyer: g->root = flys::screen(lv_layer_top(), &g->flyer, g->es); break;
++        case kBalance: g->root = bls::screen(lv_layer_top(), &g->balance, g->es); break;
++        case kMaze: g->root = mzs::screen(lv_layer_top(), &g->maze, g->es); break;
++        default: return;
++    }
++    mgd::build_drag_bar(g->root);
++}
++
++void more_rebuild(Grid* g)
++{
++    if (g->root != nullptr) lv_obj_delete(g->root);
++    more_build(g);
++}
++
++void more_invalidate(Grid* g)
++{
++    if (g->root == nullptr) return;
++    lv_obj_t* draw = lv_obj_get_child(g->root, 0);
++    if (draw != nullptr) lv_obj_invalidate(draw);
++}
++
+ void finish(Grid* g, int result)
+ {
+     g->result = static_cast<uint8_t>(result);
+@@ -566,6 +632,32 @@ void finish(Grid* g, int result)
+         g->won = result == GR_PERSON_WON;
+         const uint32_t secs = (now_ms() - g->start_ms) / 1000u;
+         g->score = g->won ? static_cast<int>(secs < 1u ? 1u : (secs > 9999u ? 9999u : secs)) : 0;  // seconds: lower is better
++    } else if (g->kind == kHilo) {
++        g->won = false;
++        g->score = g->hilo.streak;
++    } else if (g->kind == kReversi) {
++        g->won = result == GR_PERSON_WON;
++        g->score = rv_discs(&g->reversi, RV_PERSON);
++    } else if (g->kind == kDicePoker) {
++        g->won = false;
++        g->score = g->dicepoker.score;
++    } else if (g->kind == kBattleship) {
++        g->won = result == GR_PERSON_WON;
++        g->score = g->battleship.shots_left;
++    } else if (g->kind == kPong) {
++        g->won = result == GR_PERSON_WON;
++        g->score = g->pong.sp;
++    } else if (g->kind == kFlyer) {
++        g->won = false;
++        g->score = g->flyer.score;
++    } else if (g->kind == kBalance) {
++        g->won = false;
++        g->score = bl_seconds(&g->balance);
++        if (g->score == 0) g->score = 1;
++    } else if (g->kind == kMaze) {
++        g->won = result == GR_PERSON_WON;
++        g->score = mz_seconds(&g->maze);
++        if (g->score == 0) g->score = 1;
+     } else {
+         g->won = true;
+         g->score = g->mem.turns;
+@@ -579,7 +671,18 @@ void finish(Grid* g, int result)
+     char score_text[40] = "", best_text[40] = "";
+     const char* score_fmt_en = "";
+     (void)score_fmt_en;
+-    if (g->kind == kC4) {
++    if (g->kind == kHilo || g->kind == kDicePoker || g->kind == kFlyer || g->kind == kBalance) {
++        snprintf(score_text, sizeof(score_text), g->es ? "Puntos %d" : "Score %d", g->score);
++        mgo_result = MGO_OVER;
++    } else if (g->kind == kMaze) {
++        snprintf(score_text, sizeof(score_text), g->es ? "Tiempo %d s" : "Time %d s", g->score);
++    } else if (g->kind == kBattleship) {
++        snprintf(score_text, sizeof(score_text), g->es ? "Tiros %d" : "Shots left %d", g->score);
++    } else if (g->kind == kPong) {
++        snprintf(score_text, sizeof(score_text), g->es ? "Tu %d, Unidad %d" : "You %d, Unit %d", g->pong.sp, g->pong.su);
++    } else if (g->kind == kReversi) {
++        snprintf(score_text, sizeof(score_text), g->es ? "Fichas %d" : "Discs %d", g->score);
++    } else if (g->kind == kC4) {
+         snprintf(score_text, sizeof(score_text), g->won ? (g->es ? "Puntos %d" : "Score %d") : "", g->score);
+     } else if (g->kind == kHangman) {
+         if (g->won) snprintf(score_text, sizeof(score_text), g->es ? "Puntos %d" : "Score %d", g->score);
+@@ -758,6 +861,61 @@ void tick_cb(lv_timer_t*)
+         if (now - g->over_at >= kOverHoldMs) end_locked("finished");  // a minute with no tap
+         return;
+     }
++    if (more_kind(g->kind)) {
++        if (g->kind == kReversi) {
++            if (g->reversi.phase == RV_PLAY && g->reversi.turn == RV_UNIT && static_cast<int32_t>(now - g->unit_ready_at) >= 0) {
++                const int cell = rv_unit_move(&g->reversi);
++                if (cell >= 0) play_clip(g, MGS_C_GRID_CLACK_MID);
++                more_rebuild(g);
++                const int rr = rv_result(&g->reversi);
++                if (rr != 0) finish(g, rr == RV_WON ? GR_PERSON_WON : (rr == RV_LOST ? GR_UNIT_WON : GR_DRAW));
++            }
++            return;
++        }
++        if (now - g->game_step_ms < 33u) return;
++        g->game_step_ms += 33u;
++        if (g->kind == kPong) {
++            const pg_t before = g->pong;
++            pg_step(&g->pong);
++            if (g->pong.event == PG_E_WALL) play_clip(g, MGS_C_GRID_TICK_LO);
++            else if (g->pong.event == PG_E_HIT_PERSON || g->pong.event == PG_E_HIT_UNIT) play_clip(g, MGS_C_THUD);
++            else if (g->pong.event == PG_E_PERSON_SCORED) play_clip(g, MGS_C_GOOD);
++            else if (g->pong.event == PG_E_UNIT_SCORED) play_clip(g, MGS_C_BAD);
++            if (before.sp != g->pong.sp || before.su != g->pong.su) more_rebuild(g);
++            else pgs::invalidate_dirty(g->root, before, g->pong);
++            const int rr = pg_result(&g->pong);
++            if (rr != 0) finish(g, rr == 1 ? GR_PERSON_WON : GR_UNIT_WON);
++        } else if (g->kind == kFlyer) {
++            const fl_t before = g->flyer;
++            fl_step(&g->flyer);
++            if (g->flyer.event == FL_E_PASS) { play_clip(g, MGS_C_GRID_TICK_LO); more_rebuild(g); }
++            else flys::invalidate_dirty(g->root, before, g->flyer);
++            if (g->flyer.phase == FL_OVER) { play_clip(g, MGS_C_THUD); play_clip(g, MGS_C_GRID_LOSE); finish(g, GR_UNIT_WON); }
++        } else if (g->kind == kBalance) {
++            const bl_t before = g->balance;
++            int roll = 0, pitch = 0;
++            (void)maipai_games_tilt_analog(&roll, &pitch);
++            bl_step(&g->balance, roll, pitch);
++            if (g->balance.event == BL_E_HOLE_OPENS || g->balance.event == BL_E_HOLE_ARMS) play_clip(g, MGS_C_GRID_TICK_LO);
++            else if (g->balance.event == BL_E_FELL) { play_clip(g, MGS_C_THUD); play_clip(g, MGS_C_GRID_LOSE); }
++            else if ((g->balance.ticks % 12u) == 0u) {
++                const int dist = bl_isqrt(g->balance.x * g->balance.x + g->balance.y * g->balance.y);
++                const int edge = g->balance.plate_r - BL_BALL - dist;
++                play_clip(g, edge < 18 ? MGS_C_GRID_TICK_HI : (edge < 36 ? MGS_C_GRID_TICK_MID : MGS_C_GRID_TICK_LO));
++            }
++            bls::invalidate_dirty(g->root, before, g->balance);
++            if (g->balance.phase == BL_OVER) finish(g, GR_UNIT_WON);
++        } else if (g->kind == kMaze) {
++            const mz_t before = g->maze;
++            int roll = 0, pitch = 0;
++            (void)maipai_games_tilt_analog(&roll, &pitch);
++            mz_step(&g->maze, roll, pitch);
++            if (g->maze.touched) play_clip(g, MGS_C_GRID_TICK_LO);
++            mzs::invalidate_dirty(g->root, before, g->maze);
++            if (g->maze.phase == MZ_WON) { play_clip(g, MGS_C_TING); finish(g, GR_PERSON_WON); }
++        }
++        return;
++    }
+     if (g->kind != kC4) {  // patch SF74: the flips and pops of the other grid games (events are not needed: the pictures end by themselves)
+         gan_ev_t ev[GAN_EV_MAX];
+         const int n = gan_tick(&g->anim, now, ev);
+@@ -844,7 +1002,19 @@ const char* maipai_grid_start_locked(const char* name, const char* source)
+     snprintf(g->source, sizeof(g->source), "%s", source != nullptr ? source : "tool");
+     g->seed = esp_random();
+     g->level = 2;
+-    if (kind == kC4) {
++    if (more_kind(kind)) {
++        if (kind == kHilo) hl_init(&g->hilo, g->seed);
++        else if (kind == kReversi) rv_init(&g->reversi);
++        else if (kind == kDicePoker) dp_init(&g->dicepoker, g->seed);
++        else if (kind == kBattleship) bs_init(&g->battleship, g->seed);
++        else if (kind == kPong) pg_init(&g->pong, g->seed);
++        else if (kind == kFlyer) fl_init(&g->flyer, g->seed);
++        else if (kind == kBalance) bl_init(&g->balance, g->seed);
++        else if (kind == kMaze) mz_init(&g->maze, g->seed);
++        g->result = GR_PLAYING;
++        g->game_step_ms = now_ms();
++        more_build(g);
++    } else if (kind == kC4) {
+         gr_layout(&g->lay, GC4_COLS, GC4_ROWS, 0);
+         gc4_clear(&g->c4);
+     } else if (kind == kHangman) {
+@@ -869,7 +1039,7 @@ const char* maipai_grid_start_locked(const char* name, const char* source)
+         gm_init(&g->mem, 16, g->seed);
+         gr_layout(&g->lay, 4, 4, 1);
+     }
+-    build(g);
++    if (!more_kind(kind)) build(g);
+     g->last_input_ms = g->last_awake_ms = now_ms();
+     s_grid = g;
+     s_active.store(true);
+@@ -910,6 +1080,7 @@ void maipai_grid_touch(int x, int y)
+     Grid* g = s_grid;
+     if (g != nullptr && g->over_shown) {  // patch SF82: the game-over screen takes the taps: Play again starts the same game fresh, Quit goes back to the games page
+         const int b = mgo_hit(x, y);
++        mgo::set_pressed(g->over, b);
+         if (b == MGO_BTN_NONE) return;
+         char id[12], src[8];
+         snprintf(id, sizeof(id), "%s", kInfo[g->kind].id);
+@@ -922,6 +1093,54 @@ void maipai_grid_touch(int x, int y)
+     if (g == nullptr || mg_drag_press_dead(y) || g->result != GR_PLAYING) return;
+     const uint32_t now = now_ms();
+     g->last_input_ms = now;
++    if (more_kind(g->kind)) {
++        if (g->kind == kHilo) {
++            hl_rect_t buttons[2];
++            const int b = hl_hit(buttons, hl_buttons(buttons), x, y);
++            if (b == HL_B_NONE) return;
++            const int r = hl_guess(&g->hilo, b == HL_B_HIGHER);
++            if (r == HL_IGNORED) return;
++            play_clip(g, r == HL_RIGHT ? MGS_C_GOOD : (r == HL_WRONG ? MGS_C_BAD : MGS_C_GRID_TICK_MID));
++            if (g->hilo.phase == HL_OVER) finish(g, GR_UNIT_WON);
++            else more_rebuild(g);
++        } else if (g->kind == kReversi) {
++            if (g->reversi.phase != RV_PLAY || g->reversi.turn != RV_PERSON) return;
++            const int cell = rv_hit(x, y);
++            if (cell < 0 || !rv_person_move(&g->reversi, cell)) return;
++            play_clip(g, MGS_C_GRID_CLACK_MID);
++            more_rebuild(g);
++            const int rr = rv_result(&g->reversi);
++            if (rr != 0) finish(g, rr == RV_WON ? GR_PERSON_WON : (rr == RV_LOST ? GR_UNIT_WON : GR_DRAW));
++            else if (g->reversi.turn == RV_UNIT) g->unit_ready_at = now + kUnitDelayMs;
++        } else if (g->kind == kDicePoker) {
++            dp_rect_t buttons[8];
++            const int b = dp_hit(buttons, dp_buttons(&g->dicepoker, buttons), x, y);
++            if (b >= DP_B_DIE0 && b <= DP_B_DIE4) {
++                if (dp_toggle_hold(&g->dicepoker, b - DP_B_DIE0)) play_clip(g, MGS_C_THUD);
++            } else if (b == DP_B_ROLL) {
++                if (dp_roll(&g->dicepoker)) play_clip(g, MGS_C_RATTLE);
++            } else if (b == DP_B_KEEP) {
++                const int rank = dp_rank(g->dicepoker.d);
++                if (dp_keep(&g->dicepoker) >= 0) {
++                    play_clip(g, rank >= DP_STRAIGHT ? MGS_C_FANFARE : (rank >= DP_PAIR ? MGS_C_GOOD : MGS_C_THUD));
++                    if (g->dicepoker.phase == DP_PHASE_DONE) { finish(g, GR_UNIT_WON); return; }
++                }
++            }
++            more_invalidate(g);
++        } else if (g->kind == kBattleship) {
++            const int cell = bs_hit(x, y);
++            if (cell < 0) return;
++            const int r = bs_fire(&g->battleship, cell);
++            if (r == BS_R_IGNORED) return;
++            play_clip(g, r == BS_R_MISS ? MGS_C_GRID_DROP : (r == BS_R_WON ? MGS_C_FANFARE : MGS_C_GRID_CLACK_MID));
++            more_rebuild(g);
++            if (r == BS_R_WON) finish(g, GR_PERSON_WON);
++            else if (r == BS_R_LOST) finish(g, GR_UNIT_WON);
++        } else if (g->kind == kFlyer) {
++            if (fl_tap(&g->flyer)) { play_clip(g, MGS_C_GRID_TICK_LO); more_invalidate(g); }
++        }
++        return;
++    }
+     if (g->kind == kC4) {
+         if (g->unit_thinking || gan_busy(&g->anim) || g->result_pending != GR_PLAYING) return;  // the unit's turn, or the picture is catching up: this tap is ignored
+         const int col = gr_col_at(&g->lay, x, y);
+@@ -990,6 +1209,13 @@ void maipai_grid_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
+         end_locked("dragbar");
+         return;
+     }
++    if (g->kind == kPong && g->result == GR_PLAYING) {
++        const pg_t before = g->pong;
++        pg_drag(&g->pong, y1 - PG_Y0);
++        g->last_input_ms = now_ms();
++        pgs::invalidate_dirty(g->root, before, g->pong);
++        return;
++    }
+     if ((g->kind == kSlide || g->kind == kSnake) && g->result == GR_PLAYING) {
+         const int what = gi_classify(x0, y0, x1, y1, held_ms);
+         const int dir_slide = what == GI_SWIPE_LEFT ? GS_LEFT : (what == GI_SWIPE_RIGHT ? GS_RIGHT : (what == GI_SWIPE_UP ? GS_UP : (what == GI_SWIPE_DOWN ? GS_DOWN : -1)));
+@@ -1155,4 +1381,4 @@ void maipai_grid_register_bench_tools()
+                 });
+ }
+ #endif
+-#endif
+\ No newline at end of file
++#endif
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -998,7 +998,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+     }
+     const int slot = slot_by_name(name);
+     if (slot < 0) {
+-        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman, mines, slide or snake.",
++        return say(es, "That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman, mines, slide, snake, hilo, reversi, dicepoker, battleship, pong, flyer, balance or maze.",
+                    "Ese juego no esta en esta unidad. Pide memory, whack, tictactoe, bopit, rps, eightball o dice.");
+     }
+     if (maipai_quiet()) {
+@@ -1406,7 +1406,7 @@ void maipai_games_register_tools()
+     }
+     auto& mcp = McpServer::GetInstance();
+     mcp.AddTool("self.game.list",
+-                "List the games on this unit with their best scores (best first, up to five), and which one is playing now. "
++                "List the games on this unit with their best scores (best first, up to five), and which one is playing now. Built-in games include hilo, reversi, dicepoker, battleship, pong, flyer, balance and maze. "
+                 "Answers {ok, playing, games:[{id, title, kind (builtin or installed), lower_is_better, scores}]}.",
+                 std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
+                     const bool es = want_spanish();
+@@ -1438,7 +1438,9 @@ void maipai_games_register_tools()
+                 "rps (rock paper scissors, best of three), "
+                 "eightball (magic 8 ball: gently shake the unit or tap the ball), dice (dice and coin: tap or gently shake), "
+                 "connect4 (Four in a Row against the unit: tap a column), match (Memory Match: turn two cards, find the pairs), "
+-                "hangman (guess the word letter by letter), mines (Mine Finder: open the safe cells, flag the mines), slide (2048: swipe to slide and merge the tiles) or snake (steer by swipe or tilt). "
++                "hangman (guess the word letter by letter), mines (Mine Finder: open the safe cells, flag the mines), slide (2048: swipe to slide and merge the tiles), snake (steer by swipe or tilt), "
++                "hilo (Higher or Lower: tap Higher or Lower), reversi (tap a legal cell against the unit), dicepoker (roll, hold dice and keep), battleship (tap the sea to find ships), "
++                "pong (drag your paddle), flyer (tap to hop), balance (tilt the unit to keep the ball on the plate) or maze (tilt the unit to roll to the goal). "
+                 "It never starts in full quiet or during an update. A person stops it with a swipe down from the bottom edge "
+                 "or by saying stop. Answers {ok} or {ok:false,error}.",
+                 PropertyList({Property("name", kPropertyTypeString, std::string("memory")),
+@@ -1486,7 +1488,7 @@ void maipai_games_register_tools()
+                     const int slot         = slot_by_name(name.c_str());
+                     mg_pack_t p;
+                     if (slot < 0 || !slot_pack(slot, &p)) {
+-                        return error_json("That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman, mines, slide or snake.");
++                        return error_json("That game is not on this unit. Ask for memory, whack, tictactoe, bopit, rps, eightball, dice, connect4, match, hangman, mines, slide, snake, hilo, reversi, dicepoker, battleship, pong, flyer, balance or maze.");
+                     }
+                     return std::string("{\"ok\":true,\"game\":\"") + p.id + "\",\"lower_is_better\":" +
+                            ((p.flags & MG_FLAG_LOWER_BETTER) ? "true" : "false") + ",\"scores\":" + scores_json(slot) + "}";

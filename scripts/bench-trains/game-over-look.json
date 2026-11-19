@@ -1,6 +1,6 @@
 {
  "name": "game-over-look",
- "build_dir": "~/esp/stackchan-rebuild/NEWBUILD/firmware/build-bench",
+ "build_dir": "~/esp/stackchan-rebuild/b99/firmware/build-bench",
  "soak_s": 30,
  "settle_s": 2,
  "heap_interval_s": 5,

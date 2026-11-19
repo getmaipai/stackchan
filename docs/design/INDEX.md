@@ -184,7 +184,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1173): Feature ledger
+- `docs/dev/feature-ledger.md` (1175): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -258,7 +258,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
-- `docs/dev/index.md` (117): MaiPai for StackChan: developer guide
+- `docs/dev/index.md` (118): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/measure-a-game.md` (57): How to measure a game
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
@@ -271,7 +271,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/mumble/pt.wav` (270): no header
 - `docs/dev/mumble/samples.json` (673): no header
 - `docs/dev/off-cost.md` (15): Cost of a switched-off feature in the plain image
-- `docs/dev/open-questions.md` (9): Open questions for the owner
+- `docs/dev/open-questions.md` (23): Open questions for the owner
 - `docs/dev/overview.md` (50): How MaiPai for StackChan fits together
 - `docs/dev/pantry-seed.md` (11): Pantry seed library
 - `docs/dev/pre-publish-checklist.md` (34): Before the repository goes public
@@ -766,7 +766,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (379): no header
+- `firmware/patches/ORDER` (395): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -811,7 +811,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF105-review-fix-pairing-key-checks-and-confirm.patch` (267): Fixes for the pairing exchange. (1) The unit refuses an all-zero or small-order X25519 host key (the eight kno
 - `firmware/patches/SF106-review-fix-locked-unit-keeps-network-setup.patch` (72): Review fix (lock): a locked unit keeps its network and pairing setup and does not tell it. The tools that read
 - `firmware/patches/SF107-analog-tilt-for-games.patch` (194): The analog lean of the unit for games (design docs/design/accelerometer-games.md). A pure core (maipai_games_a
+- `firmware/patches/SF108-write-back-the-migrated-quick-actions.patch` (34): A saved quick-actions list that the load moved to the new default (SF101) is written back to flash at that loa
+- `firmware/patches/SF109-game-over-look-language-and-tones.patch` (150): SF109: the game-over screen's new look gets the household language and its result tones
 - `firmware/patches/SF11-core-dump-find-timer-filler-leaks.patch` (115): Safety fix, train 11. A release image erases the flash core dump after its summary is reported (bench images k
+- `firmware/patches/SF110-cloudtest-numeric-version.patch` (93): SF110: the cloud brain test image sends the numeric firmware version to the vendor's update check
+- `firmware/patches/SF111-register-eight-games.patch` (394): SF111: eight finished game screens are registered in the games list and playable
+- `firmware/patches/SF112-first-run-choice-sets-the-brain-route.patch` (42): SF112: the first-run brain choice is saved as the unit's brain route
+- `firmware/patches/SF114-offline-lines-reader.patch` (391): SF114: the offline lines reader (lines by situation: subtitle plus mumble)
 - `firmware/patches/SF12-listen-ended-event.patch` (31): When the listening guard ends a turn on its own (8 s with no voice, or the 60 s cap), the unit pushes a listen
 - `firmware/patches/SF13-lock-lockout-survives-restart.patch` (87): The lock tools keep a running lockout across a restart: the strikes and the time left on the lockout are saved
 - `firmware/patches/SF14-offline-dance-rest-cap.patch` (88): A cap on continuous offline dancing: after ten minutes of motion without a pause of 30 s the unit rests for th
@@ -889,8 +895,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF89-asset-store-core.patch` (494): The asset store, the pure logic (owner decision 17; design docs/plan/installed-set.md sections B and G): one s
 - `firmware/patches/SF90-asset-store-on-the-unit.patch` (512): The asset store, device side (owner decision 17; core SF89; design docs/plan/installed-set.md B and G). The pa
 - `firmware/patches/SF91-installed-game-packs-join-the-games.patch` (155): Game packs installed in the asset store (owner decision 17; the first consumer of SF90, design installed-set.m
-- `firmware/patches/SF92-pantry-core.patch` (349): The content pantry on the unit, the pure logic (owner decision 25; design docs/design/content-pantry.md): the 
-- `firmware/patches/SF93-pantry-on-the-unit.patch` (375): The content pantry on the unit, device side (owner decision 25; core SF92; design docs/design/content-pantry.m
+- `firmware/patches/SF92-pantry-core.patch` (352): The content pantry on the unit, the pure logic (owner decision 25; design docs/design/content-pantry.md): the 
+- `firmware/patches/SF93-pantry-on-the-unit.patch` (377): The content pantry on the unit, device side (owner decision 25; core SF92; design docs/design/content-pantry.m
 - `firmware/patches/SF94-pantry-tellings-on-the-question-screens.patch` (202): Telling from the unit's own pantry with no host (owner decisions 25 and 26; screens UX17; core SF92 and device
 - `firmware/patches/SF95-2048-large-tiles-on-one-line.patch` (19): In 2048 the tiles of 1024 and above (four digits) wrapped onto two lines in the 20 px font (found by the playg
 - `firmware/patches/SF96-cloud-brain-test-image-kind.patch` (300): A separate image kind, cloudtest, for trying the vendor's hosted brain with the owner's own account (never the
@@ -975,15 +981,24 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX14b-clock-flip-on-the-card-tween.patch` (133): The clock style change plays a card flip (owner idea 2026-11-18, spec docs/design/clock-styles.md "The flip").
 - `firmware/patches/UX15-shared-game-over-screen.patch` (225): One game-over screen for every game (owner idea 2026-11-18, spec docs/design/game-over-screen.md). A face for 
 - `firmware/patches/UX15c-game-over-neutral-end-after-sf82.patch` (64): A game that only counts a score never says "You won!" or "You lost" (owner decision 33, 2026-11-18). The share
+- `firmware/patches/UX15d-game-over-look.patch` (779): the shared game-over screen gets a graphical overhaul (docs/design/game-over-look.md), as a look LEVEL: look 0
 - `firmware/patches/UX16-offline-mumble-core.patch` (197): The offline mumble (owner decision 24, 2026-11-18; spec docs/design/offline-mumble.md). When the unit has word
 - `firmware/patches/UX17-question-and-answer-game-screens.patch` (285): The screens of the question-and-answer games (owner decisions 25 to 27, 2026-11-18; spec docs/design/qa-game-s
 - `firmware/patches/UX18-dice-poker.patch` (249): Dice Poker (the first of the new games of docs/plan/more-games.md, ranked 2; spec docs/design/dice-poker.md). 
+- `firmware/patches/UX18b-dice-poker-one-draw-callback.patch` (177): Dice Poker's screen drawn by ONE draw callback instead of 36 LVGL objects (owner request after docs/plan/games
 - `firmware/patches/UX19-brain-two-equal-routes.patch` (182): The brain step of the first run offers two equal routes (owner decision 34, 2026-11-18): A "Hosted by M5Stack/
 - `firmware/patches/UX19b-first-run-lines-that-fit.patch` (26): Two first-run lines no longer wrap into the text below or get cut off (owner request: text never overlaps anot
 - `firmware/patches/UX20-hosted-link-removed-notice.patch` (146): The notice "Hosted link removed" (owner decision 34): shown on the unit after it left the hosted brain (M5Stac
 - `firmware/patches/UX20b-notice-console-line.patch` (90): The "Hosted link removed" notice (UX20) gets the owner's plain line (decision 34): "To stop your account keepi
 - `firmware/patches/UX21-higher-or-lower.patch` (270): Higher or Lower (spec docs/design/higher-or-lower.md, rank 1 of docs/plan/more-games.md): a shuffled deck of 5
 - `firmware/patches/UX22-reversi.patch` (304): Reversi (spec docs/design/reversi.md, rank 3 of docs/plan/more-games.md): 8 by 8, the person plays black and m
+- `firmware/patches/UX23-battleship-lite.patch` (231): Battleship-lite (spec docs/design/battleship-lite.md, rank 7 of docs/plan/more-games.md): a 6 by 6 sea, the un
+- `firmware/patches/UX24-pong.patch` (278): Pong (spec docs/design/pong.md, rank 11 of docs/plan/more-games.md): the person's paddle (dragged up and down)
+- `firmware/patches/UX25-flyer.patch` (255): Flappy-style flyer (spec docs/design/flyer.md, rank 8 of docs/plan/more-games.md): a small bird falls, a tap h
+- `firmware/patches/UX26-four-in-a-row-richer-look-bench.patch` (164): BENCH ONLY. A richer look for Four in a Row, switchable at run time so one image measures both looks, built on
+- `firmware/patches/UX27-balance.patch` (301): Balance (spec docs/design/balance.md, rank 5 of docs/plan/more-games.md; input docs/design/accelerometer-games
+- `firmware/patches/UX28-maze.patch` (315): Maze (spec docs/design/maze.md, rank 6 of docs/plan/more-games.md; input docs/design/accelerometer-games.md): 
+- `firmware/patches/UX29-pack-engine-one-draw-callback.patch` (1148): the seven data-pack games (Tic-Tac-Toe, Whack, Do It, 8 Ball, Dice and Coin, Color Memory, Rock Paper Scissors
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -1010,20 +1025,20 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/tailnet/PIN` (4): The private-network client for travel (patch TN01). Downloaded by scripts/fw-tailnet.sh at this commit into a
 - `firmware/tailnet/microlink-region.patch` (48): the second library patch for the pinned private-network client (applied by scripts/fw-tailnet.sh after microli
 - `firmware/tailnet/microlink.patch` (310): the library patch for the pinned private-network client (applied by scripts/fw-tailnet.sh to the downloaded co
-- `flasher/README.md` (9): Web flasher
-- `flasher/flasher-core.js` (151): The flasher's logic with no page and no serial port in it, so it can be tested in Node: read the release manif
-- `flasher/flasher.js` (122): Only this page's own site is read: a ?manifest= that names another site is refused (resolveManifestUrl).
+- `flasher/README.md` (10): Web flasher
+- `flasher/flasher-core.js` (174): The flasher's logic with no page and no serial port in it, so it can be tested in Node: read the release manif
+- `flasher/flasher.js` (130): Only this page's own site is read: a ?manifest= that names another site is refused (resolveManifestUrl).
 - `flasher/index.html` (42): status { min-height:3em; } #status.good { color:var(--good); } #status.bad { color:var(--bad); }
-- `flasher/test/core.test.mjs` (107): Red team, report 17: sizes are only known after the download, so the checks that need them happen in fetchAndV
+- `flasher/test/core.test.mjs` (142): Red team, report 17: sizes are only known after the download, so the checks that need them happen in fetchAndV
 - `flasher/trusted-keys.json` (3): no header
 - `flasher/vendor/esptool-js-0.7.0.js` (2): no header
 - `flasher/vendor/esptool-js-LICENSE.txt` (201): no header
 - `host/.gitkeep` (0): no header
 - `host/bench/script-20.json` (107): no header
 - `host/maipai_body/__init__.py` (1): MaiPai Bot's Python body: everything that touches hardware, one profile per supported body."""
-- `host/maipai_body/app.py` (5618): MaiPai Bot's Reachy Mini app: the daemon's one running app.
-- `host/maipai_body/asset_transport.py` (148): ruff: noqa: E501
-- `host/maipai_body/assets.py` (111): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
+- `host/maipai_body/app.py` (5632): MaiPai Bot's Reachy Mini app: the daemon's one running app.
+- `host/maipai_body/asset_transport.py` (182): ruff: noqa: E501
+- `host/maipai_body/assets.py` (125): Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack
 - `host/maipai_body/assets/brand/PROVENANCE.md` (19): Brand assets provenance
 - `host/maipai_body/banner_shapes.py` (76): ruff: noqa: E501
 - `host/maipai_body/banner_table.json` (19): no header
@@ -1245,7 +1260,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/bodies/stackchan/firmware/release.sh` (93): date) BUILD_DATE="$2"; shift 2 ;;
 - `host/maipai_body/bodies/stackchan/firmware/update_header.py` (97): The signed update header (docs/plan/signed-update-anti-rollback.md, agreed with the firmware track): 56 bytes,
 - `host/maipai_body/bodies/stackchan/firmware/verify.sh` (48): public-key) (($# >= 2)) || { echo "Pass --public-key PATH (the release's Ed25519 public key PEM) so verify.sh 
-- `host/maipai_body/bodies/stackchan/firmware_update.py` (264): Conservative host-side StackChan firmware update controller."""
+- `host/maipai_body/bodies/stackchan/firmware_update.py` (267): Conservative host-side StackChan firmware update controller."""
 - `host/maipai_body/bodies/stackchan/frame_check.py` (94): Why does the face detector find nobody? A once-a-minute log line, nothing stored.
 - `host/maipai_body/bodies/stackchan/game_voice.py` (239): ruff: noqa: E501
 - `host/maipai_body/bodies/stackchan/games.py` (570): ruff: noqa: E501
@@ -1312,12 +1327,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/brain/interface.py` (63): Typed interface between the body host and its answering brain."""
 - `host/maipai_body/brain/own_llm.py` (388): Own-LLM brain using owner-configured HTTP services and optional local speech models."""
 - `host/maipai_body/brain_page.py` (102): ruff: noqa: E501
-- `host/maipai_body/brain_route.py` (62): ruff: noqa: E501
+- `host/maipai_body/brain_route.py` (71): ruff: noqa: E501
 - `host/maipai_body/brain_setup/__init__.py` (1): Three ways to get a brain (docs/plan/minimal-stack.md): MaiPai Home, the person's own stack, or a minimal loca
 - `host/maipai_body/brain_setup/catalog.py` (106): The pinned downloads of the minimal local stack (docs/plan/minimal-stack.md).
-- `host/maipai_body/brain_setup/controller.py` (145): The Brain page's one object: what is set now, the test buttons, applying a mode, and the local stack's install
+- `host/maipai_body/brain_setup/controller.py` (150): The Brain page's one object: what is set now, the test buttons, applying a mode, and the local stack's install
 - `host/maipai_body/brain_setup/installer.py` (288): Install, stop and remove the minimal local stack. The downloader is injected, so tests never touch the network
-- `host/maipai_body/brain_setup/modes.py` (102): Apply one of the three modes to robot.toml with a small line editor that keeps the rest of the file (comments 
+- `host/maipai_body/brain_setup/modes.py` (126): Apply one of the three modes to robot.toml with a small line editor that keeps the rest of the file (comments 
 - `host/maipai_body/brain_setup/runner.py` (112): Start and stop the local model server (llama.cpp `llama-server`) and time one test turn. Both are injectable f
 - `host/maipai_body/brain_setup/tester.py` (58): The test buttons of mode (b): each answers in plain words. A session is injected so tests never touch the netw
 - `host/maipai_body/chaos.py` (48): The chaos hook: kill a named host worker on a timer, ONLY when the MAIPAI_CHAOS environment variable is set (t
@@ -1356,7 +1371,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/hal/errors.py` (68): Errors the HAL seam raises.
 - `host/maipai_body/hal/seam.py` (427): The HAL seam every body profile implements.
 - `host/maipai_body/health.py` (126): One health document for the whole host: what runs, what does not, per unit and per part, in plain words.
-- `host/maipai_body/host_update.py` (168): ruff: noqa: E501
+- `host/maipai_body/host_update.py` (233): ruff: noqa: E501
 - `host/maipai_body/hub_host.py` (131): Host launcher for a self-contained MaiPai Bot hub sidecar.
 - `host/maipai_body/i18n.py` (409): ruff: noqa: E501
 - `host/maipai_body/i18n_character.py` (37): ruff: noqa: E501
@@ -1608,10 +1623,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/selftest/stackchan.py` (181): BOT-SELF-TEST-01: the StackChan's seven part checks, one per part.
 - `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
 - `host/maipai_body/service_cmd.py` (232): The command of the install this program runs from (before any `stackchan service update`)."""
-- `host/maipai_body/service_handover.py` (104): ruff: noqa: E501
+- `host/maipai_body/service_handover.py` (146): ruff: noqa: E501
 - `host/maipai_body/service_threads.py` (71): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (65): Settings keys shared by body settings consumers."""
-- `host/maipai_body/settings_page.py` (1072): ruff: noqa: E501
+- `host/maipai_body/settings_page.py` (1078): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (189): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (458): ruff: noqa: E501
 - `host/maipai_body/settings_ui.py` (787): ruff: noqa: E501
@@ -1621,7 +1636,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/settings_ui_lock.py` (36): ruff: noqa: E501
 - `host/maipai_body/settings_ui_nav.py` (122): ruff: noqa: E501
 - `host/maipai_body/settings_ui_p_behavior.py` (119): ruff: noqa: E501
-- `host/maipai_body/settings_ui_p_games.py` (59): Placement: host dashboard (More > Games in the new look; the old builder BUILDERS.play is the spec for the cal
+- `host/maipai_body/settings_ui_p_games.py` (61): Placement: host dashboard (More > Games in the new look; the old builder BUILDERS.play is the spec for the cal
 - `host/maipai_body/settings_ui_p_lock.py` (42): ruff: noqa: E501
 - `host/maipai_body/settings_ui_p_network.py` (71): ruff: noqa: E501
 - `host/maipai_body/settings_ui_p_packs.py` (136): ruff: noqa: E501
@@ -1709,11 +1724,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/memory_notes/__init__.py` (12): Local memory for several adults as plain per-person notes files.
 - `host/maipai_packages/memory_notes/admission.py` (93): What may be stored, and who may read it (shaped like the shared memory admission concept).
 - `host/maipai_packages/memory_notes/store.py` (367): One plain text file per person; one note per line: ``- 2026-11-18 [ab12cd] the note``."""
-- `host/maipai_packages/pantry/__init__.py` (58): Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the
+- `host/maipai_packages/pantry/__init__.py` (96): Content pantry (docs/design/content-pantry.md): jokes, riddles, trivia and stories the host generates with the
 - `host/maipai_packages/pantry/dedupe.py` (64): Dedupe (docs/design/content-pantry.md, section 6): the same line twice, or the same idea in other words, is ke
-- `host/maipai_packages/pantry/filter.py` (100): Filter (docs/design/content-pantry.md, section 6): what the host is willing to store and tell later. Cheapest 
-- `host/maipai_packages/pantry/generator.py` (96): Generate (docs/design/content-pantry.md, section 6): ask the owner's model for batches of 20 records as JSON, 
-- `host/maipai_packages/pantry/library.py` (157): The master library (docs/design/content-pantry.md, section 6): plain files in the host's data folder, one JSON
+- `host/maipai_packages/pantry/filter.py` (103): Filter (docs/design/content-pantry.md, section 6): what the host is willing to store and tell later. Cheapest 
+- `host/maipai_packages/pantry/generator.py` (104): Generate (docs/design/content-pantry.md, section 6): ask the owner's model for batches of 20 records as JSON, 
+- `host/maipai_packages/pantry/library.py` (191): The master library (docs/design/content-pantry.md, section 6): plain files in the host's data folder, one JSON
 - `host/maipai_packages/pantry/model.py` (27): The owner's own model as a plain function ``ask(prompt) -> text`` for the pantry (an OpenAI-style chat address
 - `host/maipai_packages/pantry/objects/core.json` (531): no header
 - `host/maipai_packages/pantry/objects/de.json` (107): no header
@@ -1721,7 +1736,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/pantry/objects/fr.json` (107): no header
 - `host/maipai_packages/pantry/objects/it.json` (107): no header
 - `host/maipai_packages/pantry/objects/pt.json` (107): no header
-- `host/maipai_packages/pantry/record.py` (103): The pantry record (docs/design/content-pantry.md, section 2): one thing the robot can say, with the rules that
+- `host/maipai_packages/pantry/record.py` (115): The pantry record (docs/design/content-pantry.md, section 2): one thing the robot can say, with the rules that
 - `host/maipai_packages/pantry/seed/de-joke.json` (42): no header
 - `host/maipai_packages/pantry/seed/de-line.json` (122): no header
 - `host/maipai_packages/pantry/seed/de-object.json` (108): no header
@@ -1754,10 +1769,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/pantry/seed/pt-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed_loader.py` (68): ruff: noqa: E501
 - `host/maipai_packages/pantry/shelf.py` (84): The shelf: the bytes of one `pantry` asset item (docs/design/content-pantry.md, section 3): one kind in one la
-- `host/maipai_packages/pantry/sync.py` (122): Sync (docs/design/content-pantry.md, section 5): when to refill a unit's shelves, how a shelf is built, and ho
+- `host/maipai_packages/pantry/sync.py` (128): Sync (docs/design/content-pantry.md, section 5): when to refill a unit's shelves, how a shelf is built, and ho
 - `host/maipai_packages/pantry/talk_fallback.py` (149): ruff: noqa: E501
 - `host/maipai_packages/pantry/twenty_fallback.py` (146): ruff: noqa: E501
-- `host/maipai_packages/pantry/unit_link.py` (68): The unit link over the firmware's pantry tools (firmware patches on fw/unproven2: `self.pantry.status`, `.hear
+- `host/maipai_packages/pantry/unit_link.py` (72): The unit link over the firmware's pantry tools (firmware patches on fw/unproven2: `self.pantry.status`, `.hear
 - `host/maipai_packages/wake_word_maker/__init__.py` (10): Make your own wake word on this computer: record clips on the settings page, train a small model, check it, in
 - `host/maipai_packages/wake_word_maker/engine/__init__.py` (1): The small local wake-word trainer (features, dataset, training, checking). Copied from scripts/wakeword with o
 - `host/maipai_packages/wake_word_maker/engine/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
@@ -2235,6 +2250,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/hosted_core_test.c` (53): Host test of leaving the hosted brain (patch SF98): a fake NVS with hosted and unrelated namespaces; leaving e
 - `host/tests/firmware/ir_core_test.c` (72): Host test for the infrared timing rules (patch SF50). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
 - `host/tests/firmware/lang_core_test.c` (183): Host test for the screen words as a language pack (patch K11): the words.txt reader, its refusals, a fuzz of d
+- `host/tests/firmware/lines_core_test.c` (43): include <stdio.h>
 - `host/tests/firmware/linkkey_core_test.c` (80): Host test for the link key schedule (patch SF20), against the vectors of scripts/link-key-vector.py (fake inpu
 - `host/tests/firmware/linkurl_core_test.c` (39): Host test for the encrypted address rule (patch SF33). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/listen_core_test.c` (171): Host test for the listening cues (patch TB01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> ... -
@@ -2255,6 +2271,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/nettest_core_test.c` (151): Host test for the network test core (patch U04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/noise_aead_test.c` (60): Host helper for the private-network client's Noise handshake (library patch): the same two-line wrapper the pa
 - `host/tests/firmware/orient_core_test.c` (98): Host test for the orientation tracker (patch I01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> .
+- `host/tests/firmware/ota_version_core_test.c` (33): Host test of the numeric firmware version (patch SF110): the vendor update check reads dotted numbers only. */
 - `host/tests/firmware/overlay_core_test.c` (793): Host test for the overlay engine (patches TA04, O01): bounded particle state, deterministic seeds, the dirty r
 - `host/tests/firmware/overlay_dump.c` (105): Prints the overlay core's shared table as JSON (what the settings page preview draws from): the names, the lay
 - `host/tests/firmware/pack_core_test.c` (428): Host test for the shared pack loader's format code (patch TB02): the receiver, SHA-256, and the zip walker, wi
@@ -2264,7 +2281,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/packcache_k_test.c` (345): Host test for the pack cache with the phrase type and the format 2 directory (patch K10): the new type beside 
 - `host/tests/firmware/pages_core_test.c` (639): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/pairx_core_test.c` (137): Host test for the unit's pairing state machine (patch SF33), with the vectors of scripts/link-key-vector.py (f
-- `host/tests/firmware/pantry_core_test.c` (213): Host test of the pantry core (patch SF92): shelf checks, record parts, the heard list, choosing a record, and 
+- `host/tests/firmware/pantry_core_test.c` (219): Host test of the pantry core (patch SF92): shelf checks, record parts, the heard list, choosing a record, and 
 - `host/tests/firmware/phrase_flow_test.c` (94): Host test for the offline phrase flow (patch V02): the link events and the pick, as maipai_sounds.cc drives th
 - `host/tests/firmware/phrasepack_core_test.c` (304): Host test for the offline phrases as a pack (patch K12): the zip of sixteen clips becomes one block and a tabl
 - `host/tests/firmware/picface_core_test.c` (231): Host test for the picture face core (patch H03): limits, refusals in two languages, slot choice, fade, cache, 
@@ -2411,8 +2428,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_app.py` (608): The app's real boot path: hold neutral until paired, log state
 - `host/tests/test_app_link_ladder.py` (107): LINK-STATE-01 in the app: the page's state frame, the setting and the wiring."""
 - `host/tests/test_asset_licenses.py` (22): schema/licenses.json is the one definition of the asset store's license ids: unique, never 0 (the unit refuses
-- `host/tests/test_asset_transport.py` (108): The asset transport (firmware SF89 and SF90): the header bytes, the order of the calls, abort on any failure, 
-- `host/tests/test_assets.py` (97): Signed, ranged, cacheable asset delivery: the manifest is signed and checks out, ranges answer correctly, a un
+- `host/tests/test_asset_transport.py` (190): The asset transport (firmware SF89 and SF90): the header bytes, the order of the calls, abort on any failure, 
+- `host/tests/test_assets.py` (136): Signed, ranged, cacheable asset delivery: the manifest is signed and checks out, ranges answer correctly, a un
 - `host/tests/test_assets_kinds_drift.py` (27): The asset store's kind table in the unit's core is the one in schema/asset-kinds.json (one definition, one pla
 - `host/tests/test_assets_sim_ed25519.py` (27): The plain Python Ed25519 beside assets_sim gives the same keys and signatures as the `cryptography` package (t
 - `host/tests/test_attention.py` (170): S-EXPR-04: attention glue, driven from presence observations."""
@@ -2427,12 +2444,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_bench_measure.py` (84): no header
 - `host/tests/test_bench_train.py` (156): scripts/bench-train.py: the pure parts and a whole train run against a fake unit (no hardware)."""
 - `host/tests/test_body_registry.py` (17): no header
+- `host/tests/test_brain_choice_wired.py` (54): Firmware wiring for the first-run brain choice and the hosted leave notice."""
 - `host/tests/test_brain_fake.py` (8): no header
 - `host/tests/test_brain_home.py` (43): no header
 - `host/tests/test_brain_interface.py` (45): no header
 - `host/tests/test_brain_route.py` (49): The brain route switch of the playground (decision 34): joining hosted writes only the cl_ settings, leaving i
 - `host/tests/test_brain_screens.py` (68): Patches UX19 (the brain step with two equal routes) and UX20 (the Hosted link removed notice), owner decision 
-- `host/tests/test_brain_setup.py` (329): The three ways to get a brain: pinned catalog, installer with a fake downloader, mode writer, address tests, c
+- `host/tests/test_brain_setup.py` (389): The three ways to get a brain: pinned catalog, installer with a fake downloader, mode writer, address tests, c
 - `host/tests/test_brand_assets.py` (79): Drift test for the brand art copies (never edited, never redrawn; refreshed only by copying again).
 - `host/tests/test_bus_gates_fed.py` (58): The command-bus gates for a child present, a remote cue and a sleeping unit are fed from real state."""
 - `host/tests/test_camera_frame.py` (71): The fixture-backed `Camera.get_frame()` path added alongside
@@ -2482,7 +2500,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (78): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (80): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2505,7 +2523,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_firmware_y_patches.py` (67): The 2026-11-16 reliability patches (Y01 to Y04): listed in ORDER, documented, and the plain-C rules compile an
 - `host/tests/test_first_run_core.py` (23): The first-run step rules (maipai_firstrun_core.h, patches UX05a and UX11) run by their C test on the replayed 
 - `host/tests/test_first_run_name.py` (95): The name picked on the robot's first run reaches the host (firmware patches SF09 and UX11, host/maipai_body/fi
-- `host/tests/test_flasher_page.py` (53): The web flasher's logic (flasher/flasher-core.js) runs under Node: manifest checks, hash checks, nothing writt
+- `host/tests/test_flasher_page.py` (61): The web flasher's logic (flasher/flasher-core.js) runs under Node: manifest checks, hash checks, nothing writt
 - `host/tests/test_flasher_release_parity.py` (52): ruff: noqa: E501
 - `host/tests/test_fleet_isolation.py` (75): A turn's face goes only to the unit that asked; many turns at once are not starved by the default thread pool.
 - `host/tests/test_followup.py` (107): FOLLOWUP-01: the follow-up window without the wake word, decided from the
@@ -2521,13 +2539,14 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_games_audit.py` (31): The screen audit of the data-pack games (scripts/virtual-unit/games_audit.py): the failures of each pack may o
 - `host/tests/test_games_budget_revisions.py` (51): The revisions the games budget asked for (docs/plan/games-visual-budget.md): Dice Poker drawn by one draw call
 - `host/tests/test_games_no_head_motion.py` (40): Owner rule (2026-11-18): a game never moves the head. No line a patch adds to the game player, the game engine
+- `host/tests/test_games_registered.py` (45): no header
 - `host/tests/test_gate_check.py` (53): scripts/gate-check.py: the gate numbers in the script and in docs/dev/gate-numbers.md agree, and the verdict i
 - `host/tests/test_gaze.py` (156): S-EXPR-04: deterministic gaze trajectories, one test per rule (UNMEASURED defaults)."""
 - `host/tests/test_hal_seam.py` (32): Both the real client and the fake satisfy the same HAL seam methods."""
 - `host/tests/test_head_record_and_dryrun.py` (387): ruff: noqa: E501
 - `host/tests/test_heal_count_writers.py` (24): Pins the self-restart counter's rule (2026-11-18): the saved count (NVS key heal_n) is written in one place, a
 - `host/tests/test_home_assistant_package.py` (233): The Home Assistant package: spoken requests by trigger phrase, one listed camera picture, token from the envir
-- `host/tests/test_host_update.py` (132): The host update (decision 16e): install beside the old, switch, wait for health, and a bad new version rolls b
+- `host/tests/test_host_update.py` (261): The host update (decision 16e): install beside the old, switch, wait for health, and a bad new version rolls b
 - `host/tests/test_hostile_unit_replies.py` (51): ruff: noqa: E501
 - `host/tests/test_http_follows_link.py` (47): On an encrypted link the unit is told encrypted web addresses; a required unit is refused on the plain port.""
 - `host/tests/test_hub_host.py` (183): Parser accepts the string; main reports the actionable validation error.
@@ -2632,7 +2651,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_packs.py` (308): ruff: noqa: E501
 - `host/tests/test_packs_languages_phrases.py` (689): ruff: noqa: E501, F811
 - `host/tests/test_pair_code_persistence.py` (69): A pair code made by `stackchan pair` survives the CLI process."""
-- `host/tests/test_pantry.py` (352): The content pantry (docs/design/content-pantry.md): record, shelf round trip, filter, dedupe, generator, libra
+- `host/tests/test_pantry.py` (531): The content pantry (docs/design/content-pantry.md): record, shelf round trip, filter, dedupe, generator, libra
 - `host/tests/test_pantry_objects.py` (63): The object table for twenty questions (docs/design/twenty-questions-library.md): shape, uniqueness and the nam
 - `host/tests/test_pantry_seed.py` (93): The built-in pantry seed library (docs/dev/pantry-seed.md): every file parses, every record passes the shape r
 - `host/tests/test_pantry_talk.py` (89): Riddles and trivia from the pantry library with no model (talk_fallback.py)."""
@@ -2659,11 +2678,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_privacy_per_unit.py` (204): With two units each one has its own privacy state: a mute on one unit is read back for that unit and gates onl
 - `host/tests/test_privacy_sentence.py` (11): The privacy sentence is one text on the settings page and the robot's first-run screen."""
 - `host/tests/test_profile.py` (131): Tests named for the promises RM-01 makes about the Reachy Mini profile."""
-- `host/tests/test_psram_stack_lint.py` (218): ruff: noqa: E501
+- `host/tests/test_psram_stack_lint.py` (355): ruff: noqa: E501
 - `host/tests/test_qa_screens.py` (48): Patch UX17, the question and answer game screens: the pure core is plain C and its host test runs here against
 - `host/tests/test_reference_tree.py` (71): The default firmware tree of the renderer tools is main's reference tree (scripts/ref-tree.py), never some oth
-- `host/tests/test_release_and_update_vectors.py` (179): The release script dry run, the signed update vectors, and the Home-driven update path (host side)."""
-- `host/tests/test_release_gate.py` (52): The release gate (decision 23): a failed check, scan, exposure step or test stops the release before anything 
+- `host/tests/test_release_and_update_vectors.py` (182): The release script dry run, the signed update vectors, and the Home-driven update path (host side)."""
+- `host/tests/test_release_gate.py` (106): The release gate (decision 23): a failed check, scan, exposure step or test stops the release before anything 
 - `host/tests/test_release_package.py` (33): The StackChan release package carries no Reachy body, and no recorded-moves package."""
 - `host/tests/test_release_report.py` (56): scripts/release-report.py: images against the slot rule, memory only from a real log, never invented."""
 - `host/tests/test_remote_activity.py` (370): ruff: noqa: E501
@@ -2693,7 +2712,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_selftest_cli.py` (440): BOT-SELF-TEST-02: the command line that runs the robot's checks from a
 - `host/tests/test_selftest_wiring.py` (165): BOT-SELF-TEST-01: the live-service wiring of the StackChan self-test."""
 - `host/tests/test_service_and_health.py` (139): no header
-- `host/tests/test_service_handover.py` (118): The "Keep the host running" handover (decision 28): success, and every failure leaves the person with a runnin
+- `host/tests/test_service_handover.py` (188): The "Keep the host running" handover (decision 28): success, and every failure leaves the person with a runnin
 - `host/tests/test_service_startup_pin.py` (58): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
 - `host/tests/test_service_threads.py` (69): Every host service thread ends when its stop event is set (or `stop_all` runs); none of ours remain."""
 - `host/tests/test_settings_p_behavior.py` (100): ruff: noqa: E501
@@ -2756,7 +2775,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_stackchan_failures.py` (254): Keep xiaozhi error paths actionable and prove later sessions still work."""
 - `host/tests/test_stackchan_firmware_asset.py` (134): Tests for staging the independent StackChan firmware release asset."""
 - `host/tests/test_stackchan_firmware_e2e.py` (326): Promise tests for a firmware-shaped StackChan client talking to the real service."""
-- `host/tests/test_stackchan_firmware_update.py` (168): Within 15 minutes the unit is still restarting: no new attempt.
+- `host/tests/test_stackchan_firmware_update.py` (179): Within 15 minutes the unit is still restarting: no new attempt.
 - `host/tests/test_stackchan_flash_manifest.py` (171): no macOS-only temporary path; works when TMPDIR is unset or elsewhere."""
 - `host/tests/test_stackchan_flash_nonvs.py` (62): The no-NVS flash script never writes the NVS partition and skips an unchanged bootloader."""
 - `host/tests/test_stackchan_frame_check.py` (61): Finds a 'face' only when the frame's first pixel row is bright, and says how close."""
@@ -2872,7 +2891,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_unit_lock_voice.py` (200): ruff: noqa: E501
 - `host/tests/test_unit_polish_routes.py` (272): ruff: noqa: E501
 - `host/tests/test_unit_update_check.py` (298): ruff: noqa: E501
-- `host/tests/test_update_header.py` (153): The signed update header: build number, image length, image hash and board id in 56 bytes, signed with Ed25519
+- `host/tests/test_update_header.py` (214): The signed update header: build number, image length, image hash and board id in 56 bytes, signed with Ed25519
 - `host/tests/test_update_header_core.py` (45): The unit's update header core (firmware patch SF25) against the shared vectors of the app track (host/tests/fi
 - `host/tests/test_update_path_rejections.py` (131): ruff: noqa: E501
 - `host/tests/test_virtual_unit.py` (275): Virtual unit: tool parity with the firmware patches, and the protocol over the real LVGL face (skipped when th
@@ -2927,7 +2946,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/licenses.json` (14): no header
 - `schema/memory-budget.json` (909): no header
 - `schema/power-model.json` (34): no header
-- `schema/tools.json` (745): no header
+- `schema/tools.json` (765): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/bench-train.py` (473): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
 - `scripts/bench-trains/batch1-b75.json` (253): no header
@@ -2937,8 +2956,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/bench-trains/bench-proof.json` (249): no header
 - `scripts/bench-trains/c4-richer-look-b78.json` (409): no header
 - `scripts/bench-trains/c4-richer-look.json` (409): no header
-- `scripts/bench-trains/game-over-look.json` (513): no header
+- `scripts/bench-trains/game-over-look.json` (512): no header
 - `scripts/bench-trains/leave-hosted.json` (60): no header
+- `scripts/bench-trains/new-games.json` (476): no header
 - `scripts/bench-trains/plain-proof.json` (17): no header
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
 - `scripts/build-site.sh` (27): build a local static docs site (site/index.html and one page per doc) from README.md and docs/**/*.md.
@@ -3046,12 +3066,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/measure-turn.py` (134): Measure first model token and first speech audio from a local compatible service."""
 - `scripts/off-cost.sh` (35): prove an optional firmware feature that is switched off costs nothing in the plain image. Reads a built plain 
 - `scripts/patch-replay.sh` (53): Identify genuinely added files separately from missing existing paths.
+- `scripts/pinned-key-check.py` (54): Release gate step: the web flasher only trusts the release keys pinned in flasher/trusted-keys.json, so a real
 - `scripts/psram-stack-lint.py` (188): Fail when a task whose stack is in PSRAM can reach flash or saved settings (patches TC02 and FM05).
 - `scripts/readiness.py` (188): First-release readiness: the friend test as a checklist, made from the state of the repository.
 - `scripts/ref-tree.py` (46): Prints the firmware tree the renderer goldens and the unit checks run against. MAIPAI_FW_TREE_ROOT wins when i
 - `scripts/regen-core-tables.py` (26): Regenerate the tables the host page draws from, as the unit's cores print them after the whole firmware/patche
 - `scripts/release-report.py` (205): One markdown page per firmware build: image sizes per slot, memory numbers from a stress log, frame cost per s
-- `scripts/release.sh` (136): turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a det
+- `scripts/release.sh` (138): turn one finished firmware build into a signed release folder: the images, flash-manifest.json (signed), a det
 - `scripts/render-unit-sounds.py` (73): Renders the sounds the robot really plays for the games, with the unit's own tone core (maipai_games_sfx_core.
 - `scripts/repo-map.sh` (19): generate docs/design/INDEX.md, a one-line-per-file map (path, size, first comment or heading line),
 - `scripts/review-status.py` (87): The cross-review bug table: every test in host/tests/test_cross_review_open_bugs*.py, its owner, and whether t
@@ -3086,7 +3107,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/dance/sfx_render.c` (30): Renders the unit's own game clips (maipai_games_sfx_core.h, the tone-segment table and mgs_render) to WAV file
 - `scripts/virtual-unit/dance_core.py` (97): Builds and loads the real dance ladder core for the virtual unit (firmware patch MD01): the header is cut out 
 - `scripts/virtual-unit/dance_sim.py` (605): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
-- `scripts/virtual-unit/e2e.py` (721): End to end on the virtual unit, with no hardware and no real models.
+- `scripts/virtual-unit/e2e.py` (728): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
 - `scripts/virtual-unit/e2e_fleet.py` (839): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
 - `scripts/virtual-unit/e2e_hostile.py` (341): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working

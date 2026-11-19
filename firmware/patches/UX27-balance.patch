@@ -1,0 +1,301 @@
+# Intent: Balance (spec docs/design/balance.md, rank 5 of docs/plan/more-games.md; input docs/design/accelerometer-games.md): a ball on a round plate rolls toward the lean of the unit (the analog reading of SF107, maipai_games_tilt_analog, roll and pitch in permille); the plate shrinks a pixel every two seconds and a hole opens every four after a warning ring; the ball off the plate or in a hole ends the game on Game over with the seconds (score-only, owner decision 33). Two new header-only files: the pure core (it takes the two lean values as arguments, so a host test drives it) with an autopilot and the dirty rectangles, and the screen (the plate, holes, ball and time chip in ONE draw callback, only what a tick changed invalidated). Registering the game, reading the lean, the 33 ms tick, the sounds (a soft rolling tick that rises toward the edge, thud, lose), the best score and the game-over call are the firmware track's.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_balance_core.h, maipai_balance.h (new, ours); reads maipai_games_tilt_analog (SF107)
+# Check after a flash: Games, Balance: a ball on a blue plate; leaning the unit rolls it that way (small leans move it); a ring appears every four seconds and turns into a black hole a moment later; the plate shrinks; the ball off the plate or in a hole ends on Game over with the seconds; flat on the desk the ball does not move and the plate shrinks past it within two minutes.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_balance_core.h b/firmware/main/hal/maipai_balance_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_balance_core.h
+@@ -0,0 +1,171 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Balance (patch UX27; spec docs/design/balance.md; input design docs/design/accelerometer-games.md): a ball on a round plate rolls toward the lean of the unit. The plate shrinks a pixel
++ * every two seconds and a hole opens every four, a moment after it shows as a ring; the ball falling off the plate or into a hole ends the game. A score-only game: it ends on Game over
++ * with the seconds (owner decision 33). The lean comes in as two permille values (roll right and pitch forward positive, 1000 is a full lean) from maipai_games_tilt_analog (patch SF107);
++ * this core only takes them as arguments, so a host test and the renderer drive it with made-up values. Fixed point (1/256 pixel), 30 ticks a second, no clock of its own, no heap.
++ * Pure C99, no ESP and no LVGL call.
++ */
++#ifndef MAIPAI_BALANCE_CORE_H
++#define MAIPAI_BALANCE_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define BL_CX 160            /* the plate's centre on the glass */
++#define BL_CY 134
++#define BL_R0 88             /* the plate's radius at the start, px */
++#define BL_RMIN 34
++#define BL_BALL 9            /* the ball's radius, px */
++#define BL_HOLE 14           /* a hole's radius, px */
++#define BL_HOLES 6
++#define BL_TICK_MS 33
++#define BL_SHRINK_TICKS 60   /* the plate loses a pixel this often (2 s) */
++#define BL_SPAWN_TICKS 120   /* a hole opens this often (4 s) */
++#define BL_ARM_TICKS 30      /* a new hole is only a ring this long, then it takes the ball */
++#define BL_ACCEL 96          /* 1/256 px a tick, at a full lean (0.375 px) */
++#define BL_VMAX 1536         /* 1/256 px a tick (6 px) */
++enum { BL_PLAY = 0, BL_OVER };
++enum { BL_WHY_NONE = 0, BL_WHY_EDGE, BL_WHY_HOLE };
++enum { BL_E_NONE = 0, BL_E_HOLE_OPENS, BL_E_HOLE_ARMS, BL_E_FELL };
++
++typedef struct {
++    int32_t x, y;                  /* the ball relative to the plate centre, 1/256 px */
++    int32_t vx, vy;
++    int16_t hx[BL_HOLES], hy[BL_HOLES];   /* hole centres relative to the plate centre, px */
++    int16_t age[BL_HOLES];         /* ticks since each opened */
++    uint8_t holes;
++    uint8_t phase, why, event;
++    int16_t plate_r;               /* px */
++    uint32_t ticks, rng;
++} bl_t;
++
++static inline uint32_t bl_rand(bl_t* g)
++{
++    g->rng = g->rng * 1664525u + 1013904223u;
++    return g->rng >> 8;
++}
++
++static inline int bl_isqrt(int32_t v)
++{
++    int32_t r = 0, b = 1 << 30;
++    while (b > v) b >>= 2;
++    while (b != 0) {
++        if (v >= r + b) { v -= r + b; r = (r >> 1) + b; } else { r >>= 1; }
++        b >>= 2;
++    }
++    return r;
++}
++
++static inline void bl_init(bl_t* g, uint32_t seed)
++{
++    memset(g, 0, sizeof(*g));
++    g->rng = seed != 0 ? seed : 1u;
++    g->plate_r = BL_R0;
++    /* the ball starts 40 to 55 px from the centre, so standing still is not safe for ever: the plate shrinks past it */
++    const int d = 40 + (int)(bl_rand(g) % 16u);
++    const int a = (int)(bl_rand(g) % 8u);   /* one of eight directions */
++    static const int8_t dx8[8] = {10, 7, 0, -7, -10, -7, 0, 7}, dy8[8] = {0, 7, 10, 7, 0, -7, -10, -7};
++    g->x = d * dx8[a] / 10 * 256;
++    g->y = d * dy8[a] / 10 * 256;
++    g->phase = BL_PLAY;
++}
++
++static inline int bl_ball_px_x(const bl_t* g) { return BL_CX + (g->x >> 8); }
++static inline int bl_ball_px_y(const bl_t* g) { return BL_CY + (g->y >> 8); }
++static inline int bl_seconds(const bl_t* g) { return (int)(g->ticks * BL_TICK_MS / 1000u); }
++static inline int bl_dist(int32_t x256, int32_t y256, int px, int py)   /* distance in px from (x256, y256) in 1/256 px to (px, py) px */
++{
++    const int32_t dx = (x256 >> 8) - px, dy = (y256 >> 8) - py;
++    return bl_isqrt(dx * dx + dy * dy);
++}
++
++/* One tick. roll and pitch are permille of a full lean, right and forward positive (the SF107 reading); the ball rolls toward the lean. */
++static inline void bl_step(bl_t* g, int roll_pm, int pitch_pm)
++{
++    if (g->phase != BL_PLAY) return;
++    g->event = BL_E_NONE;
++    g->ticks++;
++    if (roll_pm > 1000) roll_pm = 1000;
++    if (roll_pm < -1000) roll_pm = -1000;
++    if (pitch_pm > 1000) pitch_pm = 1000;
++    if (pitch_pm < -1000) pitch_pm = -1000;
++    g->vx = (g->vx + roll_pm * BL_ACCEL / 1000) * 245 / 256;
++    g->vy = (g->vy + -pitch_pm * BL_ACCEL / 1000) * 245 / 256;   /* a forward lean rolls the ball up the screen */
++    if (g->vx > BL_VMAX) g->vx = BL_VMAX;
++    if (g->vx < -BL_VMAX) g->vx = -BL_VMAX;
++    if (g->vy > BL_VMAX) g->vy = BL_VMAX;
++    if (g->vy < -BL_VMAX) g->vy = -BL_VMAX;
++    g->x += g->vx;
++    g->y += g->vy;
++    for (int i = 0; i < g->holes; i++) {
++        if (g->age[i] < 32767) g->age[i]++;
++        if (g->age[i] == BL_ARM_TICKS) g->event = BL_E_HOLE_ARMS;
++    }
++    if (g->ticks % BL_SHRINK_TICKS == 0 && g->plate_r > BL_RMIN) g->plate_r--;
++    if (g->ticks % BL_SPAWN_TICKS == 0 && g->holes < BL_HOLES) {
++        for (int tries = 0; tries < 30; tries++) {   /* a place inside the plate, 36 px or more from the ball and from the other holes */
++            const int r = g->plate_r - BL_HOLE - 6;
++            const int hx = (int)(bl_rand(g) % (uint32_t)(2 * r + 1)) - r, hy = (int)(bl_rand(g) % (uint32_t)(2 * r + 1)) - r;
++            if (hx * hx + hy * hy > r * r) continue;
++            if (bl_dist(g->x, g->y, hx, hy) < 36) continue;
++            int ok = 1;
++            for (int i = 0; i < g->holes; i++) if ((g->hx[i] - hx) * (g->hx[i] - hx) + (g->hy[i] - hy) * (g->hy[i] - hy) < 32 * 32) ok = 0;
++            if (!ok) continue;
++            g->hx[g->holes] = (int16_t)hx;
++            g->hy[g->holes] = (int16_t)hy;
++            g->age[g->holes] = 0;
++            g->holes++;
++            g->event = BL_E_HOLE_OPENS;
++            break;
++        }
++    }
++    if (bl_dist(g->x, g->y, 0, 0) > g->plate_r) { g->phase = BL_OVER; g->why = BL_WHY_EDGE; g->event = BL_E_FELL; return; }   /* the ball's centre past the rim */
++    for (int i = 0; i < g->holes; i++) {
++        if (g->age[i] >= BL_ARM_TICKS && bl_dist(g->x, g->y, g->hx[i], g->hy[i]) < BL_HOLE - 3) { g->phase = BL_OVER; g->why = BL_WHY_HOLE; g->event = BL_E_FELL; return; }
++    }
++}
++
++/* A plain autopilot (for the tests, the renderer and the playground's fake lean): roll toward the middle of the plate, away from holes, with a little damping. */
++static inline void bl_autopilot(const bl_t* g, int* roll_pm, int* pitch_pm)
++{
++    int32_t tx = 0, ty = 0;   /* the point to aim at, px */
++    int32_t fx = 0, fy = 0;   /* repulsion from holes, px */
++    for (int i = 0; i < g->holes; i++) {
++        const int32_t dx = (g->x >> 8) - g->hx[i], dy = (g->y >> 8) - g->hy[i];
++        const int d = bl_isqrt(dx * dx + dy * dy) + 1;
++        if (d < 40) { fx += dx * (40 - d) / d; fy += dy * (40 - d) / d; }
++    }
++    tx += fx;
++    ty += fy;
++    const int32_t ex = tx - (g->x >> 8), ey = ty - (g->y >> 8);
++    int rx = ex * 14 - (g->vx >> 8) * 60, ry = ey * 14 - (g->vy >> 8) * 60;   /* position error pulls, velocity damps */
++    if (rx > 1000) rx = 1000;
++    if (rx < -1000) rx = -1000;
++    if (ry > 1000) ry = 1000;
++    if (ry < -1000) ry = -1000;
++    *roll_pm = rx;
++    *pitch_pm = -ry;   /* a forward lean rolls the ball up the screen, so to roll it down (ry positive) the pitch is negative */
++}
++
++/* ---- dirty rectangles (SF78 pattern): what a tick changed on the glass, at most 6: the ball where it was and where it is (with its shadow), the plate's whole box once when it shrinks, a hole
++ * that opened, a hole that became deadly (its ring turns black), and the time chip once a second. ---- */
++typedef struct { int16_t x, y, w, h; } bl_rect_t;
++static inline void bl_set_rect(bl_rect_t* r, int x, int y, int w, int h) { r->x = (int16_t)x; r->y = (int16_t)y; r->w = (int16_t)w; r->h = (int16_t)h; }
++static inline int bl_dirty(const bl_t* a, const bl_t* b, bl_rect_t* out)
++{
++    int n = 0;
++    const int m = BL_BALL + 4;
++    bl_set_rect(&out[n++], bl_ball_px_x(a) - m, bl_ball_px_y(a) - m, 2 * m, 2 * m);
++    bl_set_rect(&out[n++], bl_ball_px_x(b) - m, bl_ball_px_y(b) - m, 2 * m, 2 * m);
++    if (a->plate_r != b->plate_r) bl_set_rect(&out[n++], BL_CX - a->plate_r - 4, BL_CY - a->plate_r - 4, 2 * a->plate_r + 8, 2 * a->plate_r + 8);
++    for (int i = 0; i < b->holes; i++) {
++        const int opened = i >= a->holes, armed = i < a->holes && a->age[i] < BL_ARM_TICKS && b->age[i] >= BL_ARM_TICKS;
++        if (opened || armed) bl_set_rect(&out[n++], BL_CX + b->hx[i] - BL_HOLE - 3, BL_CY + b->hy[i] - BL_HOLE - 3, 2 * BL_HOLE + 6, 2 * BL_HOLE + 6);
++    }
++    if (bl_seconds(a) != bl_seconds(b)) bl_set_rect(&out[n++], 216, 36, 96, 56);
++    return n;
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_balance.h b/firmware/main/hal/maipai_balance.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_balance.h
+@@ -0,0 +1,114 @@
++// SPDX-License-Identifier: MIT
++// The Balance screen (patch UX27; spec docs/design/balance.md). Header only, so the host renderer compiles the very same drawing code. The plate, the holes and the ball are drawn by ONE object and one
++// draw callback (3 objects with the root and the grabber the firmware adds); only what a tick changed is invalidated (bl_dirty). The firmware track wires the lean (maipai_games_tilt_analog, SF107),
++// the 33 ms tick, the sounds and the game-over call (Game over with the seconds). No ESP call here.
++#ifndef MAIPAI_BALANCE_H
++#define MAIPAI_BALANCE_H
++
++#include <lvgl.h>
++#include <stdio.h>
++#include "maipai_balance_core.h"
++
++namespace bls {
++
++inline void disc(lv_layer_t* layer, int cx, int cy, int r, uint32_t color, lv_opa_t opa = LV_OPA_COVER)
++{
++    lv_draw_rect_dsc_t d;
++    lv_draw_rect_dsc_init(&d);
++    d.bg_color = lv_color_hex(color);
++    d.bg_opa = opa;
++    d.radius = LV_RADIUS_CIRCLE;
++    lv_area_t a = {static_cast<lv_coord_t>(cx - r), static_cast<lv_coord_t>(cy - r), static_cast<lv_coord_t>(cx + r - 1), static_cast<lv_coord_t>(cy + r - 1)};
++    lv_draw_rect(layer, &d, &a);
++}
++
++inline void text(lv_layer_t* layer, const char* t, const lv_font_t* font, uint32_t rgb, int x, int y, int w)
++{
++    lv_draw_label_dsc_t d;
++    lv_draw_label_dsc_init(&d);
++    d.color = lv_color_hex(rgb);
++    d.font = font;
++    d.text = t;   // the string outlives the draw: it lives in the view or is static
++    d.align = LV_TEXT_ALIGN_LEFT;
++    lv_area_t a = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y), static_cast<lv_coord_t>(x + w - 1), static_cast<lv_coord_t>(y + lv_font_get_line_height(font) + 2)};
++    lv_draw_label(layer, &d, &a);
++}
++
++struct View {
++    const bl_t* g;
++    bool es;
++};
++
++inline void draw_plate(lv_event_t* e)
++{
++    const View* v = static_cast<const View*>(lv_event_get_user_data(e));
++    if (v == nullptr || v->g == nullptr) return;
++    const bl_t* g = v->g;
++    lv_layer_t* layer = lv_event_get_layer(e);
++    disc(layer, BL_CX, BL_CY + 3, g->plate_r + 3, 0x000000, LV_OPA_50);                       // the shadow under the plate, offset down
++    disc(layer, BL_CX, BL_CY, g->plate_r + 3, 0x31507A);                                       // the rim
++    disc(layer, BL_CX, BL_CY, g->plate_r, 0x1B3552);                                           // the plate
++    disc(layer, BL_CX, BL_CY, g->plate_r - 14, 0x223F61);                                      // a lighter middle: a plate that is a little domed
++    for (int i = 0; i < g->holes; i++) {
++        const int hx = BL_CX + g->hx[i], hy = BL_CY + g->hy[i];
++        if (g->age[i] < BL_ARM_TICKS) {   // a ring that warns: the hole is not deadly yet
++            disc(layer, hx, hy, BL_HOLE, 0xF2B24A, LV_OPA_60);
++            disc(layer, hx, hy, BL_HOLE - 3, 0x223F61);
++        } else {
++            disc(layer, hx, hy, BL_HOLE + 1, 0x0B1626);
++            disc(layer, hx, hy, BL_HOLE - 1, 0x02060E);
++        }
++    }
++    const int bx = bl_ball_px_x(g), by = bl_ball_px_y(g);
++    disc(layer, bx + 2, by + 3, BL_BALL, 0x000000, LV_OPA_50);                                 // the ball's shadow
++    disc(layer, bx, by, BL_BALL, g->phase == BL_PLAY ? 0xE8E8E8 : 0xE07A7A);                   // the ball (red after the fall)
++    disc(layer, bx - 3, by - 3, 3, 0xFFFFFF, LV_OPA_70);                                       // its highlight
++    char t[16];
++    snprintf(t, sizeof(t), "%d s", bl_seconds(g));
++    text(layer, v->es ? "Tiempo" : "Time", &lv_font_montserrat_16, 0x9AA3B0, 216, 38, 96);   // the time chip, drawn here so the screen has no label object
++    text(layer, t, &lv_font_montserrat_20, 0xE8E8E8, 216, 60, 96);
++}
++
++inline void free_view(lv_event_t* e)
++{
++    lv_free(lv_event_get_user_data(e));
++}
++
++// `g` must outlive the screen. The time chip is at the top right: the seconds survived.
++inline lv_obj_t* screen(lv_obj_t* parent, const bl_t* g, bool es)
++{
++    lv_obj_t* r = lv_obj_create(parent);
++    lv_obj_remove_style_all(r);
++    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(r, 320, 240);
++    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    lv_obj_t* plate = lv_obj_create(r);
++    lv_obj_remove_style_all(plate);
++    lv_obj_remove_flag(plate, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(plate, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(plate, 320, 240);
++    lv_obj_set_pos(plate, 0, 0);
++    View* v = static_cast<View*>(lv_malloc(sizeof(View)));
++    v->g = g;
++    v->es = es;
++    lv_obj_add_event_cb(plate, draw_plate, LV_EVENT_DRAW_MAIN, v);
++    lv_obj_add_event_cb(plate, free_view, LV_EVENT_DELETE, v);
++    return r;
++}
++
++// Invalidate only what a tick changed (bl_dirty): the plate object is the first child of the screen root.
++inline void invalidate_dirty(lv_obj_t* root, const bl_t& before, const bl_t& after)
++{
++    lv_obj_t* plate = lv_obj_get_child(root, 0);
++    bl_rect_t r[6];
++    const int n = bl_dirty(&before, &after, r);
++    for (int i = 0; i < n; i++) {
++        lv_area_t a = {static_cast<lv_coord_t>(r[i].x), static_cast<lv_coord_t>(r[i].y), static_cast<lv_coord_t>(r[i].x + r[i].w - 1), static_cast<lv_coord_t>(r[i].y + r[i].h - 1)};
++        lv_obj_invalidate_area(plate, &a);
++    }
++}
++
++}  // namespace bls
++
++#endif
