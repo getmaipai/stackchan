@@ -35,3 +35,12 @@ def test_the_vendor_address_is_only_in_the_cloudtest_overlay():
         assert not added, p.name
     hits = [p for p in (ROOT / "firmware").rglob("*") if p.is_file() and p.suffix in {".defaults", ".h", ".cc", ".cpp"} and VENDOR in p.read_text(errors="ignore")]
     assert {p.name for p in hits} <= {"sdkconfig.cloudtest.defaults"}, hits
+
+
+def test_no_kind_sets_a_stackchan_server_url():
+    """The avatar WebSocket, the app list and the account calls have no address in any image kind (the raw-IP address exists only in the official image)."""
+    for path in (ROOT / "firmware" / "configs").glob("sdkconfig.*.defaults"):
+        assert "STACKCHAN_SERVER_URL" not in path.read_text(), path.name
+    for p in (ROOT / "firmware" / "patches").glob("*.patch"):
+        added = [l for l in p.read_text(errors="ignore").splitlines() if l.startswith("+") and not l.startswith("+++") and "47.113" in l]
+        assert not added, p.name

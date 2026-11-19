@@ -133,3 +133,13 @@ def test_a_mismatch_writes_a_side_by_side(tmp_path):
     png(tmp_path / "gold.png", 8, 8, lambda x, y: (200, 20, 30))
     res = bt.run_check(FakeUnit(tmp_path), {"name": "shot", "snapshot": "gold"}, tmp_path, {}, tmp_path, 0, sleep=lambda s: None)
     assert res["status"] == "FAIL" and (tmp_path / "shot-vs-golden.png").exists()
+
+
+def test_final_and_after_restart_checks_run(tmp_path):
+    man = manifest(tmp_path)
+    man["final_checks"] = [{"name": "last", "tool": "self.brain.status", "expect": {"ok": True}}]
+    man["after_restart_checks"] = [{"name": "again", "tool": "self.brain.status", "expect": {"ok": True}}]
+    unit = FakeUnit(tmp_path, boots_after=6)
+    res = bt.run_train(man, unit, tmp_path / "out", sleep=lambda s: __import__("time").sleep(0.01))
+    names = [c["name"] for c in res["checks"]]
+    assert "last (after soak)" in names and "again (after restart)" in names

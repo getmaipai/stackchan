@@ -11,7 +11,7 @@ quiet, sounds off, volume 0), and put it back every time the unit restarts, beca
 heap during the soak while the checklist runs: tool checks with expected values, and snapshots compared with the playground goldens within a tolerance file;
 (4) write result.md and result.json, then restore the silent state. A failing check never stops the train: the bench agent reads the result and handles failures
 and the touch-only items listed under "person". Opening the serial port resets the unit, so the train opens it once.
-Manifest: {"name", "build_dir", "soak_s" (630), "settle_s" (2), "goldens_dir", "tolerance_file", "heap_interval_s" (20), "gate": {...}, "checks": [...], "person": ["touch only items"]}.
+Manifest: {"name", "after_restart_checks" and "final_checks" (checks run after every restart and at the end of the soak), "build_dir", "soak_s" (630), "settle_s" (2), "goldens_dir", "tolerance_file", "heap_interval_s" (20), "gate": {...}, "checks": [...], "person": ["touch only items"]}.
 A check is {"name", "tool", "args", "expect": {"path": value | {"min","max","regex"}}, "wait"} or {"name", "snapshot": "<golden name>", "pre": [{"tool","args"}], "post": [...]}.
 Placement: the machine that holds the cable (development only). Upstream: none. The unit is never flashed unless the manifest says so and --no-flash is absent.
 """
@@ -359,6 +359,9 @@ def run_train(man: dict, unit, out: Path, sleep=time.sleep, clock=time.time) -> 
                 seen_boots[0] = boots
                 wait_ready(unit, 60, sleep, clock)
                 apply_safe(unit)
+                for c in man.get("after_restart_checks", []):   # what must hold right after every restart (leaving hosted: route custom, no cl_ keys)
+                    r = run_check(unit, {**c, "name": c["name"] + " (after restart)"}, golden_dir, tolerances, out, man.get("settle_s", 2), sleep)
+                    result["checks"].append(r)
             stop.wait(man.get("heap_interval_s", 20))
 
     th = threading.Thread(target=sampler, daemon=True)
@@ -369,6 +372,8 @@ def run_train(man: dict, unit, out: Path, sleep=time.sleep, clock=time.time) -> 
         sleep(min(5, max(0.1, soak - (clock() - began))))
     stop.set()
     th.join(timeout=15)
+    for c in man.get("final_checks", []):   # what must hold at the end of the soak (leaving hosted: still no vendor attempts)
+        result["checks"].append(run_check(unit, {**c, "name": c["name"] + " (after soak)"}, golden_dir, tolerances, out, man.get("settle_s", 2), sleep))
     result["restarts"] = restarts[0]
     return finish(result, samples, unit.console(), unit, out, man, gate)
 

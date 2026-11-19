@@ -62,3 +62,32 @@ Nothing here is done by us. The vendor's own pages decide the details; check the
 - Does the vendor's server accept our hello (it carries extra feature fields)? The first connect shows it; a refusal is a plain "can't connect".
 - Does the activation reply carry the code the same way in the current service? Shown or not shown on the screen.
 - Does the code screen stay long enough to read? The check loop retries up to 10 times; a longer hold is a small follow-up.
+
+## 7. What the official image says (read from its strings, nothing contacted)
+
+The owner's backup of the official demo (M5Stack StackChan-UserDemo V0.4) names the same OTA and activation address as our pinned base, plus a separate avatar WebSocket on a raw IP over plain `ws://` with a camera-capture and JPEG-encode task next to it (the remote-view feature). Reading: the activation reply carries a challenge, the unit answers `POST <ota_url>/activate` with an HMAC-SHA256 over it, and the reply to the check carries the websocket or MQTT settings. See `official-firmware-connection-info.md` in the coordinator's notes folder.
+
+- **Activation key (read-only use).** Our tree still answers the challenge with `esp_hmac_calculate(HMAC_KEY0, ...)` through the IDF: the chip computes, the key is never read out, nothing is burned (decision 14 holds). Whether this unit holds a key in block 0 is **unknown** from code; one read-only call that lists the purpose of each key block (never a value) or the "HMAC calculation failed" log line in the test build settles it. Without the key only the no-serial path (activation v1) remains.
+- **Identity sent.** `Device-Id` is the MAC, `Client-Id` the board UUID, `Serial-Number` only when the eFuse user data holds printable text (else `Activation-Version: 1` and no serial). The exact values are not printed by the image; the test build's first log lines will show them to the owner only.
+- **Avatar and camera paths stay off in every kind.** The StackChan server URL (`STACKCHAN_SERVER_URL`) is empty in our tree, so the avatar WebSocket, the app list and the account calls have no address and open nothing. The raw-IP address exists only inside the official image. A test pins the default empty and that the cloudtest overlay does not set it.
+- **Our host link and the offline fallback in the test build.** The vendor link's settings live in `cl_` namespaces; the host pairing is never written; the unit's face, clock, games and pantry work with no link; the plain image restores the host link.
+
+## 8. Leaving hosted (route custom)
+
+The Brain route is a normal setting: **custom** (the unit's own host, Home or local) or **hosted** (the vendor's service, today only in the cloudtest image). Both use the same screens and cues; the "Cloud brain test" strip belongs only to the test image kind. Patch SF98 adds `self.brain.status` and `self.brain.set_route` to every image.
+
+`self.brain.set_route {route: "custom"}` (and the cloudtest image's flash-back, which erases the same keys on its first start with route custom) does, in this order:
+
+1. Stops the vendor check, the activation loop and the connect at once (one flag every loop looks at).
+2. Erases every NVS namespace whose name starts with `cl_` (the vendor link's address and token, activation state, MQTT settings, any cached offer) and nothing else. A failed erase is reported and a second call finishes it.
+3. Leaves the host pairing, the privacy bits and the chip's key blocks untouched. Nothing is burned and no key is read out.
+4. Saves route custom (so a cloudtest image does not activate again at the next start).
+5. Shows one plain line on the screen, silently: "Hosted link removed. To stop your account keeping this robot, remove it in the vendor's console."
+6. Pushes the event `brain_route {route: "custom", hosted_removed: true}` so the dashboard shows the route.
+7. Restarts four seconds later, so no vendor timer, task or RAM copy survives.
+
+A factory reset also erases `cl_` (it is not on the keep list; a test pins this).
+
+**Tests.** `host/tests/firmware/hosted_core_test.c` runs the rules against a fake NVS: only `cl_` namespaces go, the pairing, privacy, route and calibration namespaces stay, a failed erase is retried, repeating is harmless, and the factory reset keeps none of them. The on-unit check is `scripts/bench-trains/leave-hosted.json`: call `self.brain.set_route custom`, wait for the restart, then `self.brain.status` must answer route custom, `cl_keys` 0 and `vendor_attempts` 0, and the same again after the ten minute soak (the manifest runs it as a final check) and after a power cycle (run it twice).
+
+**What the unit cannot delete.** The robot's binding in the vendor's account and any voice history the vendor already holds live on their servers. The owner removes the robot in the vendor's own console and asks the vendor about stored data; our firmware can only stop sending and erase what it keeps. The user guide must say this in plain words.

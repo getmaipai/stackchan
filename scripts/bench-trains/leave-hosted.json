@@ -1,0 +1,60 @@
+{
+ "name": "leave-hosted",
+ "build_dir": "~/esp/stackchan-rebuild/b67/firmware/build-bench",
+ "soak_s": 630,
+ "settle_s": 2,
+ "heap_interval_s": 20,
+ "checks": [
+  {
+   "name": "route-before",
+   "tool": "self.brain.status",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "leave",
+   "tool": "self.brain.set_route",
+   "args": {
+    "route": "custom"
+   },
+   "expect": {
+    "ok": true,
+    "route": "custom"
+   }
+  }
+ ],
+ "person": [
+  "power cycle the unit once, then run this manifest again: status must still read route custom with cl_keys 0 and vendor_attempts 0"
+ ],
+ "after_restart_checks": [
+  {
+   "name": "route-after",
+   "tool": "self.brain.status",
+   "expect": {
+    "route": "custom",
+    "cl_keys": {
+     "max": 0
+    },
+    "vendor_attempts": {
+     "max": 0
+    }
+   }
+  }
+ ],
+ "final_checks": [
+  {
+   "name": "route-after",
+   "tool": "self.brain.status",
+   "expect": {
+    "route": "custom",
+    "cl_keys": {
+     "max": 0
+    },
+    "vendor_attempts": {
+     "max": 0
+    }
+   }
+  }
+ ]
+}

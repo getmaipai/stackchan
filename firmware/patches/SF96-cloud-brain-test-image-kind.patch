@@ -224,7 +224,7 @@ new file mode 100644
 +#define MAIPAI_MQTT_NS "cl_mqtt"
 +// A permanent strip on the screen: "Cloud brain test". Call once at start-up.
 +void maipai_cloudtest_start_banner();
-+// Only these generic tools may be called by the vendor service: the unit's privacy, lock, update, asset, game and pantry tools stay out of its reach.
++// Only these generic tools may be called by the vendor service (and the brain route tools): the unit's privacy, lock, update, asset, game and pantry tools stay out of its reach.
 +bool maipai_cloudtest_tool_allowed(const char* name);
 +#else
 +#define MAIPAI_WS_NS "websocket"
@@ -236,7 +236,7 @@ diff --git a/firmware/main/hal/maipai_cloudtest.cc b/firmware/main/hal/maipai_cl
 new file mode 100644
 --- /dev/null
 +++ b/firmware/main/hal/maipai_cloudtest.cc
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,61 @@
 +/*
 + * SPDX-License-Identifier: MIT
 + *
@@ -289,7 +289,8 @@ new file mode 100644
 +
 +bool maipai_cloudtest_tool_allowed(const char* name)
 +{
-+    static const char* const kAllowed[] = {"self.get_device_status", "self.audio_speaker.set_volume", "self.screen.set_brightness", "self.screen.set_theme"};
++    static const char* const kAllowed[] = {"self.get_device_status", "self.audio_speaker.set_volume", "self.screen.set_brightness", "self.screen.set_theme",
++                                                "self.brain.status", "self.brain.set_route"};   // patch SF98: the owner can leave hosted from here
 +    for (const char* ok : kAllowed) {
 +        if (strcmp(name, ok) == 0) return true;
 +    }
