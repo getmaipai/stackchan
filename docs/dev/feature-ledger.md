@@ -570,7 +570,6 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
-| **Host: degraded_banner** | One pass: send a changed line at once, repeat a standing one, clear once when it is over. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/degraded_banner.py` | file exists, a test names it | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | not declared | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
 | **Host: assets** | Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack when it needs it and keeps only the active one. | proven on unit | 100 | not declared | `host/maipai_body/assets.py` | `bench-b9.md` | doc missing |
 | **Host: banner_shapes** | The banner functions with the table of the core filled in. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/banner_shapes.py` | file exists, a test names it | doc missing |
@@ -676,6 +675,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: server** | The dashboard's stdlib HTTP server: a page, a JSON API, and a server-sent-event feed. | proven on unit | 100 | not declared | `host/maipai_body/dashboard/server.py` | `bench-b9.md` | doc missing |
 | **Host: telemetry** | The dashboard's view of a body: the latest state frame plus presence, as one JSON snapshot. | built | 40 | not declared | `host/maipai_body/dashboard/telemetry.py` | file exists | doc missing |
 | **Host: dashboard_shell** | Wrap a page that is `<style>...</style></head><body><main>...</main>...` in the shared layout. | built | 40 | not declared | `host/maipai_body/dashboard_shell.py` | file exists | doc missing |
+| **Host: degraded_banner** | One pass: send a changed line at once, repeat a standing one, clear once when it is over. | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `host/maipai_body/degraded_banner.py` | file exists, a test names it | doc missing |
 | **Host: cue** | The typed cue and the phase-to-primitive mapping (``dev.md`` section 5). | proven on unit | 100 | not declared | `host/maipai_body/expression/cue.py` | `bench-b9.md`, `bench-window5.md` | doc missing |
 | **Host: engine** | The expression engine: one cue in, one primitive rendered or withheld. | proven virtual | 70 | not declared | `host/maipai_body/expression/engine.py` | file exists, a test names it | doc missing |
 | **Host: envelope** | The calibrated envelope: fractions of the profile's declared axis limits. | proven virtual | 70 | not declared | `host/maipai_body/expression/envelope.py` | file exists, a test names it | doc missing |
