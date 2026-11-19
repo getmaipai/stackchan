@@ -41,6 +41,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs-site/viewer-stub.js` (96): View-only 3D viewer. It loads view3d.js unedited and stands in for the unit: the state object, the hooks and t
 - `docs-site/viewer.html` (31): no header
 - `docs/STYLE.md` (52): Writing style
+- `docs/design/accelerometer-games.md` (100): Accelerometer games: the design
 - `docs/design/architecture-layers.md` (341): Architecture layers: kernel, modules, assets, host (design, 2026-11-18)
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
@@ -2324,6 +2325,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/stackchan_sim/avatar_peer.py` (46): Minimal fake peer for the pinned M5Stack avatar WebSocket protocol."""
 - `host/tests/stackchan_sim/camera_sender.py` (6): Documentation-only JPEG payload generator for avatar camera stream tests."""
 - `host/tests/stackchan_sim/firmware.py` (454): Small asynchronous StackChan firmware simulator for end-to-end tests."""
+- `host/tests/test_accel_games_design.py` (74): The draft analog tilt core of docs/design/accelerometer-games.md, section 5: the C block is extracted from the
 - `host/tests/test_affiliation_copies.py` (39): Every copy of the affiliation wording equals docs/legal/affiliation.json (owner policy docs/plan/trademark-and
 - `host/tests/test_agent_source.py` (56): The coding agent is its own bus source: tone and light only, below the host's routines, rate limited, gates ap
 - `host/tests/test_alarm.py` (267): ALARM-PLAY-01: the safety alarm controller (no model, no turn, no TTS)."""
@@ -2836,6 +2838,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/bench-trains/batch2-b76.json` (227): no header
 - `scripts/bench-trains/batch3-b77.json` (248): no header
 - `scripts/bench-trains/bench-proof.json` (249): no header
+- `scripts/bench-trains/c4-richer-look-b78.json` (409): no header
 - `scripts/bench-trains/leave-hosted.json` (60): no header
 - `scripts/bench-trains/plain-proof.json` (17): no header
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.
@@ -3044,6 +3047,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la
 - `scripts/virtual-unit/thumbnails.py` (128): Thumbnails for the dashboard's catalog (owner decision 17), drawn by the real renderer: every face style (each
+- `scripts/virtual-unit/tilt_games_budget.py` (105): The frame budget of the four tilt games before any of them has a screen (docs/design/accelerometer-games.md): 
 - `scripts/virtual-unit/tools/__init__.py` (15): Tool handlers for the virtual unit, one module per group. A handler is registered with @tool("self.x.y") and g
 - `scripts/virtual-unit/tools/apps.py` (203): Clock, game, lock, and timer tools for the virtual unit."""
 - `scripts/virtual-unit/tools/assets.py` (42): The installed set's tools (docs/plan/installed-set.md B5), answered by assets_sim.AssetStore. A tool is regist
