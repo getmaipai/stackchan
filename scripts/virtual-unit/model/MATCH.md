@@ -189,7 +189,13 @@ Three flat cables show in the owner's photos and are drawn: the white one with b
 
 ## The head's board, part by part (owner's close photo, 2026-11-18)
 
-The owner pointed out that the inside of the head was still not drawn as it is. The upright board was laid out again from `board-7p-flex-ribbon-lit-2026-11-18.jpg`, read at about 30 pixels per millimeter and checked in `compare-own-board.png` (the model with the holder hidden, beside the photo). Seen from behind, left to right: two rows of gold test pads at the edge; a cream standoff and the blue connector under the ring board; the print `7P`; a square chip in a white frame with two tan capacitors beside it; the black eight-wire cable from its socket, arched just below it and then flat on its way to the holder; three tan capacitors in white frames; the white flat cable, 3.2 mm wide, with blue print, going up into its socket at the ring board; three short bars where the version print is. The old gray strip that stood for a cable on one side is gone: the cable over the holder is black and in the middle. Part heights off the board and the cable's exact arch are assumed. The traces, the smallest parts and the real print on the flat cable are not drawn.
+The owner said twice that the inside of the head was not good enough, and chose a finer hand drawing over storing a crop of his photo. The upright board is drawn from `board-7p-flex-ribbon-lit-2026-11-18.jpg`, measured at about 24 pixels per millimeter (the four-pin connector is 10 mm wide), so places are good to about 0.3 mm. `compare-own-board.png` sets the model, with the holder hidden, beside the photo.
+
+Seen from behind, left to right: two rows of paired ringed holes at the edge with two lone holes above; a cream standoff; the blue connector under the ring board with its four soldered tails; the print `7P`; a square chip with legs in a white frame; two tan capacitors with solder ends; a row of four tiny parts; a three-legged part; the black cable; one capacitor above three, each framed; a pale part; the white flat cable, 4.1 mm wide, with `AWM`, `2062` and `80C` in blue reading upward and bare contacts at its socket; the print `V1.0` and `4825`. Traces fan out from the cable socket and the chip, a shade lighter than the board, with a few vias.
+
+The thing in the middle is a ribbon cable of black wires (the owner's words): eight round wires side by side, 8.5 mm across, out of the socket, an arch 3.3 mm off the board, a narrow band where they are bonded, then on down as the same eight wires toward the holder. The cable over the holder is black and in the middle.
+
+Assumed: the height of each part off the board, the exact route of every trace (they are drawn to look like the photo, not traced one by one), and the arch's profile seen from the side. Not drawn: the smallest print, and the solder joints.
 
 ## Names and marks on the model (owner's policy, 2026-11-18)
 

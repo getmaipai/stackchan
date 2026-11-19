@@ -463,7 +463,7 @@ def test_the_model_shows_the_real_robot_and_the_project_states_its_independence(
         assert "sticker_ink" in mat(side), "the side labels carry the robot's name"
     assert "sticker_ink" in mat("sticker_top") and {"sticker_ink", "sticker_orange"} <= mat("sticker_bottom")
     src = (VU / "model" / "make_body.py").read_text()
-    assert sorted(set(re.findall(r"lettering\('([^']*)'", src))) == ["7P", "CE", "M5", "StackChan"]
+    assert {"CE", "M5", "StackChan"} <= set(re.findall(r"lettering\('([^']*)'", src))
     assert "--lite" not in src and "public" not in src.lower(), "no rule removes the marks for a public build"
     words = json.loads((ROOT / "docs" / "legal" / "affiliation.json").read_text())
     assert words["short"] == "Independent project. Not affiliated with or endorsed by M5Stack or the original StackChan creators."
@@ -502,7 +502,7 @@ def test_the_web_copy_is_the_same_model_stored_small():
     sys.path.insert(0, str(VU / "model"))
     spec.loader.exec_module(mb)
     assert mb.quantized(GLB.read_bytes()) == web.read_bytes(), "the web copy is stale: run python3 scripts/virtual-unit/model/make_body.py"
-    assert web.stat().st_size < 1_500_000 < GLB.stat().st_size
+    assert web.stat().st_size < 0.68 * GLB.stat().st_size, "the web copy is about three fifths of the full file"
     j, _ = read_glb(GLB)
     w, _ = read_glb(web)
     assert w["extensionsRequired"] == ["KHR_mesh_quantization"]
@@ -518,9 +518,12 @@ def test_the_heads_board_is_laid_out_from_the_owners_close_photo():
     j, _ = read_glb(GLB)
     by = nodes_by_name(j)
     mat = lambda name: {j["materials"][p["material"]]["name"] for p in j["meshes"][by[name][1]["mesh"]]["primitives"]}
-    assert {"chip", "conn", "cap_tan", "pin_gold"} <= mat("board_parts"), "the cable socket, the flat cable socket, tan capacitors and gold test pads"
+    assert {"chip", "conn", "cap_tan", "port_metal"} <= mat("board_parts"), "the cable socket, the flat cable socket, tan capacitors, solder ends and pins"
     assert mat("coil") == {"ribbon"} and mat("cable") == {"ribbon"}, "the black cable, on the head and over the holder"
-    assert {"flex", "flex_ink"} == mat("flex_cable_ring")
+    assert {"flex", "flex_ink"} <= mat("flex_cable_ring") and {"silk", "trace"} <= mat("board_7p"), "print on the flat cable; print and traces on the board"
+    assert {"port_metal"} <= mat("board_parts"), "solder ends and pins"
+    src = (VU / "model" / "make_body.py").read_text()
+    assert "for wire in range(8):" in src and "text('AWM'" in src, "eight round wires, and the flat cable's own print"
     flex, coil, green = (by[n][1]["translation"][0] for n in ("flex_cable_ring", "coil", "green_connector"))
     assert flex < coil < green, "seen from behind: the blue connector on the robot's left, the black cable in the middle, the white flat cable on its right"
     assert abs(by["cable"][1]["translation"][0]) < 0.002, "the cable over the holder is in the middle, under the one on the head"

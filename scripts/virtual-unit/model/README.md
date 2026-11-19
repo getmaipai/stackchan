@@ -63,7 +63,7 @@ limits are in `stackchan.params.json`, each marked `measured` (from the files or
 
 ## Size
 
-The file is about 2.1 MB on disk and 0.76 MB with gzip (2,127,368 and 763,030 bytes on 2026-11-18). Four fifths of it are the three structure meshes. `stackchan.web.glb` is the same model stored small for a web page (16-bit positions, 8-bit normals, about 1.35 MB on disk and 0.54 MB with gzip); nothing is left out of it, and the view loads it with `?model=web`. The measurements behind it are in `docs/plan/optimization.md`, Part 3; `host/tests/test_vu_model.py` fails above 8 MB.
+The file is about 2.5 MB on disk and 0.85 MB with gzip. `stackchan.web.glb` is the same model stored small for a web page (16-bit positions, 8-bit normals): about 1.6 MB on disk and 0.60 MB with gzip; nothing is left out of it, and the view loads it with `?model=web`. The structure meshes are most of both. The measurements behind the web copy are in `docs/plan/optimization.md`, Part 3; `host/tests/test_vu_model.py` fails above 8 MB.
 
 ## Limits
 
