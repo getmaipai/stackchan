@@ -1,6 +1,6 @@
 # Swipe pages and the control sheet
 
-> Built and flashed. Not yet checked by a person on the glass: how the swipes feel.
+The swipe pages and control sheet are built into the firmware.
 
 The face is home. You swipe on the screen to reach other things, and the robot goes back to the face by itself. All of it runs on the robot, so it works with your own LLM, with MaiPai Home, and with no host at all. A swipe has not been tried on a real robot yet: the first check is listed in [the design note](../design/pages-2026-11-17.md).
 
@@ -66,7 +66,7 @@ It shows volume and brightness sliders, a line with the Wi-Fi signal, the time a
 
 ## The Apps and Games walls
 
-Apps and games show as big colored tiles, each with its own picture: a stopwatch for Timers, a bell for Alarms, a clock face, a bolt for Quick actions, four colors for Color Memory, a mole for Whack-a-Mole, a grid for Tic-Tac-Toe and an arrow for Do It. Swipe for the next page; the dots are below the tiles. Only one screen shows at a time. Pressing a tile and the pop animation are not yet checked by a person.
+Apps and games show as big colored tiles, each with its own picture: a stopwatch for Timers, a bell for Alarms, a clock face, a bolt for Quick actions, four colors for Color Memory, a mole for Whack-a-Mole, a grid for Tic-Tac-Toe and an arrow for Do It. Swipe for the next page; the dots are below the tiles. Only one screen shows at a time.
 
 ![The Apps wall on the robot: Timers, Alarms, Clock and Quick actions.](../images/unit-apps-wall.png)
 

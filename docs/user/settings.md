@@ -46,8 +46,7 @@ One of six languages. See `languages.md`. The robot changes at once with no file
 - `url`, `stt_url`, `tts_url` under `[llm]` in `robot.toml`: your model and speech addresses. A blank speech address uses the built-in engine, which also needs its model folder (`stt_model_dir`, or `tts_model`, `tts_tokens` and `tts_data_dir`). The [Brain page](choose-a-brain.md) can download small speech models for you.
 - `voice`: the voice to speak with.
 - `thinking_cue`: dots always, plus a quiet tone by default.
-- `strip_mode`: `petting` (default) or `control` for quick sliders.
-- `update_*`: the updater. Checking is on and installing is off until you turn it on.
+- `[update] source`, `trusted_key` and `preset`: the folder, public key and build type for signed updates. There is no source or key by default.
 
 Run `stackchan check` after any change to your addresses. Environment variables override secrets in the file.
 
@@ -74,12 +73,13 @@ The page is for the host computer only until you turn this on. In `robot.toml` a
 | `captions` | Show spoken words on screen | off |
 | `night_mode`, `quiet_from`, `quiet_to` | Dim and quiet at night | off |
 | `thinking_cue` | The tone while it thinks | quiet tone |
-| `strip_mode`, `quick_sliders` | Head strip behavior and its sliders | petting |
 | `hourly_chime`, `idle_motion` | Small behaviors | off, on |
 | `local_unmute` | Whether the robot's own face can unmute it | on |
-| `update_channel`, `update_source`, `update_check`, `update_install` | Updates | stable, official, weekly, ask |
+| `[update] source` | Folder with a signed release | blank |
+| `[update] trusted_key` | Public key for signed releases | blank |
+| `[update] preset` | Release type: `core` or `home` | `core` |
 
-The settings page on your host has a Remote controls section: beep, flash, find my robot (it works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo. Camera, watching and home tools are opt-in packages with their own pages; some also need MaiPai Home. See [Compare](local-vs-home.md).
+The settings page on your host has Remote controls: beep, flash, find my robot, say something, move its head, dance, start a game and take a photo. Camera use shows a cue. Room watch is coming. Home Assistant is an optional package. See [Compare](local-vs-home.md).
 
 ## What goes on the settings page
 
@@ -130,7 +130,6 @@ Clears Wi-Fi networks, pairing and settings, after a confirmation. See [Keep the
 ## More keys
 
 - `persona`: a short text that tells the model how to behave.
-- `quick_sliders`: which sliders the head strip opens. The default is volume and brightness.
 - `hourly_chime`: a soft tone each hour. Quiet hours are set on the settings page (Behavior), not in the file.
 - `idle_motion`: turn the idle moves off.
 

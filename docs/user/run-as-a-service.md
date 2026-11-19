@@ -10,7 +10,7 @@ What it does:
 
 - **Mac:** starts the host when you log in, and starts it again if it stops.
 - **Linux and Raspberry Pi:** starts the host when the computer starts and starts it again if it stops. If it says it needs one more step for starting before anyone logs in, it prints the exact line for an administrator.
-- **Windows:** sets up a task that starts at login. This is written but not tested yet.
+- **Windows:** Host service support is coming after v1.
 
 No terminal? Open the status page on the host computer (`/health`) and press **Keep the host running** when it is shown. It does the same thing, once, and the page stops for about a minute while the host restarts as a service. If the service does not come up healthy, the host is started the old way and the page says why on your next visit.
 

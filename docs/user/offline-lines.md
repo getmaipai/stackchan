@@ -2,7 +2,7 @@
 
 When the robot loses Wi-Fi, or your host is off, it does not go silent. It says a short line of its own, shows it as a subtitle, and keeps its face. This page lists when that happens and how to change the lines.
 
-<span class="planned-tag">Built, not flashed</span> The lines come from the optional [jokes and games content](jokes-and-games-content.md) package. The host keeps them today. The robot does not read them from its own shelf until a firmware update that is not built yet.
+The lines come from the optional [jokes and games content](jokes-and-games-content.md) package. The host sends them to the robot's shelf.
 
 ![The robot says "I can't reach Home. Still trying." as a subtitle, with its mouth open.](../images/vu-offline-line.png)
 

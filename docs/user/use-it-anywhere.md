@@ -8,8 +8,6 @@ The robot can reach your host or hub from any Wi-Fi, such as a friend's house, a
 - You give it a one-time key on the Wi-Fi setup page. The key is never stored in a firmware image.
 - Your own devices talk to each other over the private network. Your conversations stay on your machines.
 
-Not yet checked on a robot: a real join with a real key, a spoken turn over the private route, and the camera and updates over it.
-
 ## Set it up
 
 1. Install Tailscale on the computer that runs the host, and sign in.

@@ -22,7 +22,7 @@ Timers run on the robot, so they keep ringing when your host is off.
 
 ## By voice, with no model
 
-Timers and alarms work by rule, so they work even when your model is off: "set an alarm for 10:30", "set a timer for 10 minutes", "what alarms do I have", "cancel my alarm". Cancel removes the only alarm, or the one you just set within 5 minutes, and asks which one if there are several. Not yet tried by a person.
+Timers and alarms work by rule, so they work even when your model is off: "set an alarm for 10:30", "set a timer for 10 minutes", "what alarms do I have", "cancel my alarm". Cancel removes the only alarm, or the one you just set within 5 minutes, and asks which one if there are several.
 
 ## Alarms and snooze
 

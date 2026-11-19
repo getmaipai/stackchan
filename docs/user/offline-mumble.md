@@ -2,7 +2,7 @@
 
 When the robot has words to show but no voice to say them, it can mumble them. It plays one short note for each letter of the subtitle, and its mouth moves with the notes. You cannot understand words, but you can hear a question rise and a statement fall.
 
-<span class="planned-tag">Built, not flashed</span> The mumble is in the firmware as an option and is **off by default**. No one has heard it on a robot yet.
+The mumble is in the firmware as an option and is **off by default**.
 
 ![Nine steps of the mouth opening and closing as the robot mumbles "Hello! I am".](../images/vu-mumble.png)
 

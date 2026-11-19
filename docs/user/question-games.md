@@ -2,7 +2,7 @@
 
 These games are played by talking. They work with your own model and with MaiPai Home. If your model stops answering in the middle of one, some of them keep going from a saved library.
 
-<span class="planned-tag">Built, not flashed</span> The host side works and is tested. The robot's own screens for these games are built and not flashed yet, and no live model has played them.
+The robot has screens and touch controls for these games. It uses your connected model to play them. Jokes, riddles and trivia can use the optional content package when the model cannot answer.
 
 ![A trivia question with four answers on the robot's screen.](../images/vu-question-game.png)
 

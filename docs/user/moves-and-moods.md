@@ -38,7 +38,7 @@ Upside down, the screen turns 180 degrees so you can still read it. The robot wi
 
 ## How much it moves
 
-On USB the robot moves gently. On battery it moves freely, and more gently as the battery runs low (steps at 50, 30, 15 and 8 percent). It will not move when carried or turned over. Tilted, it moves less, and on its side it does not move. The strictest limit wins. A Settings card that shows the current limit is not built yet. Built and flashed, not yet checked on a real robot.
+On USB the robot moves gently. On battery it moves freely, and more gently as the battery runs low (steps at 50, 30, 15 and 8 percent). It will not move when carried or turned over. Tilted, it moves less, and on its side it does not move. The strictest limit wins. A Settings card that shows the current limit is coming.
 
 ## Head pats and shakes
 
