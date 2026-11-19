@@ -105,6 +105,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/next-ui-countdown-2026-11-17.md` (40): Next UI: full-screen countdown (owner idea, 2026-11-17)
 - `docs/design/next-unit-voice-commands-2026-11-17.md` (41): Next: more offline voice commands on the unit (review suggestion, 2026-11-17)
 - `docs/design/next-wake-word-2026-11-17.md` (17): Custom and alternate wake words (owner question, 2026-11-17)
+- `docs/design/offline-lines-screens.md` (13): Offline lines on the screen
 - `docs/design/offline-mumble.md` (46): The offline mumble
 - `docs/design/ota-update-2026-11-16.md` (39): Wireless update, 2026-11-16
 - `docs/design/overlays-2026-11-17.md` (145): Overlay readability pass, 2026-11-17 (patches O01 and O02)
@@ -2440,6 +2441,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_offline_clips.py` (261): G4b: the offline clip manifest, bundle, composition and playback.
 - `host/tests/test_offline_clips_unit.py` (58): G4b: the offline clips against real rendered audio and the real unit.
 - `host/tests/test_offline_clips_wiring.py` (269): G4b: the clips wired in - the spoken pairing code, the reconnect clip in
+- `host/tests/test_offline_lines.py` (49): The playground's offline lines (decision 24 extension): six situations in six languages, each within the recor
 - `host/tests/test_other_unit_timers.py` (55): A second unit's timer events reach that unit's own timer service, not the first unit's."""
 - `host/tests/test_overlay_preview_parity.py` (188): ruff: noqa: E501
 - `host/tests/test_own_llm.py` (124): no header
@@ -2918,6 +2920,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/stackchan.web.glb` (8268): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
 - `scripts/virtual-unit/model/validate.sh` (18): check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is up
 - `scripts/virtual-unit/mumble.py` (205): The offline mumble, reference implementation (patch UX16, spec docs/design/offline-mumble.md): one short note 
+- `scripts/virtual-unit/offline_lines.py` (77): Offline lines by situation (owner decision 24 extension; docs/design/content-pantry.md, "Lines by situation"):
 - `scripts/virtual-unit/overlay-skip.txt` (1): no header
 - `scripts/virtual-unit/overlay_patches.py` (78): Brings the face overlay tree (.runs/fixtree, made by build-face.sh from a replayed firmware tree) up to the wh
 - `scripts/virtual-unit/physics/THIRD-PARTY-physics-engine.json` (14): no header
