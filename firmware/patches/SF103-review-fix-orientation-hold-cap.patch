@@ -1,0 +1,55 @@
+# Intent: Review fix (orientation): the hold on the accelerometer while the head's pitch moves is capped. The hold is honored for at most 3 s of continuous holds; after that the reading is used with the head's angle taken off (the pitch compensation that was already there), and a hold that is refused no longer refreshes the reading, so with no reading the band turns unknown instead of staying where it was. A run of holds ends after a second without one. Test: test_a_tipped_unit_is_noticed_while_the_head_keeps_moving, and a core test of the cap.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_motion_limit_core.h and maipai_motion_limit.cc (ours)
+# Check after a flash: during a dance, lay the unit on its side: the movement limits apply within a few seconds of the first nod; upright it still moves at full range.
+# Kconfig: none
+# Memory cost: 8 bytes of state.
+
+diff --git a/firmware/main/hal/maipai_motion_limit_core.h b/firmware/main/hal/maipai_motion_limit_core.h
+--- a/firmware/main/hal/maipai_motion_limit_core.h
++++ b/firmware/main/hal/maipai_motion_limit_core.h
+@@ -71,6 +71,8 @@ typedef struct {
+     uint32_t orient_at;    /* when the raw band last changed */
+     int16_t tilt_deg;      /* degrees from the expected upright pull, head pitch compensated */
+     uint32_t acc_ms;       /* time of the last accepted reading; 0 none */
++    uint32_t hold_since;   /* review fix: when the present run of holds began; 0 none */
++    uint32_t hold_last;    /* the last hold */
+     int8_t force_orient;   /* bench only: -1 none, else MML_O_* */
+     uint32_t refused;      /* targets refused or held */
+     uint32_t limited;      /* targets scaled */
+@@ -160,11 +162,19 @@ static inline void mml_orient_feed(mml_t* m, uint32_t now, float ax, float ay, f
+ 
+ /* A reading taken while the head's own pitch is moving says nothing about how the unit stands (the head's push moves the sensor): keep the band as it is
+  * and count the reading as fresh, so a fast nod never reads as a tilt. */
+-static inline void mml_orient_hold(mml_t* m, uint32_t now)
++/* Review fix: a hold lasts only as long as MML_HOLD_CAP_MS. A head that keeps moving (a dance, a nod, face tracking) would otherwise hold the orientation for ever, and a unit
++ * tipped onto its side kept the upright band. Returns 1 while the hold is honored; 0 once the run of holds is older than the cap: the caller then feeds the reading anyway
++ * (the pitch compensation of mml_orient_feed takes the head's angle off), and the hold no longer refreshes the reading, so without a reading the band turns unknown. */
++#define MML_HOLD_CAP_MS 3000u
++static inline int mml_orient_hold(mml_t* m, uint32_t now)
+ {
++    if (m->hold_since == 0 || now - m->hold_last > 1000u) m->hold_since = now ? now : 1u;   /* a run of holds ends after a second without one */
++    m->hold_last = now;
++    if (now - m->hold_since > MML_HOLD_CAP_MS) return 0;
+     m->acc_ms = now ? now : 1u;
+     m->orient_raw = m->orient == MML_O_UNKNOWN ? m->orient_raw : m->orient;
+     m->orient_at = now;
++    return 1;
+ }
+ 
+ /* The band now: unknown when no reading came in the last 2 s. */
+diff --git a/firmware/main/hal/maipai_motion_limit.cc b/firmware/main/hal/maipai_motion_limit.cc
+--- a/firmware/main/hal/maipai_motion_limit.cc
++++ b/firmware/main/hal/maipai_motion_limit.cc
+@@ -56,9 +56,8 @@ void maipai_motion_feed_accel(float ax, float ay, float az)
+     s_acc[0] += 0.2f * (ax - s_acc[0]);
+     s_acc[1] += 0.2f * (ay - s_acc[1]);
+     s_acc[2] += 0.2f * (az - s_acc[2]);
+-    if (now_ms() - s_pitch_moved_ms < 400u) {
+-        mml_orient_hold(&s_mml, now_ms());  // the head's pitch moved just now: the reading is not used
+-        return;
++    if (now_ms() - s_pitch_moved_ms < 400u && mml_orient_hold(&s_mml, now_ms())) {
++        return;  // the head's pitch moved just now: the reading is not used (for at most MML_HOLD_CAP_MS: review fix)
+     }
+     mml_orient_feed(&s_mml, now_ms(), s_acc[0], s_acc[1], s_acc[2], static_cast<float>(s_pitch_deg10) / 10.0f);
+ }

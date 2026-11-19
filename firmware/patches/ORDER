@@ -359,3 +359,8 @@ SF96-cloud-brain-test-image-kind.patch
 SF97-banner-note-from-the-host.patch
 SF98-leave-hosted-and-brain-route.patch
 SF99-cloudtest-roots-clock-and-host-link.patch
+SF101-old-default-quick-actions-move-to-the-new-default.patch
+SF103-review-fix-orientation-hold-cap.patch
+SF104-review-fix-keypad-pause.patch
+SF105-review-fix-pairing-key-checks-and-confirm.patch
+SF106-review-fix-locked-unit-keeps-network-setup.patch

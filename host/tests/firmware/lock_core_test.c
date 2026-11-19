@@ -22,6 +22,47 @@ static void type(mlk_t* s, const char* digits, uint32_t now, int* last)
     for (; *digits; digits++) *last = mlk_key(s, *digits, now);
 }
 
+static void test_keypad_pause_grows(void)   /* review fix (owner decision 2026-11-18) */
+{
+    mlk_t s; mlk_init(&s);
+    uint8_t salt[LK_SALT_LEN] = {7};
+    mlk_set(&s, "1234", "", salt);
+    uint32_t now = 1000;
+    mlk_lock_now(&s, now);
+    mlk_screen_touch(&s, now);
+    const uint32_t want_s[6] = {30, 60, 300, 900, 3600, 3600};
+    for (int run = 0; run < 6; run++) {
+        for (int e = 0; e < LK_KEY_MAX_FAILS; e++) {                      /* five wrong full entries */
+            for (int d = 0; d < 6; d++) { now += 50; mlk_key(&s, '9', now); }
+            if (e < LK_KEY_MAX_FAILS - 1) { now += 50; CHECK(mlk_key(&s, '1', now) != MLK_EV_IGNORED); mlk_clear_entry(&s); }
+        }
+        /* the fifth wrong entry started the pause: keys do nothing until it ends, and not a second earlier */
+        now += 50;
+        CHECK(mlk_key(&s, '1', now) == MLK_EV_IGNORED);
+        now += want_s[run] * 1000u - 2000u;
+        CHECK(mlk_key(&s, '1', now) == MLK_EV_IGNORED);
+        now += 4000u;
+        mlk_screen_touch(&s, now);
+        CHECK(mlk_key(&s, '1', now) != MLK_EV_IGNORED);
+        mlk_clear_entry(&s);
+    }
+    /* a pause survives a restart and is never shorter after it */
+    mlk_t t; mlk_init(&t); mlk_set(&t, "1234", "", salt); mlk_lock_now(&t, 5000); mlk_screen_touch(&t, 5000);
+    for (int e = 0; e < LK_KEY_MAX_FAILS; e++) { for (int d = 0; d < 6; d++) mlk_key(&t, '8', 5100 + 50u * (uint32_t)(e * 6 + d)); }
+    mlk_key_saved_t sv; mlk_key_save(&t, 7000, &sv);
+    CHECK(sv.strikes == 1 && sv.block_ms > 20000 && sv.block_ms <= 30000);
+    mlk_t u; mlk_init(&u); mlk_set(&u, "1234", "", salt); mlk_lock_now(&u, 100); mlk_screen_touch(&u, 100);
+    mlk_key_restore(&u, &sv, 100);
+    CHECK(mlk_key(&u, '1', 200) == MLK_EV_IGNORED);                       /* the restored pause is running */
+    /* the right code opens the lock and clears the count; a no-code tool call never does */
+    mlk_t g; mlk_init(&g); mlk_set(&g, "1234", "", salt); mlk_lock_now(&g, 100); mlk_screen_touch(&g, 100);
+    for (int d = 0; d < 6; d++) mlk_key(&g, '9', 200 + 50u * (uint32_t)d);
+    CHECK(g.key_fails == 1);
+    mlk_screen_touch(&g, 1000);
+    mlk_key(&g, '1', 1100); mlk_key(&g, '2', 1150); mlk_key(&g, '3', 1200);
+    CHECK(mlk_key(&g, '4', 1250) == MLK_EV_UNLOCK && g.key_fails == 0 && g.key_strikes == 0);
+}
+
 int main(int argc, char** argv)
 {
     if (argc == 5 && strcmp(argv[1], "--kdf") == 0) {
@@ -33,6 +74,7 @@ int main(int argc, char** argv)
         printf("%s\n", hex);
         return 0;
     }
+    test_keypad_pause_grows();
     mlk_t s;
     mlk_init(&s);
     int ev = 0;

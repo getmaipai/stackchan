@@ -1,0 +1,267 @@
+# Intent: Fixes for the pairing exchange. (1) The unit refuses an all-zero or small-order X25519 host key (the eight known points, with the top bit set or not) and an all-zero shared secret, so a link key never depends only on public values; the reason is bad key. (2) A "paired" message on the plain link no longer gives the unit a key: the key is derived but held, and the unit asks the owner to tap Keep on its own screen ("Keep this host? Tap Keep only if you just typed NNNNNN on the host yourself"); Cancel, or a minute with no tap, wipes the key and sends pair_abort to the host. A "paired" message that did not come from the owner's own typing is therefore not kept unless the owner taps Keep. Plain-link pairing still assumes nobody is interfering with the link during the owner's few seconds at the host; docs/plan/link-key-exchange.md says so. Tests: the pairing core test (vectors for the eight points, the top-bit forms, the zero secret, the confirm, the cancel and the timeout).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pairx_core.h and maipai_linkpair.cc (ours)
+# Check after a flash: on a linkpsk image pair with a host: after typing the six digits on the host, the unit shows Keep this host? with Keep and Cancel; Keep stores the key and shows Paired; Cancel (or a minute with no tap) leaves the unit unpaired and the host is told.
+# Kconfig: none (compiled with MAIPAI_LINK_PSK)
+# Memory cost: 36 bytes in the pairing state while it runs; the confirm screen is 7 LVGL objects (about 1 KB internal) for a few seconds.
+
+diff --git a/firmware/main/hal/maipai_pairx_core.h b/firmware/main/hal/maipai_pairx_core.h
+--- a/firmware/main/hal/maipai_pairx_core.h
++++ b/firmware/main/hal/maipai_pairx_core.h
+@@ -19,19 +19,53 @@
+ #include "maipai_time_core.h"
+ 
+ #define MPX_TIMEOUT_MS 330000u /* the host waits up to 5 minutes for the owner's digits */
++#define MPX_CONFIRM_MS 60000u  /* review fix: after "paired" the owner has a minute to tap Keep on the unit */
+ 
+-enum { MPX_IDLE = 0, MPX_STARTED, MPX_NONCE_SENT, MPX_CODE_SHOWN, MPX_DONE, MPX_FAILED };
+-enum { MPX_OK = 0, MPX_ORDER, MPX_COMMIT_MISMATCH, MPX_TIMEOUT, MPX_REASON_COUNT };
++enum { MPX_IDLE = 0, MPX_STARTED, MPX_NONCE_SENT, MPX_CODE_SHOWN, MPX_DONE, MPX_FAILED, MPX_AWAIT_CONFIRM };
++enum { MPX_OK = 0, MPX_ORDER, MPX_COMMIT_MISMATCH, MPX_TIMEOUT, MPX_BAD_KEY, MPX_DECLINED, MPX_REASON_COUNT };
+ static const char* const MPX_REASONS[MPX_REASON_COUNT] = {"ok", "a pairing message arrived out of order", "the host's commitment did not match its nonce",
+-                                                          "the pairing took too long"};
++                                                          "the pairing took too long", "the host's key is not a valid one (all zero or a low-order point)",
++                                                          "the owner did not confirm on the unit"};
+ 
+ typedef struct {
+     uint8_t state;
+     uint8_t pk_u[MLY_PK], pk_h[MLY_PK], commit[32], n_u[MLY_NONCE], n_h[MLY_NONCE];
+     uint32_t code;       /* the six digits, valid from MPX_CODE_SHOWN */
+     uint32_t started_ms; /* stamp, never 0 */
++    uint8_t k[MLY_KEY];  /* review fix: the derived link key, held only while the owner confirms on the unit */
++    uint32_t confirm_ms; /* stamp when the confirmation began */
+ } mpx_t;
+ 
++/* Review fix: X25519 public keys of small order (and the all-zero key) give a shared secret that does not depend on the private keys, so the link key would depend only on
++ * public values. The eight points of small order, as libsodium lists them; bit 255 of a key is ignored by the curve, so it is masked before the comparison (this also catches the
++ * non-canonical forms p, p+1 and p-1 written with the top bit set or not). */
++static inline int mpx_low_order(const uint8_t k[MLY_PK])
++{
++    static const uint8_t BAD[7][32] = {
++        {0},
++        {1},
++        {0xe0, 0xeb, 0x7a, 0x7c, 0x3b, 0x41, 0xb8, 0xae, 0x16, 0x56, 0xe3, 0xfa, 0xf1, 0x9f, 0xc4, 0x6a, 0xda, 0x09, 0x8d, 0xeb, 0x9c, 0x32, 0xb1, 0xfd, 0x86, 0x62, 0x05, 0x16, 0x5f, 0x49, 0xb8, 0x00},
++        {0x5f, 0x9c, 0x95, 0xbc, 0xa3, 0x50, 0x8c, 0x24, 0xb1, 0xd0, 0xb1, 0x55, 0x9c, 0x83, 0xef, 0x5b, 0x04, 0x44, 0x5c, 0xc4, 0x58, 0x1c, 0x8e, 0x86, 0xd8, 0x22, 0x4e, 0xdd, 0xd0, 0x9f, 0x11, 0x57},
++        {0xec, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f},
++        {0xed, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f},
++        {0xee, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f},
++    };
++    uint8_t m[MLY_PK];
++    memcpy(m, k, MLY_PK);
++    m[31] &= 0x7f;
++    for (int i = 0; i < 7; i++) {
++        if (memcmp(m, BAD[i], MLY_PK) == 0) return 1;
++    }
++    return 0;
++}
++
++static inline int mpx_all_zero(const uint8_t* b, size_t n)
++{
++    uint8_t acc = 0;
++    for (size_t i = 0; i < n; i++) acc |= b[i];
++    return acc == 0;
++}
++
+ static inline void mpx_wipe(mpx_t* s) { lk_wipe(s, sizeof(*s)); }
+ 
+ static inline void mpx_begin(mpx_t* s, const uint8_t pk_u[MLY_PK], uint32_t now)
+@@ -53,6 +87,7 @@ static inline int mpx_fail(mpx_t* s, int reason)
+ static inline int mpx_on_host_key(mpx_t* s, const uint8_t pk_h[MLY_PK], const uint8_t commit[32], const uint8_t n_u[MLY_NONCE])
+ {
+     if (s->state != MPX_STARTED) return mpx_fail(s, MPX_ORDER);
++    if (mpx_low_order(pk_h)) return mpx_fail(s, MPX_BAD_KEY);   /* review fix: an all-zero or small-order host key ends the exchange */
+     memcpy(s->pk_h, pk_h, MLY_PK);
+     memcpy(s->commit, commit, 32);
+     memcpy(s->n_u, n_u, MLY_NONCE);
+@@ -73,16 +108,35 @@ static inline int mpx_on_host_nonce(mpx_t* s, const uint8_t n_h[MLY_NONCE])
+     return MPX_OK;
+ }
+ 
+-/* "paired": the owner typed the right code. z is the X25519 shared secret (the caller computed it from its private key and pk_h). */
+-static inline int mpx_on_paired(mpx_t* s, const uint8_t z[32], const char* device_id, uint8_t k_out[MLY_KEY])
++/* "paired" (review fix): the host says the owner typed the right code. Nothing proves that to the unit on a plain link (an attacker who relays the exchange can send it too), so the
++ * key is derived but NOT handed over: the unit asks the owner to tap Keep (mpx_confirm) within MPX_CONFIRM_MS. z is the X25519 shared secret (the caller computed it from its
++ * private key and pk_h); an all-zero secret never becomes a key. */
++static inline int mpx_on_paired(mpx_t* s, const uint8_t z[32], const char* device_id, uint32_t now)
+ {
+     if (s->state != MPX_CODE_SHOWN) return mpx_fail(s, MPX_ORDER);
+-    mly_link_key(z, s->pk_u, s->pk_h, s->n_u, s->n_h, device_id, k_out);
++    if (mpx_all_zero(z, 32)) return mpx_fail(s, MPX_BAD_KEY);
++    mly_link_key(z, s->pk_u, s->pk_h, s->n_u, s->n_h, device_id, s->k);
++    s->state = MPX_AWAIT_CONFIRM;
++    s->confirm_ms = mt_stamp(now, 0);
++    return MPX_OK;
++}
++
++/* The owner tapped Keep on the unit: the key is handed over and the exchange is done. Only valid after "paired". */
++static inline int mpx_confirm(mpx_t* s, uint8_t k_out[MLY_KEY])
++{
++    if (s->state != MPX_AWAIT_CONFIRM) return mpx_fail(s, MPX_ORDER);
++    memcpy(k_out, s->k, MLY_KEY);
+     mpx_wipe(s);
+     s->state = MPX_DONE;
+     return MPX_OK;
+ }
+ 
++/* The owner tapped Cancel (or the time ran out): the key is wiped and nothing is saved. */
++static inline int mpx_decline(mpx_t* s)
++{
++    return mpx_fail(s, MPX_DECLINED);
++}
++
+ /* The host refused or the owner gave up. */
+ static inline void mpx_abort(mpx_t* s) { mpx_wipe(s); s->state = MPX_IDLE; }
+ 
+@@ -90,6 +144,13 @@ static inline void mpx_abort(mpx_t* s) { mpx_wipe(s); s->state = MPX_IDLE; }
+ static inline int mpx_tick(mpx_t* s, uint32_t now)
+ {
+     if (s->state == MPX_IDLE || s->state == MPX_DONE || s->state == MPX_FAILED) return 0;
++    if (s->state == MPX_AWAIT_CONFIRM) {   /* review fix: a minute to tap Keep, then the key is wiped */
++        if (mt_elapsed(now, s->confirm_ms) >= MPX_CONFIRM_MS) {
++            mpx_fail(s, MPX_DECLINED);
++            return 1;
++        }
++        return 0;
++    }
+     if (mt_elapsed(now, s->started_ms) >= MPX_TIMEOUT_MS) {
+         mpx_fail(s, MPX_TIMEOUT);
+         return 1;
+diff --git a/firmware/main/hal/maipai_linkpair.cc b/firmware/main/hal/maipai_linkpair.cc
+--- a/firmware/main/hal/maipai_linkpair.cc
++++ b/firmware/main/hal/maipai_linkpair.cc
+@@ -13,6 +13,8 @@
+ #if CONFIG_MAIPAI_LINK_PSK
+ #include "maipai_pairx_core.h"
+ #include "maipai_lock.h"
++#include "hal.h"
++#include <lvgl.h>
+ #include <application.h>
+ #include <board.h>
+ #include <display/display.h>
+@@ -89,6 +91,91 @@ void finish_locked(const char* shown)
+     }
+ }
+ 
++// Review fix: after the host says "paired" the unit does not keep the key until the owner taps Keep on the unit's own screen (a forged "paired" on the plain link would
++// otherwise store an attacker's key). The screen is built and closed on the LVGL task through the main task's queue, never with the pairing lock held.
++lv_obj_t* s_confirm = nullptr;   // LVGL lock held to touch it
++
++void confirm_close_ui()
++{
++    LvglLockGuard lock;
++    if (s_confirm != nullptr) {
++        lv_obj_delete(s_confirm);
++        s_confirm = nullptr;
++    }
++}
++
++void send_json(const char* type, const char* field, const uint8_t* data, size_t n);   // below
++
++void confirm_result(bool keep)
++{
++    Application::GetInstance().Schedule([keep]() {
++        confirm_close_ui();
++        std::lock_guard<std::mutex> lock(s_mu);
++        if (!s_active || s_px.state != MPX_AWAIT_CONFIRM) return;
++        if (keep) {
++            uint8_t k[MLY_KEY];
++            if (mpx_confirm(&s_px, k) == MPX_OK && maipai_link_key_save(k)) {
++                finish_locked("Paired. The link to the host is now encrypted.");
++                ESP_LOGI(kTag, "paired: link key stored after the owner confirmed");
++            } else {
++                finish_locked("Pairing failed: the key could not be saved. Try again.");
++            }
++            lk_wipe(k, sizeof(k));
++        } else {
++            send_json("pair_abort", nullptr, nullptr, 0);
++            mpx_decline(&s_px);
++            finish_locked("Not paired: you cancelled. Nothing changed.");
++        }
++    });
++}
++
++void confirm_show(unsigned code)
++{
++    Application::GetInstance().Schedule([code]() {
++        LvglLockGuard lock;
++        if (s_confirm != nullptr) return;
++        lv_obj_t* r = lv_obj_create(lv_layer_top());
++        lv_obj_remove_style_all(r);
++        lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++        lv_obj_set_size(r, 320, 240);
++        lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++        lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++        lv_obj_t* t = lv_label_create(r);
++        lv_label_set_text(t, "Keep this host?");
++        lv_obj_set_style_text_font(t, &lv_font_montserrat_24, 0);
++        lv_obj_set_style_text_color(t, lv_color_white(), 0);
++        lv_obj_set_pos(t, 12, 40);
++        char msg[120];
++        snprintf(msg, sizeof(msg), "Tap Keep only if you just typed %06u on the host yourself. If not, tap Cancel.", code);
++        lv_obj_t* m = lv_label_create(r);
++        lv_label_set_text(m, msg);
++        lv_label_set_long_mode(m, LV_LABEL_LONG_WRAP);
++        lv_obj_set_width(m, 296);
++        lv_obj_set_style_text_font(m, &lv_font_montserrat_16, 0);
++        lv_obj_set_style_text_color(m, lv_color_hex(0xC8CED8), 0);
++        lv_obj_set_pos(m, 12, 84);
++        for (int i = 0; i < 2; i++) {   // Keep and Cancel: 148 by 56, 8 px apart, the screen standard
++            lv_obj_t* b = lv_obj_create(r);
++            lv_obj_remove_style_all(b);
++            lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
++            lv_obj_set_size(b, 148, 56);
++            lv_obj_set_pos(b, 8 + i * 156, 176);
++            lv_obj_set_style_radius(b, 12, 0);
++            lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
++            lv_obj_set_style_bg_color(b, lv_color_hex(i == 0 ? 0x2E7D4F : 0x3A3A3A), 0);
++            lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
++            lv_obj_add_event_cb(b, [](lv_event_t* e) { confirm_result(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)) == 1); }, LV_EVENT_CLICKED,
++                                reinterpret_cast<void*>(static_cast<intptr_t>(i == 0 ? 1 : 0)));
++            lv_obj_t* l = lv_label_create(b);
++            lv_label_set_text(l, i == 0 ? "Keep" : "Cancel");
++            lv_obj_set_style_text_font(l, &lv_font_montserrat_20, 0);
++            lv_obj_set_style_text_color(l, lv_color_white(), 0);
++            lv_obj_center(l);
++        }
++        s_confirm = r;
++    });
++}
++
+ void send_json(const char* type, const char* field, const uint8_t* data, size_t n)
+ {
+     cJSON* root = cJSON_CreateObject();
+@@ -139,17 +226,16 @@ void on_text(const char* data, size_t len)
+             say(msg, 6000);
+         }
+     } else if (t == "paired") {
+-        uint8_t z[32], k[MLY_KEY];
++        uint8_t z[32];
+         const std::string id = device_id();
+         if (s_px.state == MPX_CODE_SHOWN && maipai_link_agree(s_key_id, s_px.pk_h, z)) {
+             s_key_id = 0;
+-            if (mpx_on_paired(&s_px, z, id.c_str(), k) == MPX_OK && maipai_link_key_save(k)) {
+-                lk_wipe(k, sizeof(k));
++            if (mpx_on_paired(&s_px, z, id.c_str(), now_ms()) == MPX_OK) {   // review fix: the key waits for the owner's tap (Keep) on the unit
+                 lk_wipe(z, sizeof(z));
+-                finish_locked("Paired. The link to the host is now encrypted.");
+-                ESP_LOGI(kTag, "paired: link key stored");
++                confirm_show(static_cast<unsigned>(s_px.code));
+             } else {
+-                finish_locked("Pairing failed: the key could not be saved. Try again.");
++                lk_wipe(z, sizeof(z));
++                finish_locked("Pairing failed: the host's key was not accepted. Try again.");
+             }
+         } else {
+             finish_locked("Pairing failed. Try again.");
+@@ -163,7 +249,10 @@ void on_text(const char* data, size_t len)
+ void tick(void*)
+ {
+     std::lock_guard<std::mutex> lock(s_mu);
+-    if (s_active && mpx_tick(&s_px, now_ms()) != 0) finish_locked("Pairing took too long. Try again.");
++    if (s_active && mpx_tick(&s_px, now_ms()) != 0) {
++        finish_locked("Pairing took too long. Try again.");
++        Application::GetInstance().Schedule([]() { confirm_close_ui(); });
++    }
+ }
+ }  // namespace
+ 

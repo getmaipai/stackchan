@@ -161,7 +161,7 @@ static void test_text_store_round_trip(void)
     CHECK(mpg_cfg_from_text(&b, "L=;R=;S=10;I=20;A=beep,dance,game,hello;C=volume,mute") == 1 && b.n_left == 0 && b.n_right == 0 && b.n_items == 2);
     /* a text saved before patch UI01 (find in the actions and the items, a 6 s sheet) loads with find dropped and the time raised */
     CHECK(mpg_cfg_from_text(&b, "L=clock;R=games;S=6;I=20;A=find,beep,dance,game;C=volume,brightness,mute,find,timers") == 1);
-    CHECK(b.sheet_s == 8 && b.n_actions == 3 && b.actions[0] == MPG_A_BEEP && b.actions[1] == MPG_A_DANCE && b.actions[2] == MPG_A_GAME);
+    CHECK(b.sheet_s == 8 && b.n_actions == 4 && b.actions[0] == MPG_A_BEEP && b.actions[1] == MPG_A_DANCE && b.actions[2] == MPG_A_VISION && b.actions[3] == MPG_A_HELLO);   /* beep, dance, game was the old default: patch SF101 moves it to the new one */
     CHECK(b.n_items == 4 && b.items[3] == MPG_S_TIMERS);
     CHECK(mpg_cfg_from_text(&b, "L=clock;R=games;S=15;I=20;A=hello,find,beep,dance,game;C=volume,find") == 1 && b.n_actions == 4 && b.actions[0] == MPG_A_HELLO && b.sheet_s == 15 && b.n_items == 1);
     /* the flash key and the text limit */
@@ -597,6 +597,18 @@ static int print_layout(const char* list)
     return 0;
 }
 
+static void test_old_default_actions_migrate(void)   /* patch SF101 */
+{
+    mpg_cfg_t c, d;
+    mpg_defaults(&d);
+    CHECK(mpg_cfg_from_text(&c, "L=clock;R=games;S=10;I=20;A=beep,dance,game;C=volume,brightness,mute,quiet,light,timers,games,wifi,battery") == 1);
+    CHECK(c.n_actions == d.n_actions && memcmp(c.actions, d.actions, MPG_ACTIONS_MAX) == 0);      /* the old default becomes the new one */
+    CHECK(mpg_cfg_from_text(&c, "L=clock;R=games;S=10;I=20;A=beep,game;C=volume,brightness,mute,quiet,light,timers,games,wifi,battery") == 1);
+    CHECK(c.n_actions == 2 && c.actions[0] == MPG_A_BEEP && c.actions[1] == MPG_A_GAME);          /* a list the owner chose stays */
+    CHECK(mpg_cfg_from_text(&c, "L=clock;R=games;S=10;I=20;A=beep,dance,hello;C=volume,brightness,mute,quiet,light,timers,games,wifi,battery") == 1);
+    CHECK(c.n_actions == 3 && c.actions[2] == MPG_A_HELLO);
+}
+
 int main(int argc, char** argv)
 {
     if (argc > 1 && strcmp(argv[1], "--table") == 0) {
@@ -616,6 +628,7 @@ int main(int argc, char** argv)
     test_icons_status_row_and_settings_screen();
     test_every_page_content_stays_in_the_zone();
     test_page_contents();
+    test_old_default_actions_migrate();
     if (failures) {
         printf("%d failure(s)\n", failures);
         return 1;

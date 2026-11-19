@@ -66,3 +66,6 @@ The owner approving without reading the unit's screen, and the key at rest on th
 
 ## Wrong codes are counted per source (2026-11-18)
 A wrong code counts against the source address that sent it (three a unit every ten minutes each). Only the owner's side, this host's loopback or a signed-in settings session, can end the exchange with a wrong code; any other source's wrong code only counts against that source, and all such sources together get twelve a unit. A second start for a unit that is already waiting for its digits is refused. So a stranger's guesses never lock the owner out or end the owner's pairing.
+
+## The owner confirms on the unit, and what plain-link pairing assumes (2026-11-18)
+After the host says `paired`, the unit does not keep the key yet. It derives it, shows "Keep this host?" with the six digits, and keeps the key only when the owner taps **Keep** within a minute. Cancel, or no tap, wipes the key and the unit tells the host (`pair_abort`). The unit also refuses an all-zero or small-order host key and an all-zero shared secret. Pairing over the plain link still assumes **nobody interfering with the link** during the few seconds the owner is at the host: someone relaying the whole exchange can show the owner a code too. The tap on the unit and the code typed on the host together are what the owner checks.

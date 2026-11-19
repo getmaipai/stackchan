@@ -268,6 +268,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/pre-publish-checklist.md` (34): Before the repository goes public
 - `docs/dev/releases/b13.md` (45): Build report: b13
 - `docs/dev/releases/b33-plain.md` (45): Build report: b33-plain
+- `docs/dev/saved-settings-migrations.md` (8): Saved settings that move when a default changes
 - `docs/dev/scope-core-vs-home.md` (74): Scope: the core robot and MaiPai Home
 - `docs/dev/screen-audit.json` (278): no header
 - `docs/dev/screen-audit.md` (54): Screen audit against the physical standard
@@ -439,7 +440,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/ir-and-nfc.md` (127): Infrared and NFC for the StackChan: what is verified, what we could build, how to probe safely
 - `docs/plan/lang-tier1-report.md` (21): Tier 1 language report (machine drafts)
 - `docs/plan/languages-tiers.md` (33): Language tiers
-- `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
+- `docs/plan/link-key-exchange.md` (71): Link key exchange for the encrypted link (design, 2026-11-18)
 - `docs/plan/m5stack-cloud-research.md` (202): M5Stack cloud and Xiaozhi service: research paper
 - `docs/plan/memory-budget-model.md` (36): The memory budget as data (decision 15): the agreement between the firmware track and the playground track
 - `docs/plan/minimal-stack.md` (65): The minimal local stack and the three ways to get a brain
@@ -745,7 +746,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (361): no header
+- `firmware/patches/ORDER` (366): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -783,6 +784,11 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF08-stamp-window-lock-backoff-servo-lock.patch` (487): Safety fix, train 8. The millisecond-stamp helper reads a passed deadline as not pending at any later time (de
 - `firmware/patches/SF09-first-run-wiring.patch` (161): Wires the first-run flow (screens from patch UX05b). At the first standby of a unit with no saved answers it s
 - `firmware/patches/SF10-mouth-cues-tool.patch` (254): The unit tool self.face.mouth_cues {"cues": "[[ms, level 0..4], ...]"}: a list of mouth cues from the host pla
+- `firmware/patches/SF101-old-default-quick-actions-move-to-the-new-default.patch` (24): The saved quick-actions list is moved to the new default when it still is the old default. A unit that saved "
+- `firmware/patches/SF103-review-fix-orientation-hold-cap.patch` (55): Review fix (orientation): the hold on the accelerometer while the head's pitch moves is capped. The hold is ho
+- `firmware/patches/SF104-review-fix-keypad-pause.patch` (141): Review fix (keypad): the lock keypad pauses after a run of wrong codes (owner decision 2026-11-18). After 5 wr
+- `firmware/patches/SF105-review-fix-pairing-key-checks-and-confirm.patch` (267): Fixes for the pairing exchange. (1) The unit refuses an all-zero or small-order X25519 host key (the eight kno
+- `firmware/patches/SF106-review-fix-locked-unit-keeps-network-setup.patch` (72): Review fix (lock): a locked unit keeps its network and pairing setup and does not tell it. The tools that read
 - `firmware/patches/SF11-core-dump-find-timer-filler-leaks.patch` (115): Safety fix, train 11. A release image erases the flash core dump after its summary is reported (bench images k
 - `firmware/patches/SF12-listen-ended-event.patch` (31): When the listening guard ends a turn on its own (8 s with no voice, or the 60 s cap), the unit pushes a listen
 - `firmware/patches/SF13-lock-lockout-survives-restart.patch` (87): The lock tools keep a running lockout across a restart: the strikes and the time left on the lockout are saved
@@ -2166,12 +2172,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/linkurl_core_test.c` (39): Host test for the encrypted address rule (patch SF33). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/listen_core_test.c` (171): Host test for the listening cues (patch TB01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> ... -
 - `host/tests/firmware/listen_guard_core_test.c` (24): Host test for the listening guard rule of patch SF03. cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the head
-- `host/tests/firmware/lock_core_test.c` (197): Host test for the lock core (patch LK01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>.
+- `host/tests/firmware/lock_core_test.c` (239): Host test for the lock core (patch LK01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>.
+- `host/tests/firmware/lock_gate_core_test.c` (22): Host test of the lock gate table (patch SF106, review fix): which tools a locked unit refuses. */
 - `host/tests/firmware/look_core_test.c` (583): Host test for the look core (patch X01): styles, the eye and its lid, emotions, the mouth family, the sleep se
 - `host/tests/firmware/look_shapes_dump.c` (165): Prints the face model of maipai_look_core.h as JSON (patch V10), for the preview of the settings page.
 - `host/tests/firmware/mic3_core_test.c` (73): Host test for the MIC3 bench measurement (patch SF15). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the hea
 - `host/tests/firmware/mood_core_test.c` (129): Host test for the mood core (patch M01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
-- `host/tests/firmware/motion_limit_core_test.c` (292): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
+- `host/tests/firmware/motion_limit_core_test.c` (310): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
 - `host/tests/firmware/mouthcue_core_test.c` (152): Host test for the mouth cue player (patch SF10). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/mumble_core_dump.c` (14): Prints the blips of the text in argv[1] over argv[2] ms, one line each: t dur f0 f1 level mouth (patch UX16). 
 - `host/tests/firmware/mumble_render_core_test.c` (47): Host test of the mumble note renderer (patch SF87). */
@@ -2187,8 +2194,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/packboot_core_test.c` (26): Host test for when the pack boot task starts (patch FM04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
 - `host/tests/firmware/packcache_core_test.c` (381): Host test for the flash cache of the active pack (patch TB02): layout, checksum at boot, fallback, wear, and a
 - `host/tests/firmware/packcache_k_test.c` (345): Host test for the pack cache with the phrase type and the format 2 directory (patch K10): the new type beside 
-- `host/tests/firmware/pages_core_test.c` (625): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
-- `host/tests/firmware/pairx_core_test.c` (81): Host test for the unit's pairing state machine (patch SF33), with the vectors of scripts/link-key-vector.py (f
+- `host/tests/firmware/pages_core_test.c` (638): Host test for the swipe pages data and layout (patch P11): cc -std=c99 -Wall -Wextra -Werror -I<dir with the h
+- `host/tests/firmware/pairx_core_test.c` (137): Host test for the unit's pairing state machine (patch SF33), with the vectors of scripts/link-key-vector.py (f
 - `host/tests/firmware/pantry_core_test.c` (188): Host test of the pantry core (patch SF92): shelf checks, record parts, the heard list, choosing a record, and 
 - `host/tests/firmware/phrase_flow_test.c` (94): Host test for the offline phrase flow (patch V02): the link events and the pick, as maipai_sounds.cc drives th
 - `host/tests/firmware/phrasepack_core_test.c` (304): Host test for the offline phrases as a pack (patch K12): the zip of sixteen clips becomes one block and a tabl
@@ -2315,7 +2322,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/update-header-vectors.json` (104): no header
 - `host/tests/fixtures/update-signature-vectors.json` (79): no header
 - `host/tests/golden/face-known.json` (1): no header
-- `host/tests/golden/tolerance.json` (97): no header
+- `host/tests/golden/tolerance.json` (110): no header
 - `host/tests/kinematic_double.py` (106): A command-driven test double for the state feed.
 - `host/tests/ladder_fakes.py` (38): Shared fakes for the offline-ladder suites: an injected clock and a
 - `host/tests/motor_fakes.py` (88): A scripted motor bus for the MOTOR-RECOVER-01 suite: the daemon's motor mode,
@@ -2366,7 +2373,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_cli_run_and_example.py` (27): The documented install path: `stackchan run` starts the host; the first-run config template ships."""
 - `host/tests/test_clip_render.py` (118): G4b: the render-side logic (stamping, packing), with a fake synthesizer.
 - `host/tests/test_clock_styles.py` (88): Patch UX14 on the virtual unit: a tap on the clock page cycles classic, ring, date and time and back; a tap on
-- `host/tests/test_cloud_review_1.py` (239): ruff: noqa: E501
+- `host/tests/test_cloud_review_1.py` (237): ruff: noqa: E501
 - `host/tests/test_cloudtest_never_default.py` (60): The cloud brain test image is never the default and never in a release: no default config turns it on, the rel
 - `host/tests/test_coding_companion.py` (227): The coding companion package: a cleaned status shows on the light, is spoken only from a fixed phrase, and nev
 - `host/tests/test_command_bus.py` (444): ruff: noqa: E501
@@ -2403,7 +2410,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (72): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (73): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2590,6 +2597,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_reply_tags.py` (369): ruff: noqa: E501
 - `host/tests/test_rest_policy.py` (9): no header
 - `host/tests/test_rest_routine.py` (129): BOT-SC-ANIM-01: rest routines (drowsy, asleep, waking) on a manual clock."""
+- `host/tests/test_review_fix_locked_unit_tools.py` (21): Review fix: a locked unit refuses the tools that read or change its network and pairing setup, from one table 
 - `host/tests/test_robot_object.py` (244): Robot API promises exercised through the configurable recorded fake body."""
 - `host/tests/test_robot_safe_stop_backoff.py` (92): A lost body runs the safe stop once, then at most every 30 s, not on every failing write."""
 - `host/tests/test_roster.py` (246): FOLLOWUP-01 (bot half): the roster poller fills the PeopleDirectory from the
@@ -2835,6 +2843,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/bench-train.py` (473): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
 - `scripts/bench-trains/batch1-b75.json` (253): no header
+- `scripts/bench-trains/batch1-b80.json` (406): no header
 - `scripts/bench-trains/batch2-b76.json` (227): no header
 - `scripts/bench-trains/batch3-b77.json` (248): no header
 - `scripts/bench-trains/bench-proof.json` (249): no header

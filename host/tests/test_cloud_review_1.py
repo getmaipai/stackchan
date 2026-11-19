@@ -46,7 +46,6 @@ def test_lock_attempt_counter_is_not_reset_by_a_call_that_needs_no_code(tmp_path
 
 
 @needs_cc
-@bug
 def test_keypad_pauses_after_a_run_of_wrong_codes(tmp_path, tmp_path_factory):
     """owner: firmware (lock keypad; docs/user/lock.md says the robot makes you wait after several wrong codes)."""
     run = _run_c(
@@ -70,7 +69,6 @@ def test_keypad_pauses_after_a_run_of_wrong_codes(tmp_path, tmp_path_factory):
 
 
 @needs_cc
-@bug
 def test_a_tipped_unit_is_noticed_while_the_head_keeps_moving(tmp_path, tmp_path_factory):
     """owner: firmware (SF34 maipai_motion_feed_accel: the hold on pitch motion; a dance or a nod never stops moving the pitch)."""
     run = _run_c(
@@ -83,7 +81,7 @@ def test_a_tipped_unit_is_noticed_while_the_head_keeps_moving(tmp_path, tmp_path
     for (int i = 0; i < 400; i++) {                                           /* 8 s on its side, the head nodding every tick */
         now += 20;
         pitch10 = (i & 1) ? 100 : 0;  moved = now;                            /* maipai_motion_note_pitch: the pitch changed just now */
-        if (now - moved < 400u) mml_orient_hold(&m, now);                    /* what the glue does */
+        if (now - moved < 400u && mml_orient_hold(&m, now)) { /* what the glue does: the hold is honored only up to its cap */ }
         else mml_orient_feed(&m, now, 9.8f, 0.0f, 0.0f, pitch10 / 10.0f);
     }
     (void)pitch10;

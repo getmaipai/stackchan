@@ -1,0 +1,24 @@
+# Intent: The saved quick-actions list is moved to the new default when it still is the old default. A unit that saved "beep, dance, game" (the default before the quick actions page was reworked) kept showing three chips (Beep, Dance, Games) while the page's default is Beep, Dance, Camera, Say hi (found by the b68 bench screen check). When the saved list is exactly beep, dance, game it is replaced by the current default at load; any list the owner chose (a different order, two chips, say hi in place of game) stays as saved. The old default cannot be told apart from an owner who chose the same three, so such an owner sees the new default once and can pick again.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pages_core.h (ours)
+# Check after a flash: a unit whose saved actions are beep, dance, game shows Beep, Dance, Camera, Say hi on the quick actions page after the first start; a unit with a list of the owner's own keeps it.
+# Kconfig: none
+# Memory cost: none (a comparison at load).
+
+diff --git a/firmware/main/hal/maipai_pages_core.h b/firmware/main/hal/maipai_pages_core.h
+--- a/firmware/main/hal/maipai_pages_core.h
++++ b/firmware/main/hal/maipai_pages_core.h
+@@ -423,6 +423,13 @@ static inline int mpg_cfg_from_text(mpg_cfg_t* c, const char* text)
+             act[na++] = a;
+         }
+     }
++    /* Patch SF101: a list saved as the old default (beep, dance, game: three chips) becomes the new default (beep, dance, camera, say hi); a list the owner changed stays as saved. */
++    if (na == 3 && act[0] == MPG_A_BEEP && act[1] == MPG_A_DANCE && act[2] == MPG_A_GAME) {
++        na = d.n_actions;
++        for (int i = 0; i < na; i++) {
++            act[i] = d.actions[i];
++        }
++    }
+     mpg_cfg_t t = d;
+     if (mpg_set_pages(&t, left, nl, right, nr) != NULL || mpg_set_timeouts(&t, sheet_s, idle_s) != NULL ||
+         mpg_set_actions(&t, act, na) != NULL || mpg_set_items(&t, it, ni) != NULL) {

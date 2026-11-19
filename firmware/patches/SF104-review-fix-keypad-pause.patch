@@ -1,0 +1,141 @@
+# Intent: Review fix (keypad): the lock keypad pauses after a run of wrong codes (owner decision 2026-11-18). After 5 wrong full entries in a row the keys do nothing for 30 s; each next run of 5 waits longer: 1 min, 5 min, 15 min, then an hour (the most the timer holds). A right code clears the count and the steps. The count of wrong entries, the steps and the time left on a running pause are saved in flash like the tools' lockout, so a restart never shortens a pause. A no-code tool call never resets them. Test: test_keypad_pauses_after_a_run_of_wrong_codes and the core test of the ladder, the restart and the reset.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_lock_core.h and maipai_lock.cc (ours)
+# Check after a flash: five wrong six-digit entries on the keypad: the sixth key does nothing for 30 s; power-cycle the unit during the pause: still paused; the right code afterwards unlocks and clears the count.
+# Kconfig: none
+# Memory cost: 2 bytes of state and three small saved numbers in flash.
+
+diff --git a/firmware/main/hal/maipai_lock_core.h b/firmware/main/hal/maipai_lock_core.h
+--- a/firmware/main/hal/maipai_lock_core.h
++++ b/firmware/main/hal/maipai_lock_core.h
+@@ -27,6 +27,7 @@
+ 
+ #define LK_TOOL_MAX_FAILS 5        /* wrong "current" codes sent to the lock tools before they refuse for LK_TOOL_LOCKOUT_MS (patch SF01) */
+ #define LK_TOOL_LOCKOUT_MS 60000
++#define LK_KEY_MAX_FAILS 5      /* review fix (owner decision 2026-11-18): after this many wrong full entries in a row the keypad pauses; the pause grows with every run */
+ #define LK_WRONG_DELAY_MS 0      /* the pause after a wrong code of six digits; 0 = none (owner decision 2026-11-17) */
+ #define LK_CODE_MIN 4
+ #define LK_CODE_MAX 6
+@@ -181,6 +182,8 @@ typedef struct {
+     uint8_t tool_strikes;    /* lockouts so far: each one is twice as long as the one before (kept in flash by the caller) */
+     uint8_t tool_fails;      /* wrong current codes sent to the tools since the last good one (patch SF01) */
+     uint32_t tool_block_until_ms; /* the tools refuse until then; 0 = not blocked */
++    uint8_t key_fails;       /* review fix: wrong full keypad entries since the last good one or the last pause */
++    uint8_t key_strikes;     /* review fix: pauses so far; each run of wrong entries waits longer (kept in flash by the caller) */
+ } mlk_t;
+ 
+ enum { MLK_R_OK = 0, MLK_R_BAD_CODE, MLK_R_CURRENT_NEEDED, MLK_R_WRONG_CURRENT, MLK_R_LOCKED, MLK_R_NO_CODE, MLK_R_BAD_MINUTES, MLK_R_TOO_MANY, MLK_R_COUNT };
+@@ -394,6 +397,28 @@ static inline void mlk_tool_restore(mlk_t* s, const mlk_tool_saved_t* saved, uin
+     s->tool_block_until_ms = saved->block_ms > 0 ? mt_stamp(now, saved->block_ms) : 0u;
+ }
+ 
++/* What the keypad remembers across a restart (review fix): the pauses so far, the wrong entries since the last one, and the time left on a running pause. A restart
++ * never shortens a pause. */
++typedef struct {
++    int strikes;
++    int fails;
++    uint32_t block_ms;
++} mlk_key_saved_t;
++
++static inline void mlk_key_save(const mlk_t* s, uint32_t now, mlk_key_saved_t* out)
++{
++    out->strikes = s->key_strikes;
++    out->fails = s->key_fails;
++    out->block_ms = mt_pending(now, s->block_until_ms) ? (uint32_t)(s->block_until_ms - now) : 0u;
++}
++
++static inline void mlk_key_restore(mlk_t* s, const mlk_key_saved_t* saved, uint32_t now)
++{
++    s->key_strikes = (uint8_t)(saved->strikes < 0 ? 0 : (saved->strikes > 250 ? 250 : saved->strikes));
++    s->key_fails = (uint8_t)(saved->fails < 0 ? 0 : (saved->fails >= LK_KEY_MAX_FAILS ? LK_KEY_MAX_FAILS - 1 : saved->fails));
++    if (saved->block_ms > 0) s->block_until_ms = mt_stamp(now, saved->block_ms);
++}
++
+ /* ---- the idle timer ---- */
+ static inline void mlk_activity(mlk_t* s, uint32_t now)
+ {
+@@ -467,6 +492,8 @@ static inline int mlk_key(mlk_t* s, char key, uint32_t now)
+     s->digits[s->n] = '\0';
+     if (s->n >= LK_CODE_MIN && mlk_check(s, s->digits)) {
+         mlk_clear_entry(s);
++        s->key_fails = 0;
++        s->key_strikes = 0;
+         s->locked = 0;
+         s->keypad = 0;
+         s->last_activity_ms = now;
+@@ -476,6 +503,12 @@ static inline int mlk_key(mlk_t* s, char key, uint32_t now)
+         mlk_clear_entry(s);
+         s->wrong_shown = 1;
+         s->block_until_ms = LK_WRONG_DELAY_MS > 0 ? mt_stamp(now, (uint32_t)LK_WRONG_DELAY_MS) : 0u;
++        if (++s->key_fails >= LK_KEY_MAX_FAILS) {   /* review fix: a growing pause: 30 s, 1 min, 5 min, 15 min, then an hour (the most mt_stamp allows) */
++            static const uint32_t PAUSE_MS[5] = {30000u, 60000u, 300000u, 900000u, 3600000u};
++            s->key_fails = 0;
++            s->block_until_ms = mt_stamp(now, PAUSE_MS[s->key_strikes < 4 ? s->key_strikes : 4]);
++            if (s->key_strikes < 250) s->key_strikes++;
++        }
+         return MLK_EV_WRONG;
+     }
+     return MLK_EV_NONE;
+diff --git a/firmware/main/hal/maipai_lock.cc b/firmware/main/hal/maipai_lock.cc
+--- a/firmware/main/hal/maipai_lock.cc
++++ b/firmware/main/hal/maipai_lock.cc
+@@ -75,7 +75,7 @@ void publish_flags()  // s_mu held
+ void persist()
+ {
+     std::string salt, hash;
+-    int locked, auto_min, strikes, block_ms, fails;
++    int locked, auto_min, strikes, block_ms, fails, kstrikes, kblock, kfails;
+     bool has;
+     {
+         std::lock_guard<std::mutex> lock(s_mu);
+@@ -91,9 +91,14 @@ void persist()
+         strikes = tool_saved.strikes;
+         block_ms = static_cast<int>(tool_saved.block_ms);
+         fails = tool_saved.fails;
++        mlk_key_saved_t key_saved;   // review fix: the keypad pause survives a restart like the tools' lockout
++        mlk_key_save(&s_st, now_ms(), &key_saved);
++        kstrikes = key_saved.strikes;
++        kblock = static_cast<int>(key_saved.block_ms);
++        kfails = key_saved.fails;
+         has = s_st.has_code;
+     }
+-    Application::GetInstance().Schedule([salt, hash, locked, auto_min, strikes, block_ms, fails, has]() {
++    Application::GetInstance().Schedule([salt, hash, locked, auto_min, strikes, block_ms, fails, kstrikes, kblock, kfails, has]() {
+         Settings st("mp_lock", true);
+         if (has) {
+             st.SetString("salt", salt);
+@@ -106,6 +111,9 @@ void persist()
+         st.SetInt("tstrikes", strikes);
+         st.SetInt("tblock", block_ms);
+         st.SetInt("tfails", fails);
++        st.SetInt("kstrikes", kstrikes);
++        st.SetInt("kblock", kblock);
++        st.SetInt("kfails", kfails);
+     });
+ }
+ 
+@@ -204,6 +212,7 @@ void handle_key(char key)  // LVGL lock held: a key of the keypad (a real press
+     }
+     if (ev == MLK_EV_UNLOCK) {
+         on_unlocked_ui();
++        persist();   // review fix: a good code clears the pauses in flash too
+         return;
+     }
+     if (ev == MLK_EV_CANCEL) {
+@@ -213,6 +222,7 @@ void handle_key(char key)  // LVGL lock held: a key of the keypad (a real press
+     dots_refresh();
+     if (ev == MLK_EV_WRONG) {
+         mlkd::shake_dots(&s_pad_ui);  // a short shake and a red flash, no sentence
++        persist();                    // review fix: the count of wrong entries and a running pause survive a restart
+     }
+ }
+ 
+@@ -330,6 +340,8 @@ void maipai_lock_boot()
+         if (s_st.has_code) {
+             const mlk_tool_saved_t saved = {st.GetInt("tstrikes", 0), static_cast<uint32_t>(st.GetInt("tblock", 0) < 0 ? 0 : st.GetInt("tblock", 0)), st.GetInt("tfails", 0)};
+             mlk_tool_restore(&s_st, &saved, now_ms());
++            const mlk_key_saved_t ksaved = {st.GetInt("kstrikes", 0), st.GetInt("kfails", 0), static_cast<uint32_t>(st.GetInt("kblock", 0) < 0 ? 0 : st.GetInt("kblock", 0))};
++            mlk_key_restore(&s_st, &ksaved, now_ms());
+         }
+         publish_flags();
+     }

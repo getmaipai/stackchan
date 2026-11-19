@@ -39,7 +39,9 @@ int main(void)
     CHECK(s.state == MPX_STARTED);
     CHECK(mpx_on_host_key(&s, pk_h, commit, n_u) == MPX_OK && s.state == MPX_NONCE_SENT);
     CHECK(mpx_on_host_nonce(&s, n_h) == MPX_OK && s.state == MPX_CODE_SHOWN && s.code == 578535u);
-    CHECK(mpx_on_paired(&s, z, "02:00:5e:00:53:01", k) == MPX_OK && s.state == MPX_DONE);
+    CHECK(mpx_on_paired(&s, z, "02:00:5e:00:53:01", 5000) == MPX_OK && s.state == MPX_AWAIT_CONFIRM);   /* review fix: nothing is handed over yet */
+    CHECK(mpx_tick(&s, 5000 + MPX_CONFIRM_MS - 1000u) == 0 && s.state == MPX_AWAIT_CONFIRM);
+    CHECK(mpx_confirm(&s, k) == MPX_OK && s.state == MPX_DONE);                                          /* the owner tapped Keep */
     CHECK(memcmp(k, k_want, 32) == 0);
     /* nothing of the exchange stays in memory after it */
     CHECK(s.code == 0 && s.pk_h[0] == 0 && s.n_u[1] == 0);
@@ -53,14 +55,14 @@ int main(void)
     mpx_begin(&s, pk_u, 1000);
     CHECK(mpx_on_host_nonce(&s, n_h) == MPX_ORDER && s.state == MPX_FAILED);
     mpx_begin(&s, pk_u, 1000);
-    CHECK(mpx_on_paired(&s, z, "02:00:5e:00:53:01", k) == MPX_ORDER && s.state == MPX_FAILED);
+    CHECK(mpx_on_paired(&s, z, "02:00:5e:00:53:01", 5000) == MPX_ORDER && s.state == MPX_FAILED);
     mpx_begin(&s, pk_u, 1000);
     CHECK(mpx_on_host_key(&s, pk_h, commit, n_u) == MPX_OK);
     CHECK(mpx_on_host_key(&s, pk_h, commit, n_u) == MPX_ORDER); /* a second host key */
     /* a code is shown but "paired" before the nonce: refused */
     mpx_begin(&s, pk_u, 1000);
     mpx_on_host_key(&s, pk_h, commit, n_u);
-    CHECK(mpx_on_paired(&s, z, "02:00:5e:00:53:01", k) == MPX_ORDER);
+    CHECK(mpx_on_paired(&s, z, "02:00:5e:00:53:01", 5000) == MPX_ORDER);
     /* timeout, also past 2^31 ms of uptime */
     const uint32_t base[2] = {1000u, 0x90000000u};
     for (int i = 0; i < 2; i++) {
@@ -75,6 +77,60 @@ int main(void)
     mpx_on_host_key(&s, pk_h, commit, n_u);
     mpx_abort(&s);
     CHECK(s.state == MPX_IDLE && s.pk_u[0] == 0);
+    /* review fix: a host key of small order (the eight known points) or all zero ends the exchange, with the top bit set or not; a normal key is accepted */
+    {
+        const char* bad[] = {
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "0100000000000000000000000000000000000000000000000000000000000000",
+            "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800",
+            "5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157",
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+            "0000000000000000000000000000000000000000000000000000000000000080",   /* zero with the top bit set */
+            "0100000000000000000000000000000000000000000000000000000000000080",
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b880",
+        };
+        for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+            uint8_t low[32];
+            hex(bad[i], low, 32);
+            mpx_begin(&s, pk_u, 1000);
+            CHECK(mpx_on_host_key(&s, low, commit, n_u) == MPX_BAD_KEY && s.state == MPX_FAILED);
+            CHECK(s.pk_h[0] == 0 && s.pk_u[0] == 0);                         /* wiped */
+        }
+        mpx_begin(&s, pk_u, 1000);
+        CHECK(mpx_on_host_key(&s, pk_h, commit, n_u) == MPX_OK);              /* an ordinary key still goes through */
+        uint8_t topbit[32];
+        memcpy(topbit, pk_h, 32);
+        topbit[31] |= 0x80;
+        mpx_begin(&s, pk_u, 1000);
+        CHECK(mpx_on_host_key(&s, topbit, commit, n_u) == MPX_OK);            /* the top bit alone does not make a key bad */
+        /* an all-zero shared secret never becomes a link key */
+        uint8_t zero[32] = {0};
+        mpx_begin(&s, pk_u, 1000);
+        CHECK(mpx_on_host_key(&s, pk_h, commit, n_u) == MPX_OK && mpx_on_host_nonce(&s, n_h) == MPX_OK);
+        CHECK(mpx_on_paired(&s, zero, "02:00:5e:00:53:01", 5000) == MPX_BAD_KEY && s.state == MPX_FAILED);
+        CHECK(MPX_REASONS[MPX_BAD_KEY][0] != 0);
+    }
+    /* review fix: a forged "paired" does not give the unit a key: only the owner's tap on the unit does */
+    {
+        mpx_begin(&s, pk_u, 1000);
+        mpx_on_host_key(&s, pk_h, commit, n_u);
+        mpx_on_host_nonce(&s, n_h);
+        CHECK(mpx_confirm(&s, k) == MPX_ORDER && s.state == MPX_FAILED);                                   /* a confirm with no "paired" before it */
+        mpx_begin(&s, pk_u, 1000);
+        mpx_on_host_key(&s, pk_h, commit, n_u);
+        mpx_on_host_nonce(&s, n_h);
+        CHECK(mpx_on_paired(&s, z, "02:00:5e:00:53:01", 9000) == MPX_OK && s.state == MPX_AWAIT_CONFIRM);
+        CHECK(mpx_decline(&s) == MPX_DECLINED && s.state == MPX_FAILED && s.k[0] == 0 && s.k[31] == 0);    /* Cancel: the key is wiped */
+        mpx_begin(&s, pk_u, 1000);
+        mpx_on_host_key(&s, pk_h, commit, n_u);
+        mpx_on_host_nonce(&s, n_h);
+        mpx_on_paired(&s, z, "02:00:5e:00:53:01", 9000);
+        CHECK(mpx_tick(&s, 9000 + MPX_CONFIRM_MS + 1u) == 1 && s.state == MPX_FAILED && s.k[0] == 0);       /* a minute with no tap: wiped */
+        CHECK(MPX_REASONS[MPX_DECLINED][0] != 0);
+    }
     if (failures) return 1;
     printf("pairx core ok\n");
     return 0;

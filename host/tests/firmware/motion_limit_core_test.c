@@ -34,8 +34,26 @@ static void vec(float deg_roll, float deg_fore)
     AZ = h * sinf(deg_fore * r);
 }
 
+static void test_the_orientation_hold_has_a_cap(void)   /* review fix */
+{
+    mml_t m; mml_init(&m);
+    uint32_t now = 10000;
+    for (int i = 0; i < 100; i++) { now += 20; mml_orient_feed(&m, now, 0.0f, 9.8f, 0.0f, 0.0f); }
+    CHECK(mml_orient(&m, now) == MML_O_UPRIGHT);
+    int honored = 0, refused = 0;
+    for (int i = 0; i < 400; i++) { now += 20; if (mml_orient_hold(&m, now)) honored++; else refused++; }   /* 8 s of a head that never stops */
+    CHECK(honored > 140 && honored < 160);                          /* about 3 s are held */
+    CHECK(refused > 240);                                           /* then the hold is refused */
+    CHECK(mml_orient(&m, now) == MML_O_UNKNOWN);                    /* and with no reading, the band is unknown, not upright */
+    for (int i = 0; i < 5; i++) { now += 20; mml_orient_feed(&m, now, 0.0f, 9.8f, 0.0f, 0.0f); }
+    CHECK(mml_orient(&m, now) != MML_O_UNKNOWN);                    /* a fed reading brings it back */
+    now += 2000;                                                    /* a quiet spell ends the run: the next hold is honored again */
+    CHECK(mml_orient_hold(&m, now) == 1);
+}
+
 int main(void)
 {
+    test_the_orientation_hold_has_a_cap();
     mml_t m;
     mml_init(&m);
     run(&m, 0, 0, 90, 500);
