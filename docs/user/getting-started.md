@@ -15,7 +15,7 @@ You do not need a language model yet. The host can install a small one for you.
 ## Steps
 
 1. **Install the host.** Run `pipx install "git+https://github.com/getmaipai/stackchan#subdirectory=host"`, then `stackchan service install`. The host starts at login and restarts itself if it stops. More: [Install, update and remove the host](install-the-host.md), [Keep the host running](run-as-a-service.md). You will know it worked when `stackchan status` says everything is running.
-2. **Choose a brain.** Open `http://127.0.0.1:8777/brain` on the host computer and pick one of three ways: MaiPai Home, your own model, or a small one the host installs. No terminal needed. See [Choose a brain](choose-a-brain.md).
+2. **Choose a brain.** Open `http://127.0.0.1:8051/brain` on the host computer and pick one of three ways: MaiPai Home, your own model, or a small one the host installs. No terminal needed. See [Choose a brain](choose-a-brain.md).
 3. **Flash the robot.** Open the [web flasher](web-flasher.md), plug the robot in by USB and press Install. You can type your Wi-Fi in the same box, or later on the robot's own screen.
 
    ![The web flasher with the Install button and the Wi-Fi fields.](../images/flasher.svg)

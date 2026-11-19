@@ -31,7 +31,7 @@ Nothing changes on the robot. It runs the same firmware with your own model or w
 
 ## Turn it on
 
-1. Open `http://127.0.0.1:8777/brain` on the host computer ([Choose a brain](choose-a-brain.md)).
+1. Open `http://127.0.0.1:8051/brain` on the host computer ([Choose a brain](choose-a-brain.md)).
 2. Type the hub address, for example `http://192.0.2.20:3000`, and press **Use MaiPai Home**. Prefer a file? Set `brain = "home"` and `home_url` in `robot.toml` instead.
 3. Run `stackchan check`. You'll know it worked when the check lists Home as the brain and every line says ok.
 

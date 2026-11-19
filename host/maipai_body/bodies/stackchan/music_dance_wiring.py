@@ -123,7 +123,7 @@ class MusicFeatureSwitch:
                 self._sent = None
                 # A unit that is not connected (or just dropped) is expected while units join and leave: one plain line, retried later. Anything else keeps its traceback.
                 lost = isinstance(error, (BodyLost, ConnectionError)) or isinstance(getattr(error, "__cause__", None), ConnectionError)
-                logger.warning("StackChan music features switch failed (%s); will retry", error if lost else type(error).__name__, exc_info=not lost)
+                logger.log(logging.INFO if lost else logging.WARNING, "StackChan music features switch failed (%s); will retry", error if lost else type(error).__name__, exc_info=not lost)   # a robot that is not there yet is not a warning
                 return
             self._sent = want
             logger.info("StackChan music features %s", "on" if want else "off")

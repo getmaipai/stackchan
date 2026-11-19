@@ -13,6 +13,10 @@ import os
 class NoRobotYet(logging.Filter):
     """A failed call that was only because no robot is connected yet is logged as one plain line, not a traceback."""
 
+    def __init__(self, drop: bool = False) -> None:
+        super().__init__()
+        self._drop = drop  # the terminal drops these lines (a first start is quiet); the log file keeps them as INFO
+
     def filter(self, record: logging.LogRecord) -> bool:
         error = record.exc_info[1] if record.exc_info else None
         while error is not None:
@@ -22,6 +26,13 @@ class NoRobotYet(logging.Filter):
                 record.args = None
                 break
             error = error.__cause__ or error.__context__
+        text = record.getMessage()
+        if "No StackChan is connected" in text or "no robot is connected yet" in text:
+            # Before the first robot joins, every call to it fails for this one plain reason. That is normal on a first start: an INFO line in the log file, nothing on the terminal.
+            if record.levelno == logging.WARNING:
+                record.levelno, record.levelname = logging.INFO, "INFO"
+            if self._drop:
+                return False
         return True
 
 
@@ -36,7 +47,7 @@ def configure_logging(hosted: bool | None = None, *, root: logging.Logger | None
     if not root.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(logging.Formatter(_FORMAT))
-        handler.addFilter(NoRobotYet())
+        handler.addFilter(NoRobotYet(drop=True))
         root.addHandler(handler)
         root.setLevel(logging.WARNING)
     log_file = os.environ.get("MAIPAI_LOG_FILE")

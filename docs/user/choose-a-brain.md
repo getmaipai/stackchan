@@ -1,6 +1,6 @@
 # Choose a brain
 
-The robot needs a brain to think and talk. The first time you start the host, no brain is set. Open the settings page on the host computer at `http://127.0.0.1:8777/brain` (the host writes the exact address in its log), and pick one of three ways. You can change it later on the same page. You do not need a terminal.
+The robot needs a brain to think and talk. The first time you start the host, no brain is set. Open the settings page on the host computer at `http://127.0.0.1:8051/brain` (the host writes the exact address in its log), and pick one of three ways. You can change it later on the same page. You do not need a terminal.
 
 | | What it is | You need |
 |---|---|---|

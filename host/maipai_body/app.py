@@ -21,6 +21,7 @@ thread, which is moot since the process is exiting.
 from __future__ import annotations
 
 import asyncio
+import errno
 import importlib.metadata
 import json
 import logging
@@ -28,6 +29,7 @@ import math
 import os
 import random
 import signal
+import sys
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -4055,6 +4057,13 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
     _wire_installed_sets(voice, backend, pairing, _RUNTIME.get("stop") or threading.Event())
     server.start()
     logger.info("StackChan settings page on http://127.0.0.1:%d/settings", server.port)
+    if os.environ.get("MAIPAI_HUB_HOST") != "1":   # run by hand in a terminal: say once what is running and what to do next (a service logs to its file instead)
+        print(
+            f"MaiPai host is running.\n  Choose a brain: open http://127.0.0.1:{server.port}/brain in a browser on this computer.\n"
+            "  Pair a robot: run `stackchan pair` in another terminal.\n  Stop the host with Ctrl+C.",
+            file=sys.stderr,
+            flush=True,
+        )
     supervisor = _RUNTIME.get("supervisor")
     if supervisor is not None:
         from maipai_body.health import build_health
@@ -5596,3 +5605,14 @@ if __name__ == "__main__":
         app.wrapped_run()
     except KeyboardInterrupt:
         app.stop()
+    except OSError as error:
+        if error.errno != errno.EADDRINUSE:
+            raise
+        # A port the host needs is taken: say so in plain words instead of a traceback (most often a second copy of the host is already running).
+        print(
+            f"The host could not start: {error.strerror or 'a port is already in use'}.\n"
+            "  Another copy of the host may already be running (check with `stackchan status`), or another program uses that port.\n"
+            "  Stop the other one, or set a free port with MAIPAI_XIAOZHI_PORT, MAIPAI_STACKCHAN_AVATAR_PORT or MAIPAI_STACKCHAN_SETTINGS_PORT, then run `stackchan run` again.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None

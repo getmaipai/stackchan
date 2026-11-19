@@ -414,7 +414,7 @@ function go(g,force){if(!GROUPS.includes(g))g='home';CUR=g;if(location.hash!=='#
  document.querySelectorAll('.nav button').forEach(b=>{if(b.dataset.g===g)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
  for(const k of GROUPS)panels[k].classList.toggle('on',k===g);
  if(!BUILT[g]&&UNIT){BUILT[g]=true;BUILDP[g]=Promise.resolve(BUILDERS[g](panels[g],UNIT)).then(()=>layoutPanel(g)).catch(e=>{toast(T('net_error'),'bad');console.error(e)})}window.scrollTo({top:0})}
-function whenUnits(p){p.append(h('div',{class:'empty'},S['settings.no_units']))}
+function whenUnits(p){p.append(h('div',{class:'empty'},S['settings.no_units']),h('div',{class:'btns'},h('a',{href:'/brain?first=1',class:'btn pri',style:'text-decoration:none;display:inline-block'},T('Choose a brain'))))}
 const BUILDERS={};let BUILDP={};
 async function main(){shell();const r=await api('/api/stackchan/settings');
  if(!r.ok){toast(r.d.error||T('net_error'),'bad');return}

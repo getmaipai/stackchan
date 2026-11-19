@@ -4,7 +4,7 @@ Two ways, the same answer in plain words.
 
 ## On the page
 
-Open the settings page on the host computer and go to `/health` (for example `http://127.0.0.1:8777/health`). It shows:
+Open the settings page on the host computer and go to `/health` (for example `http://127.0.0.1:8051/health`). It shows:
 
 - One sentence at the top: everything is running, something is restarting, or something needs you.
 - Each part of the host, and whether it is running.

@@ -36,6 +36,10 @@ Use this when the robot is stuck or you are giving it away. Swipe up from the bo
 
 One owner saw this: the wake cue plays, you speak, and nothing comes back. The host hears loud audio but the speech engine returns no words. This is a known open problem. Run `stackchan check`, make sure the speech engine line says ok, and tell us on the Issues tab what you saw.
 
+## The host says a port is already in use
+
+The host could not start because another program, most often a second copy of the host, already uses one of its ports. Run `stackchan status` to see whether a host is running. Stop the other copy, then run `stackchan run` again. To use different ports, set `MAIPAI_XIAOZHI_PORT`, `MAIPAI_STACKCHAN_AVATAR_PORT` or `MAIPAI_STACKCHAN_SETTINGS_PORT` to free ones before you start it.
+
 ## Still need help?
 
 Run `stackchan check`, then open an issue on the Issues tab and tell us what you saw.

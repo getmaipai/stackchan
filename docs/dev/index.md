@@ -56,6 +56,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - [How MaiPai for StackChan fits together](overview.md)
 - [Pantry seed library](pantry-seed.md)
 - [Before the repository goes public](pre-publish-checklist.md)
+- [Release dry run (2026-11-19)](release.md)
 - [Saved settings that move when a default changes](saved-settings-migrations.md)
 - [Scope: the core robot and MaiPai Home](scope-core-vs-home.md)
 - [Screen audit against the physical standard](screen-audit.md)

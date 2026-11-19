@@ -7,7 +7,7 @@ The host is the program that runs on your computer, between the robot and your m
 1. Install `pipx` if you do not have it. Your system's package manager has it.
 2. Run `pipx install "git+https://github.com/getmaipai/stackchan#subdirectory=host"`.
 3. You'll know it worked when `stackchan --help` lists its commands.
-4. Run `stackchan run` to start the host. It stays in the terminal and prints what it does. The first run writes `~/.config/maipai/robot.toml` for you to edit.
+4. Run `stackchan run` to start the host. It stays in the terminal. It prints where to open the settings page (`http://127.0.0.1:8051/brain` to choose a brain) and how to pair a robot, then stays quiet until something needs you. The first run writes `~/.config/maipai/robot.toml` for you to edit. If it says a port is already in use, another copy of the host is probably running: check with `stackchan status`.
 
 ![The robot's screen while it waits to be approved: crossed-out signal bars and a key, and the words "Waiting for Home to approve me".](../images/vu-pairing.png)
 
