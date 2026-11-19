@@ -19,6 +19,7 @@ COUNTS = {
     **{lang: {"joke": 40, "riddle": 40, "trivia": 40, "line": 120} for lang in ("es", "fr", "de", "pt", "it")},
 }
 FILES = sorted(SEED.glob("*.json"))
+MAX_LINE_CHARS = 36  # one subtitle strip row (docs/design/offline-lines-screens.md)
 
 
 def _load(path: Path) -> list[dict]:
@@ -60,6 +61,17 @@ def test_every_situation_has_six_lines_and_the_lines_pass_the_dedupe(path):
     assert per_situation == {tag: 6 for tag in SITUATIONS}, f"{path.name}: every situation needs exactly 6 lines, found {per_situation}."
     kept, report = dedupe(records, [])
     assert len(kept) == len(records), f"{path.name}: the dedupe drops lines that are too alike: {report.dropped}."
+
+
+@pytest.mark.parametrize("path", [p for p in FILES if p.stem.endswith("-line")], ids=lambda p: p.name)
+def test_every_line_fits_one_subtitle_row_and_ids_are_unique(path):
+    rows = _load(path)
+    too_long = [(len(row["text"]), row["text"]) for row in rows if row["kind"] == "line" and len(row["text"]) > MAX_LINE_CHARS]
+    assert not too_long, f"{path.name}: lines over {MAX_LINE_CHARS} characters do not fit one subtitle row; shorten them: {too_long}."
+    records = [Record.from_json(row) for row in rows]
+    assert len(records) == 6 * len(SITUATIONS)
+    assert all(sum(1 for r in records if r.extra == tag) == 6 for tag in SITUATIONS)
+    assert len({r.id_hex for r in records}) == len(records), f"{path.name} repeats a line."
 
 
 def test_no_duplicate_ids_across_all_files():
