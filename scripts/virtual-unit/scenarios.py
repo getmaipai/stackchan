@@ -6,6 +6,7 @@ Exit 1 and one line per failing scenario on a mismatch or a broken layout rule.
 Placement: host-side development tool; no firmware change. Upstream: none."""
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import sys
 from pathlib import Path
@@ -516,6 +517,8 @@ def main() -> int:
     if not args:
         print("not drawn yet: " + ", ".join(SCREEN_GAPS))
     print(f"{len(names) - failed} of {len(names)} scenarios clean" if not failed else f"{failed} problems")
+    if not args and screens_built and not failed:   # every scenario matches its golden for this ORDER: stamp the goldens with it (scripts/golden-stamp.py checks it)
+        (GOLDEN.parent / "golden-order.sha1").write_text(hashlib.sha1((ROOT / "firmware" / "patches" / "ORDER").read_bytes()).hexdigest() + "\n")
     return 1 if failed else 0
 
 

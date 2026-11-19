@@ -5,7 +5,7 @@
 #        bash scripts/test-fast.sh [pytest args]       the same without the slow tests (the end to end and the sanitizer fuzz): the quick check while working
 # Prints one line per group and a total; exit 1 on any failure.
 # The end to end on the virtual unit (tests/test_e2e_virtual_unit.py, docs/dev/e2e-virtual-unit.md) is part of the suite; MAIPAI_E2E=0 skips it.
-# Env: MAIPAI_FW_TREE_ROOT (default ~/esp/stackchan-rebase/final15). Without a tree the virtual unit tests skip with one clear message.
+# Env: MAIPAI_FW_TREE_ROOT (default: main's reference tree ~/esp/stackchan-rebuild/main-ref, made by scripts/fw-ref-tree.sh; scripts/ref-tree.py says plainly when it is missing or older than ORDER). Without a tree the virtual unit tests skip with one clear message.
 # Placement: repo gate. Upstream: none.
 set -eu
 JOBS="${JOBS:-4}"

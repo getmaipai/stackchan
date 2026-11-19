@@ -20,4 +20,4 @@ def test_the_renderer_was_built_from_the_current_series():
     s = json.loads(STAMP.read_text())
     assert s["order_sha"] == hashlib.sha1((ROOT / "firmware" / "patches" / "ORDER").read_bytes()).hexdigest(), "firmware/patches/ORDER changed since the renderer was built: run bash scripts/virtual-unit/build-face.sh and build-screens.sh, then scenarios.py and look at what changed"
     assert not s.get("unexplained_failures"), s.get("unexplained_failures")   # a patch the tree cannot take must be named in scripts/virtual-unit/overlay-skip.txt with its reason
-    assert "b" in Path(s["tree"]).name, s["tree"]   # a replayed tree (bNN), not the old final15 tree
+    assert Path(s["tree"]).name == "main-ref" or Path(s["tree"]).name.startswith("b"), s["tree"]   # main's reference tree (scripts/fw-ref-tree.sh) or a replayed tree (bNN), not the old final15 tree
