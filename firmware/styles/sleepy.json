@@ -1,0 +1,20 @@
+{
+ "name": "sleepy",
+ "title": "Sleepy",
+ "about": "Heavy lids that never open all the way.",
+ "eye_d": 70,
+ "eye_x": 66,
+ "eye_y": -6,
+ "mouth_y": 56,
+ "mouth_w": 28,
+ "mouth_t": 5,
+ "ew": 70,
+ "eh": 76,
+ "mouth": "cute",
+ "r_pct": 100,
+ "pupil": 1,
+ "brows": 0,
+ "drift": 3,
+ "blw": 5,
+ "lid_min": 38
+}

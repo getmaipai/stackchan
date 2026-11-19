@@ -3,8 +3,10 @@ Colors and the background rule are the unit's own (maipai_face_core.h: MF_PALETT
 Placement: host-side development tool. Upstream: none."""
 from __future__ import annotations
 
-# The styles the renderer draws today. New styles join this list when their firmware patch is in the overlay (docs/plan/face-styles-verdict.md).
-STYLES = ["big_eyes", "eyes_only", "stock", "classic", "minimal"]
+# Base styles are rows of the image; recipe styles are 44-byte assets (scripts/face-recipe.py) the renderer loads with its `recipe` command.
+BASE_STYLES = ["big_eyes", "stock", "minimal"]          # in the firmware image (owner decision 22)
+RECIPE_STYLES = ["classic", "eyes_only", "round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes", "hose", "neon"]   # installable: firmware/styles/NAME.rcp, drawn after patch UXF01
+STYLES = BASE_STYLES + RECIPE_STYLES
 MOODS = ["neutral", "happy", "sad", "angry", "doubt", "surprised", "sleepy", "tired", "closing", "sleeping", "love", "content", "thinking"]
 PALETTE = {"mint": (0x7F, 0xE0, 0xB8), "sky": (0x7F, 0xC4, 0xF0), "amber": (0xF2, 0xB2, 0x4A), "rose": (0xF0, 0x8F, 0xB0), "lilac": (0xB8, 0x9C, 0xF0), "lime": (0xB4, 0xE0, 0x5A), "coral": (0xF2, 0x84, 0x6C)}
 BG_PCT = 26

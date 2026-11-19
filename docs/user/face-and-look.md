@@ -15,9 +15,17 @@ The page shows a live preview that uses the same drawing code as the robot.
 
 *The big-eyes face on the robot.*
 
-![The big-eyes face and the minimal face side by side.](../images/face-styles.svg)
+![Thirteen face styles at rest, four to a row, in the order listed below.](../images/face-styles.png)
 
-*The big-eyes face and the minimal face side by side. A placeholder drawing, not a real screenshot.*
+*Every face style at rest, drawn by the robot's own face code: Big eyes, Stock, Minimal, Classic, then Eyes only, Round, Cat, Robot, Sleepy, Pixel, Heart eyes, Rubber hose and Neon anime.*
+
+## More faces (Planned)
+
+The robot comes with three styles: Big eyes, Stock and Minimal. Ten more are planned as small downloads (each is 44 bytes) from the catalog: Classic, Eyes only, Round, Cat, Robot, Sleepy, Pixel, Heart eyes, Rubber hose and Neon anime. A style you have not installed uses no memory. Install one on the settings page, then pick it in the Look tab. Remove it and the robot goes back to the style you had before.
+
+Rubber hose is a 1930s cartoon look: tall eyes with a wedge cut from the dark middle, a wide grin, round cheeks and a small tuft. Neon anime has big glowing ring eyes with a bright middle and small sparkles.
+
+Every style works with every face color and every background color, and in every mood.
 
 ## Smoother eyes and mouth
 
@@ -53,9 +61,9 @@ The eyes are white until you pick a color. Set the color on the settings page, o
 The eyes also lean a little toward a color for some feelings: warm red when angry, cool blue when sad, pink for love, and dim when sleepy or tired. This is on by default and is one switch on the settings page. The shapes change too, so the face reads the same without color.
 Color never carries meaning alone. Every state also has a shape or an icon, so the robot reads well if you cannot tell colors apart.
 
-![The same face in three colors.](../images/face-colors.svg)
+![The same happy face in white, mint, amber and rose, then white on sky and lilac backgrounds.](../images/face-colors.png)
 
-*The same face in three colors. A placeholder drawing, not a real screenshot.*
+*The same happy face in four colors on black, then white on two background colors.*
 
 ## Captions
 

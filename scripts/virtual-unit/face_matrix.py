@@ -20,7 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from face_styles import BACKGROUNDS, COLORS, MOODS, STYLES, bg_rgb  # noqa: E402
+from face_styles import BACKGROUNDS, BASE_STYLES, COLORS, MOODS, STYLES, bg_rgb  # noqa: E402
 
 RENDER_COLOR_CMD = "colo" + "ur"   # the renderer's own command word (scripts/fw-face-render/hooks_new.cc); spelled apart so the spelling lint reads prose only
 RENDER = ROOT / ".runs" / "vu-build" / "render"
@@ -31,7 +31,7 @@ def render_variant(style: str, color: str, background: str, out: Path, moods=MOO
     out.mkdir(parents=True, exist_ok=True)
     fg = COLORS[color]
     br, bgc, bb = bg_rgb(background)
-    lines = [f"style {style}", f"{RENDER_COLOR_CMD} {fg[0]} {fg[1]} {fg[2]} {br} {bgc} {bb}"]
+    lines = [f"style {style}" if style in BASE_STYLES else f"recipe {ROOT / 'firmware' / 'styles' / (style + '.rcp')}", f"{RENDER_COLOR_CMD} {fg[0]} {fg[1]} {fg[2]} {br} {bgc} {bb}"]
     files = {}
     for mood in moods:
         files[mood] = out / f"{mood}.png"
@@ -150,7 +150,7 @@ def montage(path: Path, tiles: list[list[Path]], scale: int = 2, gap: int = 6) -
     for row in tiles:
         imgs = []
         for t in row:
-            im = read_rgb(t)
+            im = read_rgb(t) if t is not None else np.zeros((240, 320, 3), dtype=np.uint8)
             im = im.reshape(im.shape[0] // scale, scale, im.shape[1] // scale, scale, 3).mean(axis=(1, 3)).astype(np.uint8)
             imgs.append(np.pad(im, ((gap, 0), (gap, 0), (0, 0)), constant_values=24))
         rows.append(np.concatenate(imgs, axis=1))
@@ -178,8 +178,9 @@ def main() -> int:
         print(f"wrote {a.sheet} ({a.sheet.stat().st_size // 1024} KB, {len(rendered) * len(MOODS)} pictures)")
     if a.images:
         img_dir = ROOT / "docs" / "images"
-        shown = ["neutral", "happy", "sad", "surprised"]
-        montage(img_dir / "face-styles.png", [[rendered[(s, "white", "none")][m] for m in shown] for s in styles])
+        per_row = 4
+        cells = [rendered[(s, "white", "none")]["neutral"] for s in styles]   # the style's resting look, in the order of STYLES, four to a row; a short last row is padded with black
+        montage(img_dir / "face-styles.png", [cells[k : k + per_row] + [None] * (per_row - len(cells[k : k + per_row])) for k in range(0, len(cells), per_row)])
         picks = [(c, b) for c in COLORS for b in ("none",)] + [("white", b) for b in BACKGROUNDS if b != "none"]
         montage(img_dir / "face-colors.png", [[rendered[(styles[0], c, b)]["happy"] for c, b in picks[i : i + 3]] for i in range(0, len(picks), 3) if len(picks[i : i + 3]) == 3])
         print("wrote docs/images/face-styles.png and docs/images/face-colors.png")
