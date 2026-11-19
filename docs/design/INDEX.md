@@ -173,8 +173,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/cross-review-status.md` (45): Cross-review bugs: fixed and still open
 - `docs/dev/dance-entry-points.md` (207): Dance entry points on the real unit, and what each one runs
 - `docs/dev/dashboard-screens/README.md` (5): Dashboard screens
+- `docs/dev/display-speed.md` (36): Display speed: what the wire allows and where the rest goes (firmware track, 2026-11-19)
 - `docs/dev/draft-names.md` (131): Draft names to confirm
-- `docs/dev/e2e-virtual-unit.md` (89): End to end on the virtual unit (the spoken-turn check without hardware)
+- `docs/dev/e2e-virtual-unit.md` (91): End to end on the virtual unit (the spoken-turn check without hardware)
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
@@ -1576,7 +1577,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/selftest/core.py` (113): BOT-SELF-TEST-01: the small check runner every per-part self-test shares.
 - `host/maipai_body/selftest/stackchan.py` (181): BOT-SELF-TEST-01: the StackChan's seven part checks, one per part.
 - `host/maipai_body/selftest/stackchan_wiring.py` (127): BOT-SELF-TEST-01: the StackChan self-test context built from the live service parts.
-- `host/maipai_body/service_cmd.py` (228): The command of the install this program runs from (before any `stackchan service update`)."""
+- `host/maipai_body/service_cmd.py` (232): The command of the install this program runs from (before any `stackchan service update`)."""
 - `host/maipai_body/service_handover.py` (104): ruff: noqa: E501
 - `host/maipai_body/service_threads.py` (71): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (65): Settings keys shared by body settings consumers."""
@@ -2415,7 +2416,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
 - `host/tests/test_e2e_extra.py` (110): ruff: noqa: E501
-- `host/tests/test_e2e_fleet.py` (37): ruff: noqa: E501
+- `host/tests/test_e2e_fleet.py` (38): ruff: noqa: E501
 - `host/tests/test_e2e_virtual_unit.py` (33): ruff: noqa: E501
 - `host/tests/test_efuse_check.py` (33): Owner decision 14 (2026-11-18): nothing burns an eFuse. scripts/efuse-check.py must pass on the repository and
 - `host/tests/test_entry_point.py` (28): The reachy_mini_apps entry point resolves to a real ReachyMiniApp.
@@ -2644,7 +2645,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_selftest_cli.py` (440): BOT-SELF-TEST-02: the command line that runs the robot's checks from a
 - `host/tests/test_selftest_wiring.py` (165): BOT-SELF-TEST-01: the live-service wiring of the StackChan self-test."""
 - `host/tests/test_service_and_health.py` (139): no header
-- `host/tests/test_service_handover.py` (94): The "Keep the host running" handover (decision 28): success, and every failure leaves the person with a runnin
+- `host/tests/test_service_handover.py` (118): The "Keep the host running" handover (decision 28): success, and every failure leaves the person with a runnin
 - `host/tests/test_service_startup_pin.py` (58): Pins what the StackChan service starts, before the wiring is moved behind the robot seam (docs/plan/seam-refac
 - `host/tests/test_service_threads.py` (69): Every host service thread ends when its stop event is set (or `stop_all` runs); none of ours remain."""
 - `host/tests/test_settings_token.py` (116): The settings page from a phone: a per-install token is the login for requests that are not local."""
@@ -2899,7 +2900,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/e2e-flake-hunt.sh` (21): find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. Each run's full 
 - `scripts/efuse-check.py` (104): owner decision 14 (2026-11-18): nothing in this project ever burns an eFuse (irreversible): no secure boot key
 - `scripts/exposure-allowed.json` (10): no header
-- `scripts/exposure-test.py` (297): the exposure suite. One run measures what the host contacts, what it exposes and what protects it, and prints 
+- `scripts/exposure-test.py` (304): the exposure suite. One run measures what the host contacts, what it exposes and what protects it, and prints 
 - `scripts/exposure-test.sh` (5): run the exposure suite (see scripts/exposure-test.py). Usage: bash scripts/exposure-test.sh [--write]
 - `scripts/feature-ledger.py` (513): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
 - `scripts/funding-check.py` (98): fail when the README or the docs point to a funding page that .github/FUNDING.yml does not list.
@@ -3023,9 +3024,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/dance/sfx_render.c` (30): Renders the unit's own game clips (maipai_games_sfx_core.h, the tone-segment table and mgs_render) to WAV file
 - `scripts/virtual-unit/dance_core.py` (97): Builds and loads the real dance ladder core for the virtual unit (firmware patch MD01): the header is cut out 
 - `scripts/virtual-unit/dance_sim.py` (605): The music dance in the virtual unit: the unit's real ladder core (firmware patch MD01) driven by a simulated s
-- `scripts/virtual-unit/e2e.py` (718): End to end on the virtual unit, with no hardware and no real models.
+- `scripts/virtual-unit/e2e.py` (721): End to end on the virtual unit, with no hardware and no real models.
 - `scripts/virtual-unit/e2e_extra.py` (302): More end to end scenarios for e2e.py: the unit's own cores in the loop, the leak canary and the long idle jump
-- `scripts/virtual-unit/e2e_fleet.py` (779): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
+- `scripts/virtual-unit/e2e_fleet.py` (839): Many robots on one host, and faults that must heal on their own (owner decision 16, 2026-11-18): scenarios for
 - `scripts/virtual-unit/e2e_hostile.py` (341): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/ed25519_pure.py` (103): Ed25519 (RFC 8032) in plain Python, for the places the `cryptography` package is not there (the browser build 
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
