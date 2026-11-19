@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-LABEL = "com.maipai.stackchan"
+LABEL = os.environ.get("MAIPAI_SERVICE_LABEL") or "com.maipai.stackchan"  # the override is for tests: a throwaway label never touches a real service
 UNIT = "stackchan.service"
 TASK = "MaiPai StackChan"
 
@@ -103,6 +103,10 @@ def service_env() -> dict[str, str]:
     env = {"MAIPAI_LOG_FILE": str(log_path()), "MAIPAI_HUB_HOST": "1", "PATH": os.environ.get("PATH", "/usr/bin:/bin")}
     if os.environ.get("MAIPAI_BOT_DATA_DIR"):
         env["MAIPAI_BOT_DATA_DIR"] = os.environ["MAIPAI_BOT_DATA_DIR"]
+    # A host started by hand with its own ports or body keeps them when it hands over to the service (decision 28): the service is the same host, not a new setup.
+    for name in ("HOME", "MAIPAI_BODY", "MAIPAI_XIAOZHI_PORT", "MAIPAI_STACKCHAN_AVATAR_PORT", "MAIPAI_STACKCHAN_SETTINGS_PORT", "MAIPAI_VISION_PORT"):
+        if os.environ.get(name):
+            env[name] = os.environ[name]
     return env
 
 

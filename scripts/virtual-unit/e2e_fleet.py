@@ -712,6 +712,66 @@ async def service_kill9(rig, check) -> None:
     check("a spoken turn works after the kill", any("Still" in t for t in rig.models.tts_requests))
 
 
+async def service_handover(rig, check) -> None:
+    """Decision 28 for real: the host runs by hand; the person presses Confirm on the status page; the host ends and a detached helper installs the service under a throwaway launchd label,
+    waits until it is healthy and leaves it running. The unit reconnects and a turn works. The label and its file are removed at the end, whatever happened."""
+    check("this scenario runs launchd, so only on a Mac", sys.platform == "darwin")
+    if sys.platform != "darwin":
+        return
+    label = os.environ["MAIPAI_SERVICE_LABEL"]
+    plist = rig.home / "Library" / "LaunchAgents" / f"{label}.plist"
+    try:
+        check("the host was started by hand, not by launchd", rig.proc is not None and rig.proc.poll() is None and not plist.exists())
+        status, raw = 0, b""
+        for _ in range(60):   # the settings server may still be opening a moment after the robot ports: ask again instead of reading one reset as a failure
+            status, raw = await asyncio.to_thread(rig_http, rig, "GET", "/api/stackchan/health")
+            if status == 200:
+                break
+            await asyncio.sleep(0.5)
+        check("the status page answers before the press", status == 200, f"{status} {raw[:120]!r}")
+        status, raw = await asyncio.to_thread(rig_http, rig, "POST", "/api/stackchan/service/keep-running", {"confirm": True})
+        check("the Confirm press is accepted", status == 200 and b"service" in raw.lower(), f"{status} {raw[:200]!r}")
+        check("the host that ran by hand ended", await wait_for(lambda: rig.proc.poll() is not None, 30.0))
+        check("the helper installed the service file under the throwaway label", await wait_for(plist.exists, 60.0), str(plist))
+        probe = type("P", (), {"label": label, "last_status": ""})()
+        check("launchd runs the service", await wait_for(lambda: svc_pid(probe) > 0, 90.0), probe.last_status[-200:])
+        def ports_open() -> bool:   # the base rig's own wait refuses a host process that ended: this host is the service's, which the rig does not own
+            import socket
+
+            for port in (rig.xiaozhi_port, rig.avatar_port):
+                with socket.socket() as sock:
+                    sock.settimeout(0.2)
+                    if sock.connect_ex(("127.0.0.1", port)) != 0:
+                        return False
+            return True
+
+        check("the service opened the robot and avatar ports", await wait_for(ports_open, 90.0))
+        check("the unit reconnected to the service by itself", await wait_for(lambda: rig.fw.connected.is_set() and rig.fw.connection_count >= 2, 90.0), str(rig.fw.connection_count))
+        record = rig.data / "service-handover.json"
+        check("the handover recorded a success", await wait_for(lambda: record.exists() and json.loads(record.read_text()).get("ok") is True, 60.0), record.read_text()[:200] if record.exists() else "no record")
+        rig.models.llm_script.append((r"after the handover", "Still here."))
+        await rig.say("are you there after the handover")
+        check("a spoken turn works on the service", any("Still" in t for t in rig.models.tts_requests))
+    finally:
+        subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}/{label}"], capture_output=True)
+        plist.unlink(missing_ok=True)
+
+
+def rig_http(rig, method: str, path: str, body: dict | None = None) -> tuple[int, bytes]:
+    import urllib.error
+    import urllib.request
+
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(f"http://127.0.0.1:{rig.settings_port}{path}", data=data, method=method, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as reply:
+            return reply.status, reply.read()
+    except urllib.error.HTTPError as error:
+        return error.code, error.read()
+    except OSError as error:   # the host ends itself a moment after it answers: a late or reset reply is a result to read, not a crash
+        return 0, f"{type(error).__name__}: {error}".encode()
+
+
 def svc_pid(svc) -> int:
     """The process id launchd reports for the service, 0 when it has none."""
     out = subprocess.run(["launchctl", "print", f"gui/{os.getuid()}/{svc.label}"], capture_output=True, text=True)
@@ -775,5 +835,5 @@ def make_service_rig(base):
 EXTRA_FLEET = {
     "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch, "fleet_orientation": fleet_orientation, "fleet_light": fleet_light, "fleet_music": fleet_music,
     "chaos_cut_connection": chaos_cut_connection, "chaos_packets": chaos_packets, "chaos_worker_down": chaos_worker_down, "chaos_internal_workers": chaos_internal_workers,
-    "chaos_host_kill_2": _host_kill_2, "chaos_host_kill_10": _host_kill_10, "service_kill9": service_kill9,
+    "chaos_host_kill_2": _host_kill_2, "chaos_host_kill_10": _host_kill_10, "service_kill9": service_kill9, "service_handover": service_handover,
 }

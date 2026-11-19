@@ -16,6 +16,11 @@ import tempfile
 import time
 from pathlib import Path
 
+# The one outside address the firmware tree may carry: the vendor's activation address in the cloud brain test overlay (patch SF96). The overlay is not part of any release build;
+# this check still fails on that host anywhere else, and a second host in that file.
+CLOUDTEST_FILE = "firmware/configs/sdkconfig.cloudtest.defaults"
+CLOUDTEST_HOST = "api.tenclass.net"
+
 ROOT = Path(__file__).resolve().parent.parent
 E2E_PY = ROOT / ".runs" / "e2e-venv" / "bin" / "python"
 HOST_PY = ROOT / "host" / ".venv" / "bin" / "python"
@@ -263,6 +268,8 @@ def firmware_addresses():
                 host = m.group(0).split("//")[1]
                 if "." not in host:
                     continue  # "http://host" in a comment is a placeholder, not an address
+                if f == CLOUDTEST_FILE and host == CLOUDTEST_HOST:
+                    continue  # the cloud brain test image's one vendor address (decision 34): the file says it is never the default and never in a release
                 if any(host.startswith(x) for x in allowed) or re.search(r"example|localhost|127\.|github\.com|espressif|m5stack|docs\.", host):
                     continue
                 if f.endswith(".patch") and line.startswith("+") or not f.endswith(".patch"):

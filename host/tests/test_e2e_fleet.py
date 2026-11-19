@@ -35,3 +35,4 @@ def test_the_fleet_and_chaos_scenarios_pass_against_the_real_host():
     for name in ("fleet_2", "fleet_10", "fleet_25", "fleet_slow_unit", "fleet_unit_state", "chaos_cut_connection", "chaos_host_kill_2", "chaos_host_kill_10", "chaos_worker_down", "chaos_packets"):
         assert f"scenario {name}" in out, name
     assert "service_kill9" in out
+    assert "scenario service_handover" in out

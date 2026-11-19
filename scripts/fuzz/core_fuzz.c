@@ -206,7 +206,7 @@ static void run(const uint8_t* d, size_t n)
     }
 #elif defined(TARGET_PAIRX)
     mpx_t m;
-    uint8_t a[MLY_PK], b[MLY_PK], c[32], nu[MLY_NONCE], nh[MLY_NONCE], z[32], k[MLY_KEY];
+    uint8_t a[MLY_PK], b[MLY_PK], c[32], nu[MLY_NONCE], nh[MLY_NONCE], z[32];
     memset(a, 1, sizeof(a)); memset(b, 2, sizeof(b)); memset(c, 3, sizeof(c)); memset(nu, 4, sizeof(nu)); memset(nh, 5, sizeof(nh)); memset(z, 6, sizeof(z));
     mpx_begin(&m, a, 5000u);
     uint32_t now = 5000u;
@@ -215,7 +215,7 @@ static void run(const uint8_t* d, size_t n)
         switch (d[q] & 7) {
             case 0: mpx_on_host_key(&m, b, c, nu); break;
             case 1: nh[0] = d[q]; mpx_on_host_nonce(&m, nh); break;
-            case 2: mpx_on_paired(&m, z, "aa:bb:cc:dd:ee:ff", k); break;
+            case 2: mpx_on_paired(&m, z, "aa:bb:cc:dd:ee:ff", now); break;   /* SF105: the key waits for the owner, the call takes the time */
             case 3: mpx_abort(&m); mpx_begin(&m, a, now); break;
             default: mpx_tick(&m, now); break;
         }

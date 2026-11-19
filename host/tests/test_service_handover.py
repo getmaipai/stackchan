@@ -92,3 +92,27 @@ def test_the_status_page_shows_the_button_only_when_it_can_work():
     assert b"Keep the host running" in shown and b"administrator rights" in shown
     assert b'http-equiv="refresh"' not in shown, "the page must not refresh over the message"
     assert json.loads('{"a":1}')
+
+
+def test_a_host_started_by_hand_keeps_its_ports_and_home_when_it_hands_over(monkeypatch):
+    from maipai_body import service_cmd
+
+    monkeypatch.setenv("MAIPAI_XIAOZHI_PORT", "18999")
+    monkeypatch.setenv("MAIPAI_STACKCHAN_SETTINGS_PORT", "18998")
+    monkeypatch.setenv("HOME", "/home/example")
+    monkeypatch.setenv("MAIPAI_BOT_DATA_DIR", "/tmp/example-data")
+    env = service_cmd.service_env()
+    assert env["MAIPAI_XIAOZHI_PORT"] == "18999" and env["MAIPAI_STACKCHAN_SETTINGS_PORT"] == "18998" and env["HOME"] == "/home/example" and env["MAIPAI_BOT_DATA_DIR"] == "/tmp/example-data"
+    monkeypatch.delenv("MAIPAI_VISION_PORT", raising=False)
+    assert "MAIPAI_VISION_PORT" not in service_cmd.service_env()  # only what the host had is carried over
+
+
+def test_the_service_label_can_be_overridden_for_a_throwaway_test_label_and_defaults_to_the_real_one():
+    import subprocess
+    import sys
+
+    code = "import maipai_body.service_cmd as s; print(s.LABEL)"
+    plain = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "PYTHONPATH": "."})
+    assert plain.stdout.strip() == "com.maipai.stackchan"
+    custom = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "PYTHONPATH": ".", "MAIPAI_SERVICE_LABEL": "com.maipai.stackchan.testing"})
+    assert custom.stdout.strip() == "com.maipai.stackchan.testing"
