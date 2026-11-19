@@ -5,8 +5,10 @@ docs/plan/service-and-supervision.md."""
 
 from __future__ import annotations
 
+import hashlib
 import html
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -47,10 +49,26 @@ def build_health(supervisor: Supervisor | None, *, connected: list[str], paired:
     if notes_store is not None:
         advice += notes_store.recent_lockout_notices(now=now)[-3:]
     return {
-        "state": state, "summary": summary, "uptime_s": max(0, int(now - started)),
+        "state": state, "version": _package_version(), "pid": os.getpid(), "program": program_id(sys.prefix),
+        "summary": summary, "uptime_s": max(0, int(now - started)),
         "parts": [p for p in parts if not p["unit"]], "units": units,
         "advice": advice,
     }
+
+
+def program_id(folder: Any) -> str:
+    """A short fingerprint of an install folder. The health page may be read by others on the network, so it never carries the folder path."""
+    return hashlib.sha256(os.path.realpath(str(folder)).encode()).hexdigest()[:16]
+
+
+def _package_version() -> str:
+    """The installed package version, so a health answer says which program it came from."""
+    try:
+        from importlib.metadata import version
+
+        return version("maipai-bot")
+    except Exception:
+        return "unknown"
 
 
 def _away(name: str, note: dict[str, Any] | None, now: float) -> str:

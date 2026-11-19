@@ -3306,7 +3306,7 @@ def _wire_firmware_update(voice, behavior, link, stop_event, situation_runner: C
     """The signed-update path from Home to the unit: ask, download, verify (key and build number), serve once, report.
 
     `situation_runner` returns the dance runner (set later by the hub wiring); the update waits while it says the robot is busy."""
-    from maipai_body.bodies.stackchan.firmware_update import FirmwareUpdater
+    from maipai_body.bodies.stackchan.firmware_update import FirmwareUpdater, stream_to_file
 
     hub_credentials = _hub_credentials_reader(link, "")
     firmware_answer: list[dict | None] = [None]
@@ -3342,10 +3342,8 @@ def _wire_firmware_update(voice, behavior, link, stop_event, situation_runner: C
         )
         if not 200 <= response.status_code < 300:
             raise ValueError("Home firmware download failed")
-        with path.open("wb") as output:
-            for chunk in response.iter_content(64 * 1024):
-                if chunk:
-                    output.write(chunk)
+        size = (firmware_answer[0] or {}).get("size")
+        stream_to_file(response, path, size)  # stops at the announced size, or 16 MiB
 
     def download_firmware_signature() -> bytes | None:
         """What Home serves beside the image: the signed update header (`app.bin.hdr` and `app.bin.hdr.sig`), else the older

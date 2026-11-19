@@ -43,7 +43,7 @@ The threads started through `service_threads.start` are supervised automatically
 
 ## Health and status
 
-- `GET /api/stackchan/health` (settings server, this computer only) returns one JSON document: the service, each part (name, unit, state `ok|restarting|failed|off`, last error in plain words, since when, what to do), each unit (connected, last seen, parts).
+- `GET /api/stackchan/health` (settings server, this computer only) returns one JSON document: the service, each part (name, unit, state `ok|restarting|failed|off`, last error in plain words, since when, what to do), each unit (connected, last seen, parts), and the package version, the process id and a fingerprint of the install folder (never the path).
 - The settings server serves a Health page at `/health` with the same content in plain words.
 - `stackchan status` asks the running host for that document and prints it; when the host is not running it says so and prints the one command that fixes it (`stackchan service start`), and still lists the paired units.
 - A failed part that matters to the robot (speech, brain) is sent to the unit as the existing error line (the unit already shows "what went wrong and what to do" text from the host); the plain message is the same string.
@@ -65,7 +65,7 @@ Isolation tests with 2 and 10 simulated units: the unit-level fake (many `StackC
 
 ## Host updates keep the service up (decision 16e)
 
-`stackchan service update` (planned): install the new version beside the old (a new virtual environment folder), stop the service, switch a symlink, start, wait for the health document to say `ok` within 60 s, otherwise switch back and start the old one. Built 2026-11-18 (`host_update.py`): the rollback rule is tested with fakes for every failure (install fails, stop fails, new version unhealthy, first update unhealthy); the real venv install and a real service manager were not exercised here.
+`stackchan service update` (planned): install the new version beside the old (a new virtual environment folder), stop the service, switch a symlink, start, wait for the health document to say `ok` within 60 s from the folder that was just started, otherwise switch back and start the old one. Built 2026-11-18 (`host_update.py`): the rollback rule is tested with fakes for every failure (install fails, stop fails, new version unhealthy, first update unhealthy); the real venv install and a real service manager were not exercised here.
 
 ## Chaos tests (decision 16f)
 

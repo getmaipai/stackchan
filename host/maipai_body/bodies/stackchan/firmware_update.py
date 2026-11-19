@@ -13,6 +13,35 @@ from typing import Any
 LOG = logging.getLogger("maipai_body.bodies.stackchan.firmware_update")
 BACKOFF_S = 6 * 60 * 60
 TIMER_GUARD_S = 10 * 60
+MAX_IMAGE_BYTES = 16 * 1024 * 1024  # an app partition is 5 MB; nothing near this size is a firmware image
+_CHUNK = 64 * 1024
+
+
+def stream_to_file(response: Any, path: Path, expected: int | None) -> None:
+    """Write a streamed download to `path`, stopping as soon as it passes the size Home announced (else the fixed cap).
+    Raises ValueError("image_too_large") so the caller backs off; nothing larger than the limit plus one chunk is ever written."""
+    limit = expected if isinstance(expected, int) and not isinstance(expected, bool) and 0 < expected <= MAX_IMAGE_BYTES else MAX_IMAGE_BYTES
+    declared = (getattr(response, "headers", None) or {}).get("Content-Length")
+    if isinstance(declared, str) and declared.isdigit() and int(declared) > limit:
+        raise ValueError("image_too_large")
+    written = 0
+    with path.open("wb") as output:
+        for chunk in response.iter_content(_CHUNK):
+            if not chunk:
+                continue
+            written += len(chunk)
+            if written > limit:
+                raise ValueError("image_too_large")
+            output.write(chunk)
+
+
+def _sha256_of(path: Path) -> str:
+    """The hash of a file, read in chunks so the whole image is not held in memory for it."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(_CHUNK):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 @dataclass(frozen=True)
@@ -194,9 +223,11 @@ class FirmwareUpdater:
             LOG.info("StackChan firmware update: downloading image")
             self.download(path)
             size = path.stat().st_size
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            if size > MAX_IMAGE_BYTES:
+                raise ValueError("image_too_large")
             if size != answer.get("size"):
                 raise ValueError("image_size_mismatch")
+            digest = _sha256_of(path)
             if digest.lower() != str(answer.get("sha256", "")).lower():
                 raise ValueError("image_hash_mismatch")
             if self.verify is None or self.download_signature is None:
@@ -220,6 +251,7 @@ class FirmwareUpdater:
                 if reason
                 in {
                     "image_size_mismatch",
+                    "image_too_large",
                     "image_hash_mismatch",
                     "image_signature_invalid",
                     "update_key_missing",
