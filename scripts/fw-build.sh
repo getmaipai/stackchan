@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# Intent: build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|linkpsk|aec|heap|avatar|cam640|full|irnfc|nofont|nofontbench|lean|leanbench [JOBS]
+# Intent: build one firmware image from a patched tree. Usage: bash scripts/fw-build.sh TREE plain|bench|gate|talkover|linkpsk|aec|heap|avatar|cam640|full|irnfc|nofont|nofontbench|lean|leanbench|cloudtest [JOBS]
 #   plain = the shipped image; bench = serial tools and face bench plus the memory line; gate = the plain image plus the memory line;
 #   talkover = bench plus the MIC3 reading (patch SF15); linkpsk = bench plus the link key calls (patch SF21); aec = bench plus the echo canceller and wake-word interruption (patch SF29).
 # TREE is the folder scripts/fw-rebuild.sh made (it holds firmware/). Output: TREE/firmware/build-<kind>/ and a line "BUILD OK" or a failure.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-TREE=${1:?Usage: fw-build.sh TREE plain|bench|gate|talkover|linkpsk|aec|heap|avatar|cam640|full|irnfc|nofont|nofontbench|lean|leanbench [JOBS]}
-KIND=${2:?Usage: fw-build.sh TREE plain|bench|gate|talkover|linkpsk|aec|heap|avatar|cam640|full|irnfc|nofont|nofontbench|lean|leanbench [JOBS]}
+TREE=${1:?Usage: fw-build.sh TREE plain|bench|gate|talkover|linkpsk|aec|heap|avatar|cam640|full|irnfc|nofont|nofontbench|lean|leanbench|cloudtest [JOBS]}
+KIND=${2:?Usage: fw-build.sh TREE plain|bench|gate|talkover|linkpsk|aec|heap|avatar|cam640|full|irnfc|nofont|nofontbench|lean|leanbench|cloudtest [JOBS]}
 JOBS=${3:-2}
 FW="$TREE/firmware"
 [ -d "$FW" ] || { echo "$FW is missing. Run scripts/fw-rebuild.sh first." >&2; exit 1; }
 # The committed overlay files are copied in so the tree always builds from what the repo holds.
-cp "$ROOT/firmware/configs/sdkconfig.bench.defaults" "$ROOT/firmware/configs/sdkconfig.gate.defaults" "$ROOT/firmware/configs/sdkconfig.talkover.defaults" "$ROOT/firmware/configs/sdkconfig.linkpsk.defaults" "$ROOT/firmware/configs/sdkconfig.aec.defaults" "$ROOT/firmware/configs/sdkconfig.heaptrace.defaults" "$ROOT/firmware/configs/sdkconfig.avatar.defaults" "$ROOT/firmware/configs/sdkconfig.cam640.defaults" "$ROOT/firmware/configs/sdkconfig.full.defaults" "$ROOT/firmware/configs/sdkconfig.irnfc.defaults" "$ROOT/firmware/configs/sdkconfig.nofont.defaults" "$ROOT/firmware/configs/sdkconfig.lean.defaults" "$FW/"
+cp "$ROOT/firmware/configs/sdkconfig.bench.defaults" "$ROOT/firmware/configs/sdkconfig.gate.defaults" "$ROOT/firmware/configs/sdkconfig.talkover.defaults" "$ROOT/firmware/configs/sdkconfig.linkpsk.defaults" "$ROOT/firmware/configs/sdkconfig.aec.defaults" "$ROOT/firmware/configs/sdkconfig.heaptrace.defaults" "$ROOT/firmware/configs/sdkconfig.avatar.defaults" "$ROOT/firmware/configs/sdkconfig.cam640.defaults" "$ROOT/firmware/configs/sdkconfig.full.defaults" "$ROOT/firmware/configs/sdkconfig.irnfc.defaults" "$ROOT/firmware/configs/sdkconfig.nofont.defaults" "$ROOT/firmware/configs/sdkconfig.lean.defaults" "$ROOT/firmware/configs/sdkconfig.cloudtest.defaults" "$ROOT/firmware/configs/sdkconfig.cloudtest.late.defaults" "$FW/"
 case "$KIND" in
     plain) OVERLAYS="" ;;
     nofont) OVERLAYS="sdkconfig.nofont.defaults" ;;
     nofontbench) OVERLAYS="sdkconfig.bench.defaults;sdkconfig.gate.defaults;sdkconfig.nofont.defaults" ;;  # the bench image without the stock text font: snapshots and captions can be checked
     lean) OVERLAYS="sdkconfig.lean.defaults" ;;  # patch SF85: no stock text font and no stock apps' pictures
+    cloudtest) OVERLAYS="sdkconfig.cloudtest.defaults" ;;  # patch SF96: the cloud brain test image (never the default, never released)
     leanbench) OVERLAYS="sdkconfig.bench.defaults;sdkconfig.gate.defaults;sdkconfig.lean.defaults" ;;  # patch SF80: the plain image without the stock text font in the assets partition
     bench) OVERLAYS="sdkconfig.bench.defaults;sdkconfig.gate.defaults" ;;
     gate)  OVERLAYS="sdkconfig.gate.defaults" ;;
@@ -40,11 +41,12 @@ export MAIPAI_MICROLINK_DIR="$TREE/deps/microlink"
 cd "$FW"
 # Generated inputs (the CMake rule for the language header runs too late for the first build, and the bench clips need macOS say and ffmpeg).
 python3 xiaozhi-esp32/scripts/gen_lang.py --language en-US --output xiaozhi-esp32/main/assets/lang_config.h
-if { [ "$KIND" = bench ] || [ "$KIND" = talkover ] || [ "$KIND" = linkpsk ] || [ "$KIND" = aec ] || [ "$KIND" = heap ] || [ "$KIND" = avatar ] || [ "$KIND" = cam640 ] || [ "$KIND" = irnfc ]; } && [ ! -f main/hal/maipai_bench_clips.c ]; then python3 "$ROOT/scripts/fw-bench-clips.py" "$FW"; fi
+if { [ "$KIND" = bench ] || [ "$KIND" = talkover ] || [ "$KIND" = linkpsk ] || [ "$KIND" = aec ] || [ "$KIND" = heap ] || [ "$KIND" = avatar ] || [ "$KIND" = cam640 ] || [ "$KIND" = irnfc ] || [ "$KIND" = nofontbench ] || [ "$KIND" = leanbench ]; } && [ ! -f main/hal/maipai_bench_clips.c ]; then python3 "$ROOT/scripts/fw-bench-clips.py" "$FW"; fi
 D="$PWD/sdkconfig.defaults"
 if [ -n "$OVERLAYS" ]; then IFS=';' read -ra X <<< "$OVERLAYS"; for f in "${X[@]}"; do D="$D;$PWD/$f"; done; fi
 if [ -n "${FW_BUILD:-}" ]; then printf 'CONFIG_MAIPAI_FW_BUILD=%s\n' "$FW_BUILD" > sdkconfig.build.defaults; D="$D;$PWD/sdkconfig.build.defaults"; fi  # the signed-update build number of this image
 B="build-$KIND"
+rm -f "$FW/sdkconfig.late.defaults"; if [ "$KIND" = cloudtest ]; then cp "$FW/sdkconfig.cloudtest.late.defaults" "$FW/sdkconfig.late.defaults"; fi   # patch SF99: only the cloud brain test image reads the late file
 SDK="sdkconfig.f$KIND"
 # A fresh sdkconfig the first time; later calls on the same tree rebuild incrementally.
 if [ ! -f "$B/build.ninja" ]; then

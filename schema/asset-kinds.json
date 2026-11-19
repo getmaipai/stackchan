@@ -63,6 +63,22 @@
    "max_item_bytes": 150000,
    "trust": "signed",
    "holds": "spoken phrases for when the host is away"
+  },
+  {
+   "kind": "pantry",
+   "title": "Content shelf (jokes, riddles, trivia, stories)",
+   "max_slots": 8,
+   "max_item_bytes": 40960,
+   "trust": "owner",
+   "holds": "text records the unit tells with no host: one shelf per kind and language"
+  },
+  {
+   "kind": "heard",
+   "title": "Heard list",
+   "max_slots": 1,
+   "max_item_bytes": 4096,
+   "trust": "unit",
+   "holds": "which pantry records were told (written by the unit itself, never installed by the host)"
   }
  ]
 }

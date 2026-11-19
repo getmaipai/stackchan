@@ -347,3 +347,14 @@ SF86-data-pack-games-on-the-shared-game-over-screen.patch
 UX16-offline-mumble-core.patch
 UX17-question-and-answer-game-screens.patch
 SF87-offline-mumble-on-the-unit.patch
+SF89-asset-store-core.patch
+SF90-asset-store-on-the-unit.patch
+SF91-installed-game-packs-join-the-games.patch
+SF92-pantry-core.patch
+SF93-pantry-on-the-unit.patch
+SF94-pantry-tellings-on-the-question-screens.patch
+SF95-2048-large-tiles-on-one-line.patch
+SF96-cloud-brain-test-image-kind.patch
+SF97-banner-note-from-the-host.patch
+SF98-leave-hosted-and-brain-route.patch
+SF99-cloudtest-roots-clock-and-host-link.patch

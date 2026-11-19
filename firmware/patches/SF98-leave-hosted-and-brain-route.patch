@@ -1,0 +1,332 @@
+# Intent: The Brain route and a clean way out of the hosted brain (owner question 2026-11-18). self.brain.set_route custom does, in order: stop the vendor check, activation and connect at once (a flag every loop looks at); erase every NVS namespace that starts with cl_ (the vendor link's address, token, activation state, MQTT settings), and nothing else: the host pairing, the privacy bits and the chip's key blocks are never touched or read out; save route custom; show one plain line on the screen, silently (Hosted link removed. To stop your account keeping this robot, remove it in the vendor's console); push the event brain_route {route custom, hosted_removed true} for the dashboard; and restart the unit four seconds later so no vendor timer, task or RAM copy survives. The saved route also keeps a cloudtest image from activating again at the next start. self.brain.status answers the route, the number of cl_ keys and the number of attempts to reach the vendor service since the start (so a bench check can show there were none). The factory reset already erases cl_ (it is not on the keep list); a test pins that. What the unit cannot remove: the device's binding in the vendor's account and any voice history the vendor holds (the doc says so).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_hosted.cc, maipai_hosted.h and maipai_hosted_core.h (ours); hooks in ota.cc, application.cc and websocket_protocol.cc of the xiaozhi-esp32 tree (MIT)
+# Check after a flash: on the cloudtest image after a hosted session, self.brain.status shows cl_keys above 0; self.brain.set_route custom shows the line, sends brain_route, restarts; after the restart self.brain.status answers route custom, cl_keys 0, vendor_attempts 0, and ten minutes later vendor_attempts is still 0; flashing plain then brings the host link back with the old pairing; a factory reset leaves no cl_ keys.
+# Kconfig: none
+# Memory cost: none while idle in any image beyond about 600 bytes of flash and a few bytes of flags; the leave path uses a short-lived vector of namespace names (under 200 bytes) and one esp_timer for the restart.
+
+diff --git a/firmware/xiaozhi-esp32/main/ota.cc b/firmware/xiaozhi-esp32/main/ota.cc
+--- a/firmware/xiaozhi-esp32/main/ota.cc
++++ b/firmware/xiaozhi-esp32/main/ota.cc
+@@ -27,6 +27,7 @@
+ #include <vector>
+ 
+ #include <hal/maipai_cloudtest.h>
++#include <hal/maipai_hosted.h>
+ 
+ #define TAG "Ota"
+ 
+@@ -89,6 +90,7 @@ std::unique_ptr<Http> Ota::SetupHttp() {
+  * Specification: https://ccnphfhqs21z.feishu.cn/wiki/FjW6wZmisimNBBkov6OcmfvknVd
+  */
+ NetworkResult<> Ota::CheckVersion() {
++    maipai_hosted_note_attempt();   // patch SF98
+     auto& board = Board::GetInstance();
+     auto app_desc = esp_app_get_description();
+ 
+@@ -605,6 +607,7 @@ std::string Ota::GetActivationPayload() {
+ }
+ 
+ esp_err_t Ota::Activate() {
++    maipai_hosted_note_attempt();   // patch SF98
+     if (!has_activation_challenge_) {
+         ESP_LOGW(TAG, "No activation challenge found");
+         return ESP_FAIL;
+diff --git a/firmware/xiaozhi-esp32/main/application.cc b/firmware/xiaozhi-esp32/main/application.cc
+--- a/firmware/xiaozhi-esp32/main/application.cc
++++ b/firmware/xiaozhi-esp32/main/application.cc
+@@ -22,6 +22,7 @@
+ #include <hal/maipai_sounds.h>
+ #include <hal/maipai_mumble.h>
+ #include <hal/maipai_cloudtest.h>
++#include <hal/maipai_hosted.h>
+ #include <hal/maipai_boottone_core.h>
+ #include <hal/maipai_timers.h>
+ #include <hal/maipai_games.h>
+@@ -463,8 +464,10 @@ void Application::ActivationTask() {
+     ota_ = std::make_unique<Ota>();
+ 
+ #if CONFIG_STACKCHAN_OTA_CHECK
+-    CheckAssetsVersion();
+-    CheckNewVersion();
++    if (!maipai_hosted_blocked()) {   // patch SF98: route custom (or hosted link left): no vendor check, no activation
++        CheckAssetsVersion();
++        CheckNewVersion();
++    }
+ #else
+     // Use the assets already provisioned on flash; local wake detection still needs its model.
+     auto& assets = Assets::GetInstance();
+@@ -551,6 +554,7 @@ void Application::CheckNewVersion() {
+         auto display = board.GetDisplay();
+         display->SetStatus(Lang::Strings::CHECKING_NEW_VERSION);
+ 
++        if (maipai_hosted_blocked()) return;   // patch SF98: the hosted link was left while the check was retrying
+         auto check = ota_->CheckVersion();
+         if (!check) {
+             retry_count++;
+@@ -631,6 +635,7 @@ void Application::CheckNewVersion() {
+ 
+         // This will block the loop until the activation is done or timeout
+         for (int i = 0; i < 10; ++i) {
++            if (maipai_hosted_blocked()) return;   // patch SF98
+             ESP_LOGI(TAG, "Activating... %d/%d", i + 1, 10);
+             esp_err_t err = ota_->Activate();
+             if (err == ESP_OK) {
+diff --git a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+--- a/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
++++ b/firmware/xiaozhi-esp32/main/protocols/websocket_protocol.cc
+@@ -1,4 +1,5 @@
+ #include <hal/maipai_cloudtest.h>
++#include <hal/maipai_hosted.h>
+ #include "websocket_protocol.h"
+ #if CONFIG_MAIPAI_LINK_PSK
+ #include <hal/maipai_linkpsk.h>
+@@ -182,6 +183,10 @@ bool WebsocketProtocol::OpenAudioChannel() {
+ }
+ 
+ bool WebsocketProtocol::ConnectAudioChannel() {
++#if CONFIG_MAIPAI_CLOUDTEST
++    if (maipai_hosted_blocked()) return false;   // patch SF98: the vendor link is never opened on route custom
++    maipai_hosted_note_attempt();
++#endif
+     Settings settings(MAIPAI_WS_NS, false);   // patch SF96
+     std::string url = settings.GetString("url");
+ #if CONFIG_MAIPAI_TAILNET
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -26,6 +26,7 @@
+ #include "maipai_motion_limit.h"
+ #include "maipai_games.h"
+ #include "maipai_assets.h"
++#include "maipai_hosted.h"
+ #include "maipai_pantry.h"
+ #include "maipai_pages_unit.h"
+ #include "maipai_lock.h"
+@@ -792,6 +793,7 @@ void Hal::xiaozhi_mcp_init()
+ 
+     // self.game.list, start, stop and scores (patch G01). Nothing runs until a game starts.
+     maipai_games_register_tools();
++    maipai_brain_register_tools();  // patch SF98: self.brain.status, self.brain.set_route
+     maipai_pantry_register_tools();  // patch SF93: self.pantry.status, heard, deny
+     maipai_assets_register_tools();  // patch SF90: self.assets.* (nothing unless MAIPAI_ASSET_STORE)
+ 
+diff --git a/firmware/main/hal/maipai_hosted.h b/firmware/main/hal/maipai_hosted.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_hosted.h
+@@ -0,0 +1,17 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The Brain route and leaving the hosted brain, device side (patch SF98; rules in maipai_hosted_core.h). Route custom (the unit's own host or local) is the default; hosted
++ * exists only in the cloudtest image kind for now. self.brain.status and self.brain.set_route are in every image.
++ */
++#pragma once
++#include <sdkconfig.h>
++#include <stdint.h>
++
++void maipai_brain_register_tools();
++// The hosted link must not run: the route is custom, or it was just left. Cheap, any task.
++bool maipai_hosted_blocked();
++// One attempt to reach the vendor service (a check, an activation, a connect). Counted so a bench check can show there were none after leaving.
++void maipai_hosted_note_attempt();
++// Stops the hosted link, erases every cl_ namespace, tells the screen and the host, saves route custom, and restarts the unit shortly after (so no timer, task or RAM copy of the vendor link survives).
++void maipai_hosted_leave();
+diff --git a/firmware/main/hal/maipai_hosted.cc b/firmware/main/hal/maipai_hosted.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_hosted.cc
+@@ -0,0 +1,148 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The Brain route and leaving the hosted brain, device side (patch SF98). See maipai_hosted.h.
++ */
++#include "maipai_hosted.h"
++#include "maipai_hosted_core.h"
++#include "device_events.h"
++#include "hal.h"
++#include <application.h>
++#include <esp_log.h>
++#include <esp_system.h>
++#include <esp_timer.h>
++#include <mcp_server.h>
++#include <nvs.h>
++#include <settings.h>
++#include <atomic>
++#include <cstdio>
++#include <string>
++#include <vector>
++
++static const char* TAG = "MAIPAI-BRAIN";
++
++namespace {
++
++#if CONFIG_MAIPAI_CLOUDTEST
++constexpr bool kHostedBuild = true;
++#else
++constexpr bool kHostedBuild = false;
++#endif
++
++std::atomic<bool> s_left{false};
++std::atomic<uint32_t> s_attempts{0};
++
++bool route_is_custom()
++{
++    Settings st(MHS_ROUTE_NS, false);
++    return st.GetString("route", kHostedBuild ? "hosted" : "custom") == "custom";
++}
++
++std::vector<std::string> all_namespaces()
++{
++    std::vector<std::string> names;
++    nvs_iterator_t it = nullptr;
++    esp_err_t err = nvs_entry_find(NVS_DEFAULT_PART_NAME, nullptr, NVS_TYPE_ANY, &it);
++    while (err == ESP_OK && it != nullptr) {
++        nvs_entry_info_t info;
++        nvs_entry_info(it, &info);
++        bool seen = false;
++        for (const auto& n : names) seen = seen || n == info.namespace_name;
++        if (!seen) names.emplace_back(info.namespace_name);
++        err = nvs_entry_next(&it);
++    }
++    nvs_release_iterator(it);
++    return names;
++}
++
++int erase_ns(void*, const char* ns)
++{
++    nvs_handle_t h;
++    esp_err_t err = nvs_open(ns, NVS_READWRITE, &h);
++    if (err != ESP_OK) return -1;
++    err = nvs_erase_all(h);
++    if (err == ESP_OK) err = nvs_commit(h);
++    nvs_close(h);
++    return err == ESP_OK ? 0 : -1;
++}
++
++int hosted_keys()
++{
++    int n = 0;
++    nvs_iterator_t it = nullptr;
++    esp_err_t err = nvs_entry_find(NVS_DEFAULT_PART_NAME, nullptr, NVS_TYPE_ANY, &it);
++    while (err == ESP_OK && it != nullptr) {
++        nvs_entry_info_t info;
++        nvs_entry_info(it, &info);
++        if (mhs_is_hosted_ns(info.namespace_name)) n++;
++        err = nvs_entry_next(&it);
++    }
++    nvs_release_iterator(it);
++    return n;
++}
++
++bool want_spanish()
++{
++    return false;   // the plain line is shown in English; the Spanish twin is in the core for the screens that know the language
++}
++
++}  // namespace
++
++bool maipai_hosted_blocked() { return s_left.load() || route_is_custom(); }
++
++void maipai_hosted_note_attempt() { s_attempts.fetch_add(1); }
++
++void maipai_hosted_leave()
++{
++    s_left.store(true);   // the check loops and the connect path stop at their next look
++    std::vector<std::string> names = all_namespaces();
++    std::vector<const char*> ptrs;
++    for (const auto& n : names) ptrs.push_back(n.c_str());
++    const int r = mhs_leave(ptrs.data(), static_cast<int>(ptrs.size()), erase_ns, nullptr);
++    {
++        Settings st(MHS_ROUTE_NS, true);
++        st.SetString("route", "custom");
++    }
++    ESP_LOGW(TAG, "hosted link left: %d namespaces erased%s", r < 0 ? 0 : r, r < 0 ? " (some failed; a second call finishes)" : "");
++    Application::GetInstance().Schedule([]() {
++        Application::GetInstance().Alert("Brain", mhs_removed_text(want_spanish() ? 1 : 0), "neutral", "");   // silent
++    });
++    device_events_push("brain_route", "\"route\":\"custom\",\"hosted_removed\":true");
++    // A restart ends every vendor timer, task and RAM copy at once; the line stays readable first.
++    static esp_timer_handle_t t = nullptr;
++    esp_timer_create_args_t a = {};
++    a.callback = [](void*) { esp_restart(); };
++    a.name = "brain_restart";
++    if (esp_timer_create(&a, &t) == ESP_OK) esp_timer_start_once(t, 4ll * 1000 * 1000);
++}
++
++void maipai_brain_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.brain.status",
++                "Which brain the unit uses: route custom (its own host or local) or hosted, how many saved vendor keys (cl_ namespaces) it holds, and how many attempts to reach the vendor service it made since it started. "
++                "Answers {ok, route, hosted_build, cl_keys, vendor_attempts}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    return std::string("{\"ok\":true,\"route\":\"") + (maipai_hosted_blocked() ? "custom" : "hosted") + "\",\"hosted_build\":" + (kHostedBuild ? "true" : "false") +
++                           ",\"cl_keys\":" + std::to_string(hosted_keys()) + ",\"vendor_attempts\":" + std::to_string(s_attempts.load()) + "}";
++                });
++    mcp.AddTool("self.brain.set_route",
++                "Choose the brain: custom leaves the hosted brain (stops the vendor link, erases every saved vendor key, shows one line on screen, sends the event brain_route and restarts the unit in a few seconds). "
++                "hosted only works in the cloud test image and takes effect at the next start. The host pairing and the privacy settings are never touched. Answers {ok, route}.",
++                PropertyList({Property("route", kPropertyTypeString, std::string("custom"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string route = properties["route"].value<std::string>();
++                    if (route == "custom") {
++                        maipai_hosted_leave();
++                        return std::string("{\"ok\":true,\"route\":\"custom\"}");
++                    }
++                    if (route == "hosted") {
++                        if (!kHostedBuild)
++                            return std::string("{\"ok\":false,\"error\":\"This image has no hosted brain. Use the cloud test image to try it.\"}");
++                        Settings st(MHS_ROUTE_NS, true);
++                        st.SetString("route", "hosted");
++                        return std::string("{\"ok\":true,\"route\":\"hosted\",\"applies\":\"at the next start\"}");
++                    }
++                    return std::string("{\"ok\":false,\"error\":\"The route must be custom or hosted. Send one of those two.\"}");
++                });
++}
+diff --git a/firmware/main/hal/maipai_hosted_core.h b/firmware/main/hal/maipai_hosted_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_hosted_core.h
+@@ -0,0 +1,39 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Leaving the hosted brain (patch SF98; docs/plan/cloud-brain-firmware-test.md, "Leaving hosted"): the pure rules. Everything the unit keeps for the vendor's hosted
++ * service lives in NVS namespaces that start with "cl_" (the activation state, the token, the websocket and MQTT settings, any cached offer). Leaving erases exactly
++ * those namespaces and nothing else: the host pairing ("websocket"), the privacy bits ("maipai_priv") and the chip's key blocks are never touched. Plain C99.
++ */
++#ifndef MAIPAI_HOSTED_CORE_H
++#define MAIPAI_HOSTED_CORE_H
++
++#include <string.h>
++#include "maipai_reset_core.h"
++
++#define MHS_PREFIX "cl_"
++#define MHS_ROUTE_NS "mp_brain"   /* the route choice itself: "hosted" or "custom" (not a cl_ namespace: it must survive the erase) */
++
++static inline int mhs_is_hosted_ns(const char* ns) { return ns != NULL && strncmp(ns, MHS_PREFIX, strlen(MHS_PREFIX)) == 0; }
++
++/* Erases every namespace of `names` that is a hosted one, through erase(ctx, name) (0 on success). Returns how many were erased, or -1 if any erase failed
++ * (the rest are still tried, so a retry finishes the job). Repeating it is harmless. */
++static inline int mhs_leave(const char* const* names, int n, int (*erase)(void*, const char*), void* ctx)
++{
++    int done = 0, failed = 0;
++    for (int i = 0; i < n; i++) {
++        if (!mhs_is_hosted_ns(names[i])) continue;
++        if (erase(ctx, names[i]) == 0) done++;
++        else failed = 1;
++    }
++    return failed ? -1 : done;
++}
++
++/* The one line shown on the screen when the hosted link is removed. */
++static inline const char* mhs_removed_text(int es)
++{
++    return es ? "Enlace alojado quitado. Para que tu cuenta deje de tener este robot, quitalo en la consola del proveedor."
++              : "Hosted link removed. To stop your account keeping this robot, remove it in the vendor's console.";
++}
++
++#endif

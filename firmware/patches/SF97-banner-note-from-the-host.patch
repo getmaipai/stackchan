@@ -1,0 +1,76 @@
+# Intent: A one-line note in the top banner row that the host sets when a part of the robot needs the owner (self.banner.set, text up to 24 characters, kind degraded). It is a notice-priority message, so the privacy and call cues in the row always come first and it never covers them; empty text clears it; it clears itself 10 minutes after the last call (the host going away takes the note with it). The amber look is not drawn yet: the banner row has one color today (a follow-up for the screen track).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_banner_tools.cc and maipai_banner_core.h (ours)
+# Check after a flash: self.banner.set with text "Camera needs you" shows it in the banner row; a privacy cue (mute) still shows over it; empty text clears it; with no further call it is gone after 10 minutes.
+# Kconfig: none (with MAIPAI_BANNER_ROW)
+# Memory cost: one esp_timer (about 100 bytes internal) created at the first call; flash about 600 bytes.
+
+diff --git a/firmware/main/hal/maipai_banner_core.h b/firmware/main/hal/maipai_banner_core.h
+--- a/firmware/main/hal/maipai_banner_core.h
++++ b/firmware/main/hal/maipai_banner_core.h
+@@ -69,7 +69,7 @@ enum {
+     MB_ICON_KEY,
+     MB_ICON_COUNT
+ };
+-enum { MB_TAG_NONE = 0, MB_TAG_CAPTION, MB_TAG_VOLUME, MB_TAG_SAY, MB_TAG_CUE, MB_TAG_FIND, MB_TAG_LINK, MB_TAG_GAME, MB_TAG_STATUS /* patch UI04: heard, listening, thinking */ };
++enum { MB_TAG_NONE = 0, MB_TAG_CAPTION, MB_TAG_VOLUME, MB_TAG_SAY, MB_TAG_CUE, MB_TAG_FIND, MB_TAG_LINK, MB_TAG_GAME, MB_TAG_STATUS /* patch UI04: heard, listening, thinking */, MB_TAG_DEGRADED /* patch SF97: a part needs the owner (host) */ };
+ /* Patch NX05: MB_FLAG_FACE (a face was seen, shown only while the status icons setting is on) sits next to the mic glyph. */
+ enum { MB_FLAG_MIC = 0, MB_FLAG_FACE, MB_FLAG_CAMERA, MB_FLAG_REMOTE, MB_FLAG_BATTERY, MB_FLAG_WIFI, MB_FLAG_COUNT };
+ enum { MB_FIT_ONE = 0, MB_FIT_MARQUEE };
+diff --git a/firmware/main/hal/maipai_banner_tools.cc b/firmware/main/hal/maipai_banner_tools.cc
+--- a/firmware/main/hal/maipai_banner_tools.cc
++++ b/firmware/main/hal/maipai_banner_tools.cc
+@@ -8,12 +8,53 @@
+ 
+ #if CONFIG_MAIPAI_BANNER_ROW
+ #include "maipai_banner.h"
++#include <esp_timer.h>
+ #include <mcp_server.h>
++#include <cstring>
+ #include <string>
+ 
++namespace {
++esp_timer_handle_t s_degraded_timer = nullptr;
++
++void degraded_expired(void*)
++{
++    maipai_banner_clear_tag(MB_TAG_DEGRADED);   // 10 minutes without a refresh: the host went away, the note goes with it
++}
++}  // namespace
++
+ void maipai_banner_register_tools()
+ {
+     auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.banner.set",
++                "Shows a short note in the top banner row, below the privacy and call cues and never over them: text up to 24 characters, kind \"degraded\" (a part of the robot needs "
++                "the owner). Empty text clears it. The note clears itself 10 minutes after the last call. Answers {ok, shown}.",
++                PropertyList({Property("text", kPropertyTypeString, std::string("")), Property("kind", kPropertyTypeString, std::string("degraded"))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string text = properties["text"].value<std::string>();
++                    if (properties["kind"].value<std::string>() != "degraded") return std::string("{\"ok\":false,\"error\":\"The kind must be degraded. Send kind degraded.\"}");
++                    if (text.empty()) {
++                        maipai_banner_clear_tag(MB_TAG_DEGRADED);
++                        if (s_degraded_timer != nullptr) esp_timer_stop(s_degraded_timer);
++                        return std::string("{\"ok\":true,\"shown\":false}");
++                    }
++                    char shown[28];
++                    size_t n = text.size() < 24 ? text.size() : 24;
++                    while (n > 0 && n < text.size() && (static_cast<uint8_t>(text[n]) & 0xC0) == 0x80) n--;   // never cut a character
++                    memcpy(shown, text.data(), n);
++                    shown[n] = '\0';
++                    maipai_banner_post(shown, MB_ICON_WIFI_OFF, MB_PRIO_NOTICE, MB_TAG_DEGRADED, 0);   // sticky until cleared
++                    if (s_degraded_timer == nullptr) {
++                        esp_timer_create_args_t a = {};
++                        a.callback = degraded_expired;
++                        a.name = "banner_degraded";
++                        esp_timer_create(&a, &s_degraded_timer);
++                    }
++                    if (s_degraded_timer != nullptr) {
++                        esp_timer_stop(s_degraded_timer);
++                        esp_timer_start_once(s_degraded_timer, 10ll * 60 * 1000 * 1000);
++                    }
++                    return std::string("{\"ok\":true,\"shown\":true}");
++                });
+     mcp.AddTool("self.banner.face_seen",
+                 "A face was seen: shows a small face glyph in the banner strip, next to the microphone glyph, for `seconds` (default 3, at most 10), only while "
+                 "the Status icons setting is on. Reports closer than half a second apart are ignored. Answers {ok, shown, reason}; reason is status_icons_off "

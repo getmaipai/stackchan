@@ -1,0 +1,349 @@
+# Intent: The content pantry on the unit, the pure logic (owner decision 25; design docs/design/content-pantry.md): the shelf format (a 16 byte header, a 16 byte index entry per record with its 8 byte id, kind, rating and text position, then the packed texts: text, answer and extra split by zero bytes) with a parser that checks the header, every index entry and every part against its length cap, so a shelf that passes can be read with no further checks; the heard list (one 4,096 byte sector of up to 510 entries of 8 bytes: record id, heard and deny and synced marks, and a telling counter) with its encode, decode and checksum; the rules for choosing a record (never a denied one, an unheard one first by a seeded pick, else the least recently heard; a rating ceiling) and for making room (only an entry the host has already seen is ever dropped). The heard list is stored as the unit-written asset kind heard (SF89); the rules are tested with the RAM flash that cuts the power at every step of its write. Also the trivia tiles (the answer and up to two wrong answers split by |, cut to 40 characters without cutting a letter, in a seeded shuffled order, with the right tile index). The device layer is the next patch.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pantry_core.h (ours)
+# Check after a flash: none (a pure core; the host test builds shelves, rejects every kind of bad shelf, walks the choice rules and cuts the power at every step of a heard list write, checking that the list that survives is a whole one).
+# Kconfig: none
+# Memory cost: none (nothing includes the core yet). When the device layer lands: a heard list of 4 KB and a shelf index read in place, in PSRAM, only while the pantry is used.
+
+diff --git a/firmware/main/hal/maipai_pantry_core.h b/firmware/main/hal/maipai_pantry_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pantry_core.h
+@@ -0,0 +1,337 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The content pantry on the unit, the pure logic (patch SF92; design docs/design/content-pantry.md): a shelf of text records
++ * (jokes, riddles, trivia, stories) kept in the asset store as one item of kind pantry, read in place, and the heard list (one
++ * sector, written by the unit as an item of kind heard). Plain C99, no heap; the shelf is read through pointers into a buffer the
++ * caller owns (flash mapped or a PSRAM copy), so nothing here holds a record.
++ *
++ * Shelf (the body of a pantry item): a 16 byte header, an index of 16 bytes per record, then the packed texts.
++ *   header: "MPSH" (4), format (1), language code (2, ASCII), rating ceiling (1: 0 kid, 1 adult), record count (u16), index offset (u32), reserved (2, zero)
++ *   index entry: id (8), kind (1), rating (1), flags (1), text offset (3, from the start of the shelf), text length (u16)
++ *   record text: the text, then 0, the answer, then 0, the extra (the two wrong answers of trivia, split by |); the answer and the extra may be empty.
++ * Joke: the text is setup and punchline split by one |. Riddle and trivia: the text is the question. Story: paragraphs split by |.
++ *
++ * Heard list (one 4,096 byte sector, the body of an item of kind heard): a 16 byte header (magic, format, count, counter, crc) and up to 510 entries of 8 bytes:
++ * the low 32 bits of the record id, flags (1 heard, 2 denied, 4 synced to the host) and a 24 bit counter of the telling (stamps are counters, not dates: the unit may
++ * not know the date). The unit counts tellings in memory and writes the sector in batches (the device layer's rule), never per telling.
++ */
++#ifndef MAIPAI_PANTRY_CORE_H
++#define MAIPAI_PANTRY_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++#include "maipai_pack_core.h"   /* tpk_crc32, tpz_u16, tpz_u32 */
++
++#define MPY_HDR 16u
++#define MPY_ENTRY 16u
++#define MPY_MAX_RECORDS 1024u
++enum { MPY_JOKE = 1, MPY_RIDDLE, MPY_TRIVIA, MPY_STORY };
++enum { MPY_KID = 0, MPY_ADULT = 1 };
++/* length caps (bytes): the text, the answer, and the extra */
++static const uint16_t MPY_TEXT_CAP[5] = {0, 160, 140, 140, 1600};
++#define MPY_ANSWER_CAP 40u
++#define MPY_EXTRA_CAP 82u
++
++enum { MPY_OK = 0, MPY_E_SHORT, MPY_E_MAGIC, MPY_E_FORMAT, MPY_E_COUNT, MPY_E_INDEX, MPY_E_RECORD, MPY_E_RESERVED, MPY_E_COUNT_CODES };
++static const char* const MPY_REASONS[MPY_E_COUNT_CODES] = {
++    "ok", "The shelf is shorter than its header. Send the whole shelf file.", "The shelf does not start with MPSH. Send a file made for the pantry.",
++    "The shelf format is newer than this unit knows. Update the unit.", "The shelf holds no records or too many. Rebuild it with 1 to 1,024 records.",
++    "The shelf index runs outside the file. Rebuild the shelf.", "A record is empty, too long or has an unknown kind or rating. Rebuild the shelf.",
++    "The reserved bytes of the shelf are not zero. Rebuild the shelf."};
++
++typedef struct {
++    const uint8_t* b;        /* the whole shelf */
++    uint32_t len;
++    uint16_t count;
++    uint32_t index_off;
++    uint8_t rating_max;
++    char lang[3];
++} mpy_shelf_t;
++
++typedef struct {
++    const uint8_t* id;       /* 8 bytes */
++    uint8_t kind, rating, flags;
++    const char* text; uint16_t text_len;
++    const char* answer; uint16_t answer_len;
++    const char* extra; uint16_t extra_len;
++} mpy_rec_t;
++
++static inline uint32_t mpy_le24(const uint8_t* p) { return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16); }
++
++static inline void mpy_get(const mpy_shelf_t* s, uint32_t i, mpy_rec_t* r);
++
++/* The shelf's header and every index entry are checked: a shelf that passes can be read without further checks. */
++static inline int mpy_parse(const uint8_t* b, uint32_t len, mpy_shelf_t* s)
++{
++    if (b == NULL || len < MPY_HDR) return MPY_E_SHORT;
++    if (memcmp(b, "MPSH", 4) != 0) return MPY_E_MAGIC;
++    if (b[4] != 1) return MPY_E_FORMAT;
++    if (b[14] != 0 || b[15] != 0) return MPY_E_RESERVED;
++    s->b = b;
++    s->len = len;
++    s->lang[0] = (char)b[5]; s->lang[1] = (char)b[6]; s->lang[2] = '\0';
++    s->rating_max = b[7];
++    s->count = tpz_u16(b + 8);
++    s->index_off = tpz_u32(b + 10);
++    if (s->count == 0 || s->count > MPY_MAX_RECORDS) return MPY_E_COUNT;
++    if (s->rating_max > MPY_ADULT) return MPY_E_RECORD;
++    if (s->index_off < MPY_HDR || s->index_off > len || (uint64_t)s->index_off + (uint64_t)s->count * MPY_ENTRY > len) return MPY_E_INDEX;
++    const uint32_t texts = s->index_off + (uint32_t)s->count * MPY_ENTRY;
++    for (uint32_t i = 0; i < s->count; i++) {
++        const uint8_t* e = b + s->index_off + i * MPY_ENTRY;
++        const uint8_t kind = e[8];
++        if (kind < MPY_JOKE || kind > MPY_STORY || e[9] > s->rating_max) return MPY_E_RECORD;
++        const uint32_t off = mpy_le24(e + 11), tl = tpz_u16(e + 14);
++        if (tl == 0 || off < texts || (uint64_t)off + tl > len) return MPY_E_RECORD;
++        const uint32_t cap = (uint32_t)MPY_TEXT_CAP[kind] + 1u + MPY_ANSWER_CAP + 1u + MPY_EXTRA_CAP;
++        if (tl > cap) return MPY_E_RECORD;
++        mpy_rec_t r;   /* the parts are found the way a reader finds them, then each is held to its cap */
++        mpy_get(s, i, &r);
++        if (r.text_len == 0 || r.text_len > MPY_TEXT_CAP[kind] || r.answer_len > MPY_ANSWER_CAP || r.extra_len > MPY_EXTRA_CAP) return MPY_E_RECORD;
++    }
++    return MPY_OK;
++}
++
++/* Record i of a parsed shelf; the pointers are into the shelf. */
++static inline void mpy_get(const mpy_shelf_t* s, uint32_t i, mpy_rec_t* r)
++{
++    const uint8_t* e = s->b + s->index_off + i * MPY_ENTRY;
++    const uint8_t* t = s->b + mpy_le24(e + 11);
++    const uint32_t tl = tpz_u16(e + 14);
++    r->id = e; r->kind = e[8]; r->rating = e[9]; r->flags = e[10];
++    uint32_t k = 0;
++    while (k < tl && t[k] != 0) k++;
++    r->text = (const char*)t; r->text_len = (uint16_t)k;
++    uint32_t k2 = k + 1;
++    r->answer = (const char*)t + (k + 1 <= tl ? k + 1 : tl);
++    while (k2 < tl && t[k2] != 0) k2++;
++    r->answer_len = (uint16_t)(k + 1 <= tl ? (k2 > k + 1 ? k2 - k - 1 : 0) : 0);
++    r->extra = (const char*)t + (k2 + 1 <= tl ? k2 + 1 : tl);
++    r->extra_len = (uint16_t)(k2 + 1 < tl ? tl - k2 - 1 : 0);
++}
++
++/* ---- the trivia tiles ---- */
++#define MPY_TILE_BYTES 44u
++#define MPY_TILE_CHARS 40u   /* the screen standard: a tile word is at most 40 characters */
++
++/* Copies up to MPY_TILE_CHARS characters of src (n bytes) into dst, never cutting a UTF-8 sequence. */
++static inline void mpy_tile_copy(char* dst, const char* src, size_t n)
++{
++    size_t i = 0, chars = 0;
++    while (i < n && src[i] != '\0' && i + 4 < MPY_TILE_BYTES) {
++        if (((uint8_t)src[i] & 0xC0) != 0x80 && chars == MPY_TILE_CHARS) break;
++        if (((uint8_t)src[i] & 0xC0) != 0x80) chars++;
++        dst[i] = src[i];
++        i++;
++    }
++    while (i > 0 && i < n && src[i] != '\0' && ((uint8_t)src[i] & 0xC0) == 0x80) i--;   /* the byte after the cut must start a character */
++    dst[i] = '\0';
++}
++
++/* The answer and up to two wrong answers (the extra, split by |) as tiles in a seeded shuffled order. Returns the number of tiles (0 or 1: the record has no
++ * wrong answer and cannot be a question with tiles); *right is the tile that holds the answer. */
++static inline int mpy_tiles(const char* answer, const char* extra, uint32_t seed, char tiles[3][MPY_TILE_BYTES], int* right)
++{
++    char all[3][MPY_TILE_BYTES];
++    int n = 0;
++    mpy_tile_copy(all[n++], answer, strlen(answer));
++    const char* p = extra;
++    while (n < 3 && *p != '\0') {
++        const char* bar = strchr(p, '|');
++        const size_t len = bar != NULL ? (size_t)(bar - p) : strlen(p);
++        if (len > 0) mpy_tile_copy(all[n++], p, len);
++        if (bar == NULL) break;
++        p = bar + 1;
++    }
++    if (n < 2) return 0;
++    int order[3] = {0, 1, 2};
++    uint32_t r = seed | 1u;
++    for (int i = n - 1; i > 0; i--) {
++        r = r * 1664525u + 1013904223u;
++        const int j = (int)((r >> 8) % (uint32_t)(i + 1));
++        const int t = order[i]; order[i] = order[j]; order[j] = t;
++    }
++    for (int i = 0; i < n; i++) {
++        memcpy(tiles[i], all[order[i]], MPY_TILE_BYTES);
++        if (order[i] == 0) *right = i;
++    }
++    return n;
++}
++
++/* ---- the heard list ---- */
++#define MPH_MAGIC 0x31485048u   /* "HPH1" little endian */
++#define MPH_HDR 16u
++#define MPH_MAX 510u
++#define MPH_HEARD 1u
++#define MPH_DENY 2u
++#define MPH_SYNCED 4u
++#define MPH_SECTOR 4096u
++
++typedef struct { uint32_t id32; uint8_t flags; uint32_t counter; } mph_entry_t;
++typedef struct { mph_entry_t e[MPH_MAX]; uint16_t n; uint32_t counter; } mph_t;   /* counter: the last telling number given */
++
++static inline uint32_t mph_id32(const uint8_t* id8) { return tpz_u32(id8); }
++
++static inline int mph_find(const mph_t* h, uint32_t id32)
++{
++    for (uint16_t i = 0; i < h->n; i++) if (h->e[i].id32 == id32) return (int)i;
++    return -1;
++}
++
++static inline void mph_encode(const mph_t* h, uint8_t out[MPH_SECTOR])
++{
++    memset(out, 0xFF, MPH_SECTOR);
++    out[0] = (uint8_t)MPH_MAGIC; out[1] = (uint8_t)(MPH_MAGIC >> 8); out[2] = (uint8_t)(MPH_MAGIC >> 16); out[3] = (uint8_t)(MPH_MAGIC >> 24);
++    out[4] = 1; out[5] = 0;
++    out[6] = (uint8_t)h->n; out[7] = (uint8_t)(h->n >> 8);
++    out[8] = (uint8_t)h->counter; out[9] = (uint8_t)(h->counter >> 8); out[10] = (uint8_t)(h->counter >> 16); out[11] = (uint8_t)(h->counter >> 24);
++    out[12] = out[13] = out[14] = out[15] = 0;
++    for (uint16_t i = 0; i < h->n; i++) {
++        uint8_t* p = out + MPH_HDR + (size_t)i * 8u;
++        const uint32_t v = h->e[i].id32;
++        p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
++        p[4] = h->e[i].flags;
++        p[5] = (uint8_t)h->e[i].counter; p[6] = (uint8_t)(h->e[i].counter >> 8); p[7] = (uint8_t)(h->e[i].counter >> 16);
++    }
++    const uint32_t crc = tpk_crc32(0, out, MPH_HDR + (size_t)h->n * 8u);
++    out[12] = (uint8_t)crc; out[13] = (uint8_t)(crc >> 8); out[14] = (uint8_t)(crc >> 16); out[15] = (uint8_t)(crc >> 24);
++}
++
++/* 1 when the bytes are a valid heard list (the store already hashed them; this guards the format). */
++static inline int mph_decode(const uint8_t* in, uint32_t len, mph_t* h)
++{
++    memset(h, 0, sizeof(*h));
++    if (len < MPH_HDR || tpz_u32(in) != MPH_MAGIC || in[4] != 1) return 0;
++    const uint16_t n = tpz_u16(in + 6);
++    if (n > MPH_MAX || len < MPH_HDR + (uint32_t)n * 8u) return 0;
++    uint8_t tmp[MPH_SECTOR];
++    memcpy(tmp, in, MPH_HDR + (size_t)n * 8u);
++    const uint32_t want = tpz_u32(tmp + 12);
++    tmp[12] = tmp[13] = tmp[14] = tmp[15] = 0;
++    if (tpk_crc32(0, tmp, MPH_HDR + (size_t)n * 8u) != want) return 0;
++    h->n = n;
++    h->counter = tpz_u32(in + 8);
++    for (uint16_t i = 0; i < n; i++) {
++        const uint8_t* p = in + MPH_HDR + (size_t)i * 8u;
++        h->e[i].id32 = tpz_u32(p);
++        h->e[i].flags = p[4];
++        h->e[i].counter = (uint32_t)p[5] | ((uint32_t)p[6] << 8) | ((uint32_t)p[7] << 16);
++    }
++    return 1;
++}
++
++/* Makes room for one entry: when the list is full the oldest synced entry that is not a deny goes (the host keeps the full history); 0 when nothing can go. */
++static inline int mph_room(mph_t* h)
++{
++    if (h->n < MPH_MAX) return 1;
++    int best = -1;
++    for (uint16_t i = 0; i < h->n; i++) {
++        if ((h->e[i].flags & MPH_SYNCED) && !(h->e[i].flags & MPH_DENY) && (best < 0 || h->e[i].counter < h->e[best].counter)) best = (int)i;
++    }
++    if (best < 0) return 0;
++    h->e[best] = h->e[h->n - 1];
++    h->n--;
++    return 1;
++}
++
++/* A telling: the record is heard, with the next counter, and not yet synced. Returns the counter given, or 0 when the list could not take it. */
++static inline uint32_t mph_mark_heard(mph_t* h, const uint8_t* id8)
++{
++    const uint32_t id = mph_id32(id8);
++    int i = mph_find(h, id);
++    if (i < 0) {
++        if (!mph_room(h)) return 0;
++        i = h->n++;
++        h->e[i].id32 = id;
++        h->e[i].flags = 0;
++    }
++    h->counter = (h->counter + 1u) & 0xFFFFFFu;
++    if (h->counter == 0) h->counter = 1;
++    h->e[i].flags = (uint8_t)((h->e[i].flags | MPH_HEARD) & ~MPH_SYNCED);
++    h->e[i].counter = h->counter;
++    return h->counter;
++}
++
++/* The host says never again: the record is denied for good (a deny entry is never dropped to make room). */
++static inline int mph_deny(mph_t* h, const uint8_t* id8)
++{
++    const uint32_t id = mph_id32(id8);
++    int i = mph_find(h, id);
++    if (i < 0) {
++        if (!mph_room(h)) return 0;
++        i = h->n++;
++        h->e[i].id32 = id;
++        h->e[i].counter = 0;
++        h->e[i].flags = 0;
++    }
++    h->e[i].flags = (uint8_t)((h->e[i].flags | MPH_DENY) & ~MPH_SYNCED);
++    return 1;
++}
++
++/* The host acknowledged every entry up to this counter. */
++static inline void mph_ack(mph_t* h, uint32_t counter)
++{
++    for (uint16_t i = 0; i < h->n; i++) if (h->e[i].counter <= counter) h->e[i].flags |= MPH_SYNCED;
++}
++
++/* Entries the host has not seen (not synced), oldest first, into out (at most max): returns how many. */
++static inline int mph_unsynced(const mph_t* h, const mph_entry_t** out, int max)
++{
++    int n = 0;
++    for (uint16_t i = 0; i < h->n; i++) if (!(h->e[i].flags & MPH_SYNCED)) { if (n < max) out[n] = &h->e[i]; n++; }
++    return n < max ? n : max;
++}
++
++/* ---- choosing a record to tell ---- */
++/* A record of `kind` (0: any), not above `rating_max`, not denied: one the person has not heard when there is one (a seeded choice among them), else the
++ * least recently heard. Returns the record number or -1 when the shelf holds no such record. */
++static inline int mpy_pick(const mpy_shelf_t* s, int kind, int rating_max, const mph_t* h, uint32_t seed)
++{
++    int unheard = 0;
++    for (uint32_t i = 0; i < s->count; i++) {
++        const uint8_t* e = s->b + s->index_off + i * MPY_ENTRY;
++        if ((kind && e[8] != kind) || e[9] > rating_max) continue;
++        const int j = mph_find(h, mph_id32(e));
++        if (j >= 0 && (h->e[j].flags & MPH_DENY)) continue;
++        if (j < 0 || !(h->e[j].flags & MPH_HEARD)) unheard++;
++    }
++    if (unheard > 0) {
++        uint32_t want = (seed * 2654435761u) % (uint32_t)unheard;
++        for (uint32_t i = 0; i < s->count; i++) {
++            const uint8_t* e = s->b + s->index_off + i * MPY_ENTRY;
++            if ((kind && e[8] != kind) || e[9] > rating_max) continue;
++            const int j = mph_find(h, mph_id32(e));
++            if (j >= 0 && (h->e[j].flags & MPH_DENY)) continue;
++            if (j < 0 || !(h->e[j].flags & MPH_HEARD)) {
++                if (want-- == 0) return (int)i;
++            }
++        }
++    }
++    int best = -1;
++    uint32_t best_counter = 0xFFFFFFFFu;
++    for (uint32_t i = 0; i < s->count; i++) {
++        const uint8_t* e = s->b + s->index_off + i * MPY_ENTRY;
++        if ((kind && e[8] != kind) || e[9] > rating_max) continue;
++        const int j = mph_find(h, mph_id32(e));
++        if (j >= 0 && (h->e[j].flags & MPH_DENY)) continue;
++        const uint32_t c = j >= 0 ? h->e[j].counter : 0;
++        if (best < 0 || c < best_counter) { best = (int)i; best_counter = c; }
++    }
++    return best;
++}
++
++/* Unheard, not denied records of a kind (0: any): what the host reads to decide a refill. */
++static inline int mpy_unheard(const mpy_shelf_t* s, int kind, const mph_t* h)
++{
++    int n = 0;
++    for (uint32_t i = 0; i < s->count; i++) {
++        const uint8_t* e = s->b + s->index_off + i * MPY_ENTRY;
++        if (kind && e[8] != kind) continue;
++        const int j = mph_find(h, mph_id32(e));
++        if (j < 0 || !(h->e[j].flags & (MPH_HEARD | MPH_DENY))) n++;
++    }
++    return n;
++}
++
++#endif

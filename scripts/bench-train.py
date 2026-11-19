@@ -11,7 +11,7 @@ quiet, sounds off, volume 0), and put it back every time the unit restarts, beca
 heap during the soak while the checklist runs: tool checks with expected values, and snapshots compared with the playground goldens within a tolerance file;
 (4) write result.md and result.json, then restore the silent state. A failing check never stops the train: the bench agent reads the result and handles failures
 and the touch-only items listed under "person". Opening the serial port resets the unit, so the train opens it once.
-Manifest: {"name", "build_dir", "soak_s" (630), "settle_s" (2), "goldens_dir", "tolerance_file", "heap_interval_s" (20), "gate": {...}, "checks": [...], "person": ["touch only items"]}.
+Manifest: {"name", "after_restart_checks" and "final_checks" (checks run after every restart and at the end of the soak), "build_dir", "soak_s" (630), "settle_s" (2), "goldens_dir", "tolerance_file", "heap_interval_s" (20), "gate": {...}, "checks": [...], "person": ["touch only items"]}.
 A check is {"name", "tool", "args", "expect": {"path": value | {"min","max","regex"}}, "wait"} or {"name", "snapshot": "<golden name>", "pre": [{"tool","args"}], "post": [...]}.
 Placement: the machine that holds the cable (development only). Upstream: none. The unit is never flashed unless the manifest says so and --no-flash is absent.
 """
@@ -97,6 +97,14 @@ def memory_verdict(samples: list[dict], gate: dict) -> tuple[bool, dict, list[st
     return not bad, nums, bad
 
 
+MEM_LINE = re.compile(r"SystemInfo: mem internal_free=(\d+) internal_min=(\d+) int_big=(\d+)")
+
+
+def console_samples(text: str) -> list[dict]:
+    """The unit prints 'SystemInfo: mem internal_free= internal_min= int_big=' every 10 s on bench images; self.bench.heap_info answers total_free and largest_free (different numbers), so the gate reads these lines."""
+    return [{"free": int(a), "min": int(b), "big": int(c)} for a, b, c in MEM_LINE.findall(text)]
+
+
 def scan_console(text: str) -> dict:
     return {"boots": len(BOOT.findall(text)), "panics": len(PANIC.findall(text))}
 
@@ -179,6 +187,19 @@ def compare_snapshot(shot: Path, golden: Path, tol: dict) -> tuple[str, str]:
         return "FAIL", "the snapshot and the golden have different sizes"
     frac = bad / max(total, 1)
     return ("PASS" if frac <= tol["fraction"] else "FAIL"), f"{bad} of {total} pixels differ ({frac:.2%}; allowed {tol['fraction']:.2%} at channel tolerance {tol['channel']})"
+
+
+def side_by_side(shot: Path, golden: Path, out: Path) -> None:
+    w, h, a = read_png(shot)
+    w2, h2, b = read_png(golden)
+    if (w, h) != (w2, h2):
+        return
+    raw = b"".join(b"\x00" + a[y * w * 3 : (y + 1) * w * 3] + b[y * w * 3 : (y + 1) * w * 3] for y in range(h))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    out.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 2 * w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
 
 
 def tolerance_for(tolerances: dict, name: str) -> dict:
@@ -269,12 +290,20 @@ def run_check(unit, check: dict, golden_dir: Path, tolerances: dict, out: Path, 
     res = {"name": check["name"], "status": "PASS", "detail": ""}
     try:
         for step in check.get("pre", []):
-            unit.call(step["tool"], step.get("args", {}), step.get("wait", 30))
+            try:
+                unit.call(step["tool"], step.get("args", {}), step.get("wait", 30))
+            except Exception:  # noqa: BLE001
+                if not step.get("optional"):
+                    raise
         if "snapshot" in check:
             sleep(check.get("settle_s", settle))
             shot = out / f"{check['name']}.png"
             unit.snapshot(shot)
-            status, detail = compare_snapshot(shot, golden_dir / f"{check['snapshot']}.png", tolerance_for(tolerances, check["snapshot"]))
+            golden = golden_dir / f"{check['snapshot']}.png"
+            status, detail = compare_snapshot(shot, golden, tolerance_for(tolerances, check["snapshot"]))
+            if status == "FAIL" and golden.exists():
+                side_by_side(shot, golden, out / f"{check['name']}-vs-golden.png")   # unit on the left, the golden on the right: the person (or the next model) sees what differs
+                detail += f"; see {check['name']}-vs-golden.png"
             res.update(status=status, detail=detail)
         else:
             reply = unit.call(check["tool"], check.get("args", {}), check.get("wait", 30))
@@ -287,12 +316,23 @@ def run_check(unit, check: dict, golden_dir: Path, tolerances: dict, out: Path, 
     return res
 
 
+def extract_goldens(ref: str, dest: Path) -> Path:
+    dest.mkdir(parents=True, exist_ok=True)
+    arch = subprocess.run(["git", "-C", str(ROOT), "archive", ref, "host/tests/golden/screens"], capture_output=True)
+    if arch.returncode != 0:
+        raise RuntimeError(f"could not read the goldens from {ref}: {arch.stderr.decode()[-200:]}. Run git fetch and check the ref name.")
+    subprocess.run(["tar", "-x", "-C", str(dest)], input=arch.stdout, check=True)
+    return dest / "host" / "tests" / "golden" / "screens"
+
+
 def run_train(man: dict, unit, out: Path, sleep=time.sleep, clock=time.time) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     gate = {**GATE, **man.get("gate", {})}
     keys = {**HEAP_KEYS, **man.get("heap_keys", {})}
     soak = float(man.get("soak_s", 630))
     golden_dir = ROOT / man.get("goldens_dir", "host/tests/golden/screens")
+    if man.get("goldens_ref"):   # the playground renderer's goldens, read from a git ref (never the unit's own snapshots: that would be circular)
+        golden_dir = extract_goldens(man["goldens_ref"], out / "goldens")
     tol_file = ROOT / man.get("tolerance_file", "host/tests/golden/tolerance.json")
     tolerances = json.loads(tol_file.read_text()) if tol_file.exists() else {}
     result: dict = {"train": man["name"], "checks": [], "problems": []}
@@ -319,6 +359,9 @@ def run_train(man: dict, unit, out: Path, sleep=time.sleep, clock=time.time) -> 
                 seen_boots[0] = boots
                 wait_ready(unit, 60, sleep, clock)
                 apply_safe(unit)
+                for c in man.get("after_restart_checks", []):   # what must hold right after every restart (leaving hosted: route custom, no cl_ keys)
+                    r = run_check(unit, {**c, "name": c["name"] + " (after restart)"}, golden_dir, tolerances, out, man.get("settle_s", 2), sleep)
+                    result["checks"].append(r)
             stop.wait(man.get("heap_interval_s", 20))
 
     th = threading.Thread(target=sampler, daemon=True)
@@ -329,15 +372,18 @@ def run_train(man: dict, unit, out: Path, sleep=time.sleep, clock=time.time) -> 
         sleep(min(5, max(0.1, soak - (clock() - began))))
     stop.set()
     th.join(timeout=15)
+    for c in man.get("final_checks", []):   # what must hold at the end of the soak (leaving hosted: still no vendor attempts)
+        result["checks"].append(run_check(unit, {**c, "name": c["name"] + " (after soak)"}, golden_dir, tolerances, out, man.get("settle_s", 2), sleep))
     result["restarts"] = restarts[0]
     return finish(result, samples, unit.console(), unit, out, man, gate)
 
 
 def finish(result: dict, samples: list[dict], console: str, unit, out: Path, man: dict, gate: dict | None = None) -> dict:
     gate = gate or {**GATE, **man.get("gate", {})}
-    ok, nums, bad = memory_verdict(samples, gate)
+    from_console = console_samples(console)
+    ok, nums, bad = memory_verdict(from_console or samples, gate)
     scan = scan_console(console)
-    result["memory"] = {"pass": ok, "numbers": nums, "problems": bad, "samples": len(samples)}
+    result["memory"] = {"pass": ok, "numbers": nums, "problems": bad, "samples": len(from_console or samples), "source": "console memory lines" if from_console else "heap_info"}
     result["console"] = {**scan, "restarts_seen_after_first_boot": max(scan["boots"] - 1, 0)}
     result["person"] = man.get("person", [])
     result["pass"] = (
