@@ -1,3 +1,5 @@
 # The leanest assets image (patches SF80 and SF85): no stock text font (1,287,460 bytes) and none of the stock apps' pictures (about 708,000 bytes) in the assets partition.
 # CONFIG_MAIPAI_PARTITION_TEXT_FONT is not set
 # CONFIG_MAIPAI_PARTITION_EXTRA_ASSETS is not set
+# The asset store (patch SF90) lives in the space the smaller image leaves free: the image must end below 0x320000, which the build checks.
+CONFIG_MAIPAI_ASSET_STORE=y

@@ -1,0 +1,5 @@
+# The cloud brain test image (patch SF96): never the default, never in a release. The unit runs the vendor's published activation check with the owner's own
+# account. The address is the upstream default of the pinned xiaozhi-esp32 v2.5.2 tree (its main/Kconfig.projbuild); nothing here contacts it until this image runs.
+CONFIG_MAIPAI_CLOUDTEST=y
+CONFIG_STACKCHAN_OTA_CHECK=y
+CONFIG_OTA_URL="https://api.tenclass.net/xiaozhi/ota/"

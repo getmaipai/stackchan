@@ -1,0 +1,155 @@
+# Intent: Game packs installed in the asset store (owner decision 17; the first consumer of SF90, design installed-set.md G3 step 1) join the games list and start like the built-in games: up to 8 packs of kind game, store slot n is games slot 8 + n. Each is copied from the store the first time it is asked for (the store checked its hash; mg_parse checks the pack), kept in PSRAM until the store changes and no game runs, and left out when its id is a built-in game's, so the store can never shadow a built-in. The saved scores of an installed pack are read from the unit's score store the first time its row is needed. The seven built-in games and the grid games are unchanged; with the store off the installed slots are simply empty.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_games.cc (ours)
+# Check after a flash: on a nofont or lean image install a signed game pack of kind game with self.assets.install, data and commit; self.game.list shows it with kind installed; self.game.start with its id plays it; its best score survives a restart; self.assets.remove makes it leave the list; a pack named like a built-in is not listed.
+# Kconfig: none (needs MAIPAI_ASSET_STORE to have anything to list)
+# Memory cost: nothing while no pack is installed; each installed pack is a PSRAM copy of its size (at most 16,384 bytes, 8 packs at most: 131,072 bytes) once the games list or a game asks for it; 8 more score entries (about 160 bytes) in internal RAM; flash about 1.2 KB (estimate).
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -13,6 +13,7 @@
+ #include "maipai_listen.h"
+ #include "maipai_time_core.h"
+ #include "maipai_games_core.h"
++#include "maipai_assets.h"  // patch SF91: installed game packs
+ #include "maipai_qa_game.h"  // patch SF88: the question games the host runs
+ #include "maipai_grid.h"  // patch SF63: the grid games (Four in a Row, Memory Match)
+ #include "maipai_game_over.h"  // patch SF86: the shared game-over screen
+@@ -77,7 +78,9 @@ extern const uint8_t _binary_dice_mpk_end[];
+ namespace {
+ 
+ constexpr int kBuiltIns   = 7;  // patch GM06: memory, whack, tictactoe, bopit (Do It), rps, eightball, dice
+-constexpr int kMaxGames   = kBuiltIns + 1;  // the built-ins, plus one pack loaded from outside (bench builds)
++constexpr int kInstalled  = 8;  // patch SF91: game packs installed in the asset store (kind game, slots 0 to 7)
++constexpr int kGameKind   = 4;  // the position of "game" in the asset kinds (schema/asset-kinds.json)
++constexpr int kMaxGames   = kBuiltIns + 1 + kInstalled;  // the built-ins, one pack loaded from outside (bench builds), the installed packs
+ constexpr uint32_t kTickMs = 30;
+ constexpr uint32_t kGameIdleMs = 10u * 60u * 1000u;  // patch SF02: a game with no touch or sensor input for 10 minutes ends
+ 
+@@ -99,6 +102,13 @@ const Source kBuilt[kBuiltIns] = {
+ uint8_t* s_ext     = nullptr;
+ size_t s_ext_len   = 0;
+ 
++// Patch SF91: the installed packs, copied from the asset store the first time they are asked for and kept (a few KB each, in PSRAM) until
++// the store changes and no game runs. slot kBuiltIns + 1 + n is store slot n.
++uint8_t* s_inst[kInstalled]    = {};
++size_t s_inst_len[kInstalled]  = {};
++bool s_inst_tried[kInstalled]  = {};
++uint32_t s_inst_gen            = 0;
++
+ struct Entry {
+     char id[12];
+     uint16_t best[MG_SCORES];
+@@ -170,7 +180,45 @@ bool bench_build()
+ 
+ // ---- the packs ----
+ 
+-// Pack bytes for slot `i` (0 to 2 the built-ins, 3 the outside pack), or false.
++// Patch SF91: the installed pack n, or false. The copy is checked by the store (hash) and by mg_parse; a pack whose id is a built-in game's is
++// left out, so the store can never shadow a built-in. While a game runs the copies stay as they are (the game's pack points into one).
++bool inst_bytes(int n, const uint8_t** data, size_t* len)
++{
++    if (s_game == nullptr && s_inst_gen != maipai_assets_generation()) {
++        for (int k = 0; k < kInstalled; k++) {
++            maipai_assets_free(s_inst[k]);
++            s_inst[k] = nullptr;
++            s_inst_len[k] = 0;
++            s_inst_tried[k] = false;
++        }
++        s_inst_gen = maipai_assets_generation();
++    }
++    if (!s_inst_tried[n]) {
++        s_inst_tried[n] = true;
++        uint8_t* buf = nullptr;
++        size_t blen  = 0;
++        mg_pack_t p;
++        if (maipai_assets_load(kGameKind, n, &buf, &blen, nullptr)) {
++            bool ok = mg_parse(buf, blen, &p) == MG_OK;
++            for (int i = 0; ok && i < kBuiltIns; i++) {
++                mg_pack_t b;
++                if (mg_parse(kBuilt[i].start, static_cast<size_t>(kBuilt[i].end - kBuilt[i].start), &b) == MG_OK && strcmp(b.id, p.id) == 0) ok = false;
++            }
++            if (ok) {
++                s_inst[n] = buf;
++                s_inst_len[n] = blen;
++            } else {
++                maipai_assets_free(buf);
++            }
++        }
++    }
++    if (s_inst[n] == nullptr) return false;
++    *data = s_inst[n];
++    *len  = s_inst_len[n];
++    return true;
++}
++
++// Pack bytes for slot `i` (0 to 6 the built-ins, 7 the outside pack, 8 to 15 the installed packs), or false.
+ bool slot_bytes(int i, const uint8_t** data, size_t* len)
+ {
+     if (i >= 0 && i < kBuiltIns) {
+@@ -183,6 +231,9 @@ bool slot_bytes(int i, const uint8_t** data, size_t* len)
+         *len  = s_ext_len;
+         return true;
+     }
++    if (i > kBuiltIns && i < kMaxGames) {
++        return inst_bytes(i - kBuiltIns - 1, data, len);
++    }
+     return false;
+ }
+ 
+@@ -245,6 +296,30 @@ void load_scores_locked()
+     }
+ }
+ 
++// Patch SF91: the saved scores of an installed pack's slot (the built-ins' are read once, at boot; the outside pack starts empty). Call with s_mutex held.
++void ensure_entry_locked(int i, const mg_pack_t& p)
++{
++    if (i <= kBuiltIns || strcmp(s_entries[i].id, p.id) == 0) {
++        return;
++    }
++    memset(&s_entries[i], 0, sizeof(s_entries[i]));
++    snprintf(s_entries[i].id, sizeof(s_entries[i].id), "%s", p.id);
++    nvs_handle_t h;
++    if (nvs_open(kNamespace, NVS_READONLY, &h) != ESP_OK) {
++        return;
++    }
++    char key[16];
++    snprintf(key, sizeof(key), "s_%s", p.id);
++    uint8_t buf[2 * MG_SCORES];
++    size_t n = sizeof(buf);
++    if (nvs_get_blob(h, key, buf, &n) == ESP_OK && n == sizeof(buf)) {
++        for (int k = 0; k < MG_SCORES; k++) {
++            s_entries[i].best[k] = mg_u16(buf + 2 * k);
++        }
++    }
++    nvs_close(h);
++}
++
+ void write_scores(const char* id, const uint16_t scores[MG_SCORES])
+ {
+     nvs_handle_t h;
+@@ -885,6 +960,7 @@ int maipai_games_best(int index)
+     for (int i = 0; i < kMaxGames; i++) {
+         if (slot_pack(i, &p) && seen++ == index) {
+             std::lock_guard<std::mutex> lock(s_mutex);
++            ensure_entry_locked(i, p);
+             return s_entries[i].best[0];
+         }
+     }
+@@ -960,6 +1036,7 @@ const char* maipai_games_start_locked(const char* name, const char* source)
+         if (s_entries[slot].id[0] == '\0') {
+             snprintf(s_entries[slot].id, sizeof(s_entries[slot].id), "%s", g->id);
+         }
++        ensure_entry_locked(slot, g->pack);  // patch SF91: an installed pack's saved scores
+     }
+     clips_prepare(g->pack);  // patch UI15: the game's sounds are made before it is shown
+     g->root = lv_obj_create(lv_layer_top());
+@@ -1173,6 +1250,7 @@ std::string scores_json(int slot)
+         return "[]";
+     }
+     std::lock_guard<std::mutex> lock(s_mutex);
++    ensure_entry_locked(slot, p);
+     std::string out = "[";
+     bool first      = true;
+     for (int k = 0; k < MG_SCORES; k++) {

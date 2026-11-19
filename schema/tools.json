@@ -1,7 +1,14 @@
 {
  "source": "firmware/patches (AddTool lines)",
- "count": 160,
+ "count": 179,
  "tools": {
+  "self.assets.abort": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.commit": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.data": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.install": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.list": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.remove": "SF90-asset-store-on-the-unit.patch",
+  "self.assets.swap": "SF90-asset-store-on-the-unit.patch",
   "self.audio.hourly_chime": "T02-hourly-chime-quiet-hours.patch",
   "self.audio.notify": "117-audio-notify-tool.patch",
   "self.audio.offline_phrase": "V02-offline-phrases.patch",
@@ -11,6 +18,7 @@
   "self.audio.sound_info": "116-sound-policy-tools.patch",
   "self.audio_speaker.set_volume": "base firmware (schema/base-tools.json)",
   "self.banner.face_seen": "NX05-face-seen-glyph-and-tool-in-the-banner-strip.patch",
+  "self.banner.set": "SF97-banner-note-from-the-host.patch",
   "self.battery.get_status": "C01-battery-status.patch",
   "self.battery.simulate": "T01-low-battery-ladder.patch",
   "self.bench.asset_use": "SF79-bench-asset-use-probe.patch",
@@ -34,6 +42,8 @@
   "self.bench.servo_rate": "SF27-bench-servo-rate-firstrun-loop.patch",
   "self.bench.set_head": "SF23-bench-head-and-tone-medians.patch",
   "self.bench.show_away_notice": "SF73-away-notice-takes-the-banner-row.patch",
+  "self.brain.set_route": "SF98-leave-hosted-and-brain-route.patch",
+  "self.brain.status": "SF98-leave-hosted-and-brain-route.patch",
   "self.camera.cue_test": "T05-camera-on-cue.patch",
   "self.clock.get": "U03-time-zone-picker.patch",
   "self.clock.set": "U03-time-zone-picker.patch",
@@ -121,12 +131,21 @@
   "self.pages.get": "P13-pages-wiring-tools-and-switch.patch",
   "self.pages.set": "P13-pages-wiring-tools-and-switch.patch",
   "self.pages.status": "P13-pages-wiring-tools-and-switch.patch",
+  "self.pantry.deny": "SF93-pantry-on-the-unit.patch",
+  "self.pantry.heard": "SF93-pantry-on-the-unit.patch",
+  "self.pantry.status": "SF93-pantry-on-the-unit.patch",
+  "self.pantry.tell": "SF94-pantry-tellings-on-the-question-screens.patch",
   "self.power.keep_awake": "074-keep-awake-tool.patch",
   "self.prefs.get": "TA01-prefs-store-and-tools.patch",
   "self.prefs.set": "TA01-prefs-store-and-tools.patch",
   "self.privacy.get": "106-privacy-core.patch",
   "self.privacy.set": "106-privacy-core.patch",
   "self.privacy.set_policy": "106-privacy-core.patch",
+  "self.qa.end": "SF88-question-games-on-the-unit.patch",
+  "self.qa.question": "SF88-question-games-on-the-unit.patch",
+  "self.qa.start": "SF88-question-games-on-the-unit.patch",
+  "self.qa.stop": "SF88-question-games-on-the-unit.patch",
+  "self.qa.verdict": "SF88-question-games-on-the-unit.patch",
   "self.reaction.get_table": "U02-word-reactions.patch",
   "self.reaction.reset": "U02-word-reactions.patch",
   "self.reaction.set_table": "U02-word-reactions.patch",
@@ -173,6 +192,26 @@
   "self.wifi.switch"
  ],
  "arguments": {
+  "self.assets.abort": {},
+  "self.assets.commit": {},
+  "self.assets.data": {
+   "at": "integer",
+   "b64": "string"
+  },
+  "self.assets.install": {
+   "slot": "integer",
+   "header_b64": "string",
+   "sig_b64": "string"
+  },
+  "self.assets.list": {},
+  "self.assets.remove": {
+   "kind": "string",
+   "slot": "integer"
+  },
+  "self.assets.swap": {
+   "kind": "string",
+   "slot": "integer"
+  },
   "self.audio.hourly_chime": {
    "enabled": "integer",
    "test": "boolean"
@@ -207,6 +246,10 @@
   },
   "self.banner.face_seen": {
    "seconds": "integer"
+  },
+  "self.banner.set": {
+   "text": "string",
+   "kind": "string"
   },
   "self.battery.get_status": {},
   "self.battery.simulate": {
@@ -284,6 +327,10 @@
    "hold_ms": "integer"
   },
   "self.bench.show_away_notice": {},
+  "self.brain.set_route": {
+   "route": "string"
+  },
+  "self.brain.status": {},
   "self.camera.cue_test": {},
   "self.clock.get": {},
   "self.clock.set": {
@@ -541,6 +588,17 @@
    "json": "string"
   },
   "self.pages.status": {},
+  "self.pantry.deny": {
+   "ids": "string"
+  },
+  "self.pantry.heard": {
+   "since": "integer"
+  },
+  "self.pantry.status": {},
+  "self.pantry.tell": {
+   "kind": "string",
+   "lang": "string"
+  },
   "self.power.keep_awake": {},
   "self.prefs.get": {},
   "self.prefs.set": {
@@ -556,6 +614,31 @@
   },
   "self.privacy.set_policy": {
    "local_unmute": "boolean"
+  },
+  "self.qa.end": {
+   "result": "string",
+   "score_text": "string",
+   "score": "integer"
+  },
+  "self.qa.question": {
+   "id": "integer",
+   "text": "string",
+   "choices": "string",
+   "hint": "string",
+   "guess": "boolean"
+  },
+  "self.qa.start": {
+   "game": "string",
+   "lang": "string",
+   "rounds": "integer"
+  },
+  "self.qa.stop": {},
+  "self.qa.verdict": {
+   "id": "integer",
+   "correct": "boolean",
+   "right": "integer",
+   "text": "string",
+   "score": "integer"
   },
   "self.reaction.get_table": {},
   "self.reaction.reset": {},

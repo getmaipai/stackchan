@@ -1,0 +1,375 @@
+# Intent: The content pantry on the unit, device side (owner decision 25; core SF92; design docs/design/content-pantry.md). Reads the shelves the host installs as assets of kind pantry (each checked whole the first time it is read, then only while it is counted or a record is picked), keeps the heard list as the unit's own asset of kind heard, and registers self.pantry.status (per shelf: language, counts and unheard counts per kind, the heard counter and how many entries the host has not seen), self.pantry.heard (the tellings after a counter the host already holds, up to 64 at a time; the call acknowledges everything up to it) and self.pantry.deny (never tell these ids again, written at once). The telling screens ask for a record with maipai_pantry_pick (an unheard one first, else the least recently heard, never a denied one, kid rating only) and report it with maipai_pantry_told. The heard list is written beside the old copy when 16 tellings have built up, 10 minutes after the last one, or at a restart (a shutdown handler); a telling never writes flash by itself. Stories are stored and counted but not told yet.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_pantry.cc and maipai_pantry.h (ours); a registration line in hal_mcp.cpp
+# Check after a flash: on a nofont or lean image install a pantry shelf with self.assets.install, data and commit (kind pantry); self.pantry.status lists it with its counts; call maipai_pantry_pick through the telling screens (a later patch) or the bench; self.pantry.heard returns the tellings and a second call with since set to the counter returns none; self.pantry.deny with an id from the shelf removes it from picks and survives a restart; the log shows "heard list written" after 16 tellings and after a restart.
+# Kconfig: MAIPAI_PANTRY (default y, needs MAIPAI_ASSET_STORE)
+# Memory cost: nothing while the store is off. In use: the heard list is one block of about 6.2 KB in PSRAM, allocated by the first tool call or telling and kept; a shelf is a transient PSRAM copy of at most 40,960 bytes while it is checked or a record is picked; internal RAM about 60 bytes (a mutex, an esp_timer, counters); flash about 6 KB (estimate).
+
+diff --git a/firmware/main/hal/maipai_pantry.h b/firmware/main/hal/maipai_pantry.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pantry.h
+@@ -0,0 +1,33 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The content pantry, device side (patch SF93; logic maipai_pantry_core.h; design docs/design/content-pantry.md). Shelves are installed by the
++ * host as assets of kind pantry; the heard list is the unit's own asset of kind heard. The host reads and tunes it with self.pantry.status,
++ * heard and deny; the telling screens ask for a record with maipai_pantry_pick and report it with maipai_pantry_told.
++ */
++#pragma once
++#include <sdkconfig.h>
++#include <stdint.h>
++
++#if CONFIG_MAIPAI_PANTRY
++struct MaipaiPantryRecord {
++    uint8_t id[8];
++    uint8_t kind;        // 1 joke, 2 riddle, 3 trivia (stories are not told by the unit yet)
++    char text[164];
++    char answer[44];
++    char extra[88];      // trivia: the two wrong answers split by |
++};
++void maipai_pantry_register_tools();
++// A record of the kind (0: a joke, riddle or trivia) in the language (empty: any) that has not been heard, else the least recently heard. False when no shelf has one.
++bool maipai_pantry_pick(int kind, const char* lang, MaipaiPantryRecord* out);
++// The telling happened: marks the record heard. The list is written in batches (16 tellings, or 10 minutes after the last, or at a restart), never per telling.
++void maipai_pantry_told(const uint8_t id[8]);
++// Writes the heard list now if it changed.
++void maipai_pantry_flush();
++#else
++struct MaipaiPantryRecord { uint8_t id[8]; uint8_t kind; char text[164]; char answer[44]; char extra[88]; };
++inline void maipai_pantry_register_tools() {}
++inline bool maipai_pantry_pick(int, const char*, MaipaiPantryRecord*) { return false; }
++inline void maipai_pantry_told(const uint8_t*) {}
++inline void maipai_pantry_flush() {}
++#endif
+diff --git a/firmware/main/hal/maipai_pantry.cc b/firmware/main/hal/maipai_pantry.cc
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_pantry.cc
+@@ -0,0 +1,288 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * The content pantry, device side (patch SF93). See maipai_pantry.h. A shelf is read whole into PSRAM (40,960 bytes at most) only while the unit checks
++ * it, counts it or picks a record from it, then freed; nothing is held between calls but the heard list (about 6 KB in PSRAM, allocated the first
++ * time a telling or a tool needs it). The heard list is written as the unit's own asset beside the old copy (power-cut safe): when 16 tellings
++ * have built up, or 10 minutes after the last one, or at a restart. A telling never writes flash by itself.
++ */
++#include "maipai_pantry.h"
++
++#if CONFIG_MAIPAI_PANTRY
++#include "maipai_assets.h"
++#include "maipai_assets_core.h"
++#include "maipai_pantry_core.h"
++#include <application.h>
++#include <esp_heap_caps.h>
++#include <esp_log.h>
++#include <esp_system.h>
++#include <esp_timer.h>
++#include <mcp_server.h>
++#include <cstdio>
++#include <cstring>
++#include <mutex>
++#include <string>
++
++static const char* TAG = "MAIPAI-PANTRY";
++
++namespace {
++
++constexpr int kPantryKind = 7;   // the positions of pantry and heard in the asset kinds (schema/asset-kinds.json)
++constexpr int kHeardKind = 8;
++constexpr uint32_t kFlushEvery = 16;
++constexpr int64_t kFlushAfterUs = 10ll * 60 * 1000 * 1000;
++
++std::mutex s_mu;
++mph_t* s_heard = nullptr;      // PSRAM
++bool s_heard_loaded = false;
++uint32_t s_unsaved = 0;
++esp_timer_handle_t s_timer = nullptr;
++bool s_shutdown_hooked = false;
++
++std::string json_str(const char* s)
++{
++    std::string o;
++    for (; *s != '\0'; s++) {
++        if (*s == '"' || *s == '\\') o += '\\';
++        o += *s;
++    }
++    return o;
++}
++
++// call with s_mu held
++bool heard_locked()
++{
++    if (s_heard == nullptr) {
++        s_heard = static_cast<mph_t*>(heap_caps_calloc(1, sizeof(mph_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++        if (s_heard == nullptr) return false;
++    }
++    if (!s_heard_loaded) {
++        s_heard_loaded = true;
++        uint8_t* bytes = nullptr;
++        size_t len = 0;
++        if (maipai_assets_load(kHeardKind, 0, &bytes, &len, nullptr)) {
++            if (!mph_decode(bytes, static_cast<uint32_t>(len), s_heard)) memset(s_heard, 0, sizeof(*s_heard));   // damaged: start empty (a record may repeat)
++            maipai_assets_free(bytes);
++        }
++    }
++    return true;
++}
++
++void flush_locked()
++{
++    if (s_heard == nullptr || s_unsaved == 0) return;
++    uint8_t* sector = static_cast<uint8_t*>(heap_caps_malloc(MPH_SECTOR, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
++    if (sector == nullptr) return;
++    mph_encode(s_heard, sector);
++    if (maipai_assets_put_unit(kHeardKind, "heard", sector, MPH_SECTOR)) {
++        ESP_LOGI(TAG, "heard list written: %u entries, %u new tellings", static_cast<unsigned>(s_heard->n), static_cast<unsigned>(s_unsaved));
++        s_unsaved = 0;
++    }
++    heap_caps_free(sector);
++}
++
++void timer_cb(void*)
++{
++    Application::GetInstance().Schedule([]() { maipai_pantry_flush(); });   // the esp_timer task stays free of flash
++}
++
++void arm_timer_locked()
++{
++    if (s_timer == nullptr) {
++        esp_timer_create_args_t a = {};
++        a.callback = timer_cb;
++        a.name = "pantry_flush";
++        if (esp_timer_create(&a, &s_timer) != ESP_OK) {
++            s_timer = nullptr;
++            return;
++        }
++    }
++    esp_timer_stop(s_timer);
++    esp_timer_start_once(s_timer, kFlushAfterUs);
++    if (!s_shutdown_hooked) {
++        s_shutdown_hooked = true;
++        esp_register_shutdown_handler([]() { maipai_pantry_flush(); });   // a restart, an update: the marks since the last write are kept
++    }
++}
++
++// Loads the shelf of a slot whole and checks it. Returns the bytes (the caller frees them) or null.
++uint8_t* load_shelf(int slot, mpy_shelf_t* sh, size_t* len)
++{
++    uint8_t* b = nullptr;
++    if (!maipai_assets_load(kPantryKind, slot, &b, len, nullptr)) return nullptr;
++    if (mpy_parse(b, static_cast<uint32_t>(*len), sh) != MPY_OK) {
++        maipai_assets_free(b);
++        return nullptr;
++    }
++    return b;
++}
++
++void hex_id(const uint8_t* id, char out[17]) { for (int i = 0; i < 8; i++) snprintf(out + 2 * i, 3, "%02x", id[i]); }
++
++void copy_part(char* dst, size_t cap, const char* src, size_t n)
++{
++    n = n < cap - 1 ? n : cap - 1;
++    memcpy(dst, src, n);
++    dst[n] = '\0';
++}
++
++}  // namespace
++
++bool maipai_pantry_pick(int kind, const char* lang, MaipaiPantryRecord* out)
++{
++    if (kind < 0 || kind > MPY_TRIVIA) return false;
++    uint8_t slots[8];
++    const int n = maipai_assets_slots(kPantryKind, slots);
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (!heard_locked()) return false;
++    for (int k = 0; k < n; k++) {
++        mpy_shelf_t sh;
++        size_t len = 0;
++        uint8_t* b = load_shelf(slots[k], &sh, &len);
++        if (b == nullptr) continue;
++        if (lang != nullptr && lang[0] != '\0' && strncmp(sh.lang, lang, 2) != 0) {
++            maipai_assets_free(b);
++            continue;
++        }
++        // jokes, riddles and trivia only: a story is not told by the unit yet
++        int pick = -1;
++        for (int attempt = 0; attempt < 3 && pick < 0; attempt++) {
++            const int want = kind != 0 ? kind : 1 + attempt;
++            pick = mpy_pick(&sh, want, MPY_KID, s_heard, static_cast<uint32_t>(esp_timer_get_time() / 1000) + static_cast<uint32_t>(attempt) * 7919u);
++            if (kind != 0) break;
++        }
++        if (pick >= 0) {
++            mpy_rec_t r;
++            mpy_get(&sh, static_cast<uint32_t>(pick), &r);
++            memcpy(out->id, r.id, 8);
++            out->kind = r.kind;
++            copy_part(out->text, sizeof(out->text), r.text, r.text_len);
++            copy_part(out->answer, sizeof(out->answer), r.answer, r.answer_len);
++            copy_part(out->extra, sizeof(out->extra), r.extra, r.extra_len);
++            maipai_assets_free(b);
++            return true;
++        }
++        maipai_assets_free(b);
++    }
++    return false;
++}
++
++void maipai_pantry_told(const uint8_t id[8])
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    if (!heard_locked()) return;
++    if (mph_mark_heard(s_heard, id) == 0) {
++        ESP_LOGW(TAG, "the heard list is full of entries the host has not seen; this telling is not marked");
++        return;
++    }
++    s_unsaved++;
++    if (s_unsaved >= kFlushEvery) {
++        Application::GetInstance().Schedule([]() { maipai_pantry_flush(); });
++    } else {
++        arm_timer_locked();
++    }
++}
++
++void maipai_pantry_flush()
++{
++    std::lock_guard<std::mutex> lock(s_mu);
++    flush_locked();
++}
++
++void maipai_pantry_register_tools()
++{
++    auto& mcp = McpServer::GetInstance();
++    mcp.AddTool("self.pantry.status",
++                "What the unit's pantry holds: each installed shelf with its language, record count, how many of each kind the person has not heard, and the heard list's counter. "
++                "Answers {ok, shelves:[{slot, name, language, bytes, state, counts:{joke, riddle, trivia, story}, unheard:{joke, riddle, trivia, story}}], counter, entries, unsynced}.",
++                std::vector<Property>{}, [](const PropertyList&) -> ReturnValue {
++                    uint8_t slots[8];
++                    const int n = maipai_assets_slots(kPantryKind, slots);
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    if (!heard_locked()) return std::string("{\"ok\":false,\"code\":\"memory\",\"error\":\"The unit is low on memory. Restart it and try again.\"}");
++                    std::string out = "{\"ok\":true,\"shelves\":[";
++                    for (int k = 0; k < n; k++) {
++                        char name[MAS_NAME_MAX + 1] = "";
++                        uint32_t size = 0;
++                        maipai_assets_info(kPantryKind, slots[k], &size, name);
++                        mpy_shelf_t sh;
++                        size_t len = 0;
++                        uint8_t* b = load_shelf(slots[k], &sh, &len);
++                        out += std::string(k ? "," : "") + "{\"slot\":" + std::to_string(slots[k]) + ",\"name\":\"" + json_str(name) + "\",\"bytes\":" + std::to_string(size);
++                        if (b == nullptr) {
++                            out += ",\"state\":\"invalid\"}";
++                            continue;
++                        }
++                        int counts[5] = {0}, unheard[5] = {0};
++                        for (int kind = 1; kind <= 4; kind++) {
++                            for (uint32_t i = 0; i < sh.count; i++) if (sh.b[sh.index_off + i * MPY_ENTRY + 8] == kind) counts[kind]++;
++                            unheard[kind] = mpy_unheard(&sh, kind, s_heard);
++                        }
++                        out += std::string(",\"language\":\"") + sh.lang + "\",\"state\":\"ok\",\"counts\":{\"joke\":" + std::to_string(counts[1]) + ",\"riddle\":" + std::to_string(counts[2]) +
++                               ",\"trivia\":" + std::to_string(counts[3]) + ",\"story\":" + std::to_string(counts[4]) + "},\"unheard\":{\"joke\":" + std::to_string(unheard[1]) + ",\"riddle\":" +
++                               std::to_string(unheard[2]) + ",\"trivia\":" + std::to_string(unheard[3]) + ",\"story\":" + std::to_string(unheard[4]) + "}}";
++                        maipai_assets_free(b);
++                    }
++                    int unsynced = 0;
++                    for (uint16_t i = 0; i < s_heard->n; i++) unsynced += (s_heard->e[i].flags & MPH_SYNCED) ? 0 : 1;
++                    out += "],\"counter\":" + std::to_string(s_heard->counter) + ",\"entries\":" + std::to_string(s_heard->n) + ",\"unsynced\":" + std::to_string(unsynced) + "}";
++                    return out;
++                });
++    mcp.AddTool("self.pantry.heard",
++                "The tellings the host has not seen yet. since is the last counter the host already holds: the unit marks everything up to it as seen, then answers the entries after it "
++                "(up to 64): {ok, counter, more, entries:[{id, counter, heard, denied}]}. id is the first four bytes of the record id as 8 hex characters.",
++                PropertyList({Property("since", kPropertyTypeInteger, 0, 0, 16777215)}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    if (!heard_locked()) return std::string("{\"ok\":false,\"code\":\"memory\",\"error\":\"The unit is low on memory. Restart it and try again.\"}");
++                    const uint32_t since = static_cast<uint32_t>(properties["since"].value<int>());
++                    mph_ack(s_heard, since);
++                    std::string out = std::string("{\"ok\":true,\"counter\":") + std::to_string(s_heard->counter) + ",\"entries\":[";
++                    int shown = 0, more = 0;
++                    for (uint16_t i = 0; i < s_heard->n; i++) {
++                        const mph_entry_t& e = s_heard->e[i];
++                        if (e.flags & MPH_SYNCED) continue;   // the host already has it (acknowledged by since, or before)
++                        if (shown >= 64) { more = 1; continue; }
++                        char id[9];
++                        snprintf(id, sizeof(id), "%02x%02x%02x%02x", static_cast<unsigned>(e.id32 & 0xFF), static_cast<unsigned>((e.id32 >> 8) & 0xFF),
++                                 static_cast<unsigned>((e.id32 >> 16) & 0xFF), static_cast<unsigned>((e.id32 >> 24) & 0xFF));
++                        out += std::string(shown ? "," : "") + "{\"id\":\"" + id + "\",\"counter\":" + std::to_string(e.counter) + ",\"heard\":" + ((e.flags & MPH_HEARD) ? "true" : "false") +
++                               ",\"denied\":" + ((e.flags & MPH_DENY) ? "true" : "false") + "}";
++                        shown++;
++                    }
++                    return out + "],\"more\":" + (more ? "true" : "false") + "}";
++                });
++    mcp.AddTool("self.pantry.deny",
++                "Never tell these records again: ids is a comma separated list of record ids (at least the first 4 bytes as 8 hex characters, up to 16). "
++                "Answers {ok, denied}.",
++                PropertyList({Property("ids", kPropertyTypeString, std::string(""))}),
++                [](const PropertyList& properties) -> ReturnValue {
++                    const std::string ids = properties["ids"].value<std::string>();
++                    std::lock_guard<std::mutex> lock(s_mu);
++                    if (!heard_locked()) return std::string("{\"ok\":false,\"code\":\"memory\",\"error\":\"The unit is low on memory. Restart it and try again.\"}");
++                    int done = 0;
++                    size_t pos = 0;
++                    while (pos < ids.size()) {
++                        size_t comma = ids.find(',', pos);
++                        if (comma == std::string::npos) comma = ids.size();
++                        const std::string one = ids.substr(pos, comma - pos);
++                        pos = comma + 1;
++                        if (one.size() < 8 || one.size() > 16) continue;
++                        uint8_t id[8] = {0};
++                        bool ok = true;
++                        for (int i = 0; i < 4 && ok; i++) {
++                            unsigned v = 0;
++                            ok = sscanf(one.c_str() + 2 * i, "%2x", &v) == 1;
++                            id[i] = static_cast<uint8_t>(v);
++                        }
++                        if (ok && mph_deny(s_heard, id)) done++;
++                    }
++                    if (done > 0) {
++                        s_unsaved += static_cast<uint32_t>(done);
++                        flush_locked();   // a deny is the owner's word: written at once
++                    }
++                    return std::string("{\"ok\":true,\"denied\":") + std::to_string(done) + "}";
++                });
++}
++
++#endif
+diff --git a/firmware/main/hal/hal_mcp.cpp b/firmware/main/hal/hal_mcp.cpp
+--- a/firmware/main/hal/hal_mcp.cpp
++++ b/firmware/main/hal/hal_mcp.cpp
+@@ -26,6 +26,7 @@
+ #include "maipai_motion_limit.h"
+ #include "maipai_games.h"
+ #include "maipai_assets.h"
++#include "maipai_pantry.h"
+ #include "maipai_pages_unit.h"
+ #include "maipai_lock.h"
+ #include "maipai_facebench.h"
+@@ -791,6 +792,7 @@ void Hal::xiaozhi_mcp_init()
+ 
+     // self.game.list, start, stop and scores (patch G01). Nothing runs until a game starts.
+     maipai_games_register_tools();
++    maipai_pantry_register_tools();  // patch SF93: self.pantry.status, heard, deny
+     maipai_assets_register_tools();  // patch SF90: self.assets.* (nothing unless MAIPAI_ASSET_STORE)
+ 
+     // self.lock.status, set, clear, now and config (patch LK02).
+diff --git a/firmware/main/Kconfig.projbuild b/firmware/main/Kconfig.projbuild
+--- a/firmware/main/Kconfig.projbuild
++++ b/firmware/main/Kconfig.projbuild
+@@ -242,6 +242,14 @@ config MAIPAI_ASSET_STORE
+         below: the build fails when it does not. The plain image is too large for it (4,463,226 bytes against 0x320000);
+         the nofont and lean images fit.
+ 
++config MAIPAI_PANTRY
++    bool "Content pantry (jokes, riddles, trivia the unit keeps; patch SF93)"
++    default y
++    depends on MAIPAI_ASSET_STORE
++    help
++        Reads the shelves the host installs as assets of kind pantry, keeps the heard list as the unit's own asset, and registers
++        self.pantry.status, heard and deny. Nothing is held or registered while no shelf is installed beyond a few bytes of code.
++
+ config MAIPAI_ASSET_STORE_START
+     hex "Where the asset store starts in the assets partition (a multiple of 4096)"
+     default 0x320000
