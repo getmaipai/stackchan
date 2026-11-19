@@ -1,5 +1,5 @@
 import { ESPLoader, Transport } from "./vendor/esptool-js-0.7.0.js";
-import { FlasherError, fetchAndVerify, parseManifest, rawKeyFromPem, resolveManifestUrl, toFileArray, verifyManifestSignature } from "./flasher-core.js";
+import { FlasherError, assertChip, fetchAndVerify, parseManifest, rawKeyFromPem, resolveManifestUrl, testReleaseAllowed, toFileArray, verifyManifestSignature } from "./flasher-core.js";
 
 const $ = (id) => document.getElementById(id);
 const say = (text, kind = "") => { const el = $("status"); el.textContent = text; el.className = kind; };
@@ -20,12 +20,13 @@ function setProgress(done, total) {
 }
 
 // The keys this page trusts: the release keys pinned in trusted-keys.json beside the page. A test release is signed with a throwaway key
-// that is in no list; the person says so with the box on the page and the key beside the release list is used for that one run.
+// that is in no list; the box for it shows only on localhost or with ?test=1, and then the key beside the release list is used for that one run.
+const testBoxAllowed = testReleaseAllowed(new URL(location.href));
 async function trustedKeys() {
   const response = await fetch("trusted-keys.json", { cache: "no-store" });
   const pinned = response.ok ? (await response.json()).keys || [] : [];
   const keys = pinned.map(rawKeyFromPem);
-  if ($("testrelease").checked) {
+  if (testBoxAllowed && $("testrelease").checked) {
     const own = await fetch(new URL("release-key.pub.pem", MANIFEST), { cache: "no-store" });
     if (own.ok) keys.push(rawKeyFromPem(await own.text()));
   }
@@ -36,8 +37,8 @@ async function loadManifest() {
   const response = await fetch(MANIFEST, { cache: "no-store" });
   if (!response.ok) throw new FlasherError("The release list could not be loaded. Check that you opened this page from a release.");
   const manifest = await response.json();
-  await verifyManifestSignature(manifest, await trustedKeys());  // before anything is shown or offered
-  return parseManifest(manifest);
+  const id = await verifyManifestSignature(manifest, await trustedKeys());  // before anything is shown or offered
+  return { ...parseManifest(manifest), keyId: id };
 }
 
 async function install(release) {
@@ -61,6 +62,7 @@ async function install(release) {
   try {
     say("Connecting to the robot...");
     await loader.main();
+    assertChip(loader);
     say("Writing. Do not unplug the robot.");
     await loader.writeFlash({
       fileArray: toFileArray(verified),
@@ -74,6 +76,7 @@ async function install(release) {
     await loader.after("hard_reset");
     say("Done. The robot restarts by itself. Follow the setup steps on its screen.", "good");
   } catch (error) {
+    if (error instanceof FlasherError) { say(error.message, "bad"); return; }
     say("Writing stopped before it finished. Unplug the robot, plug it in again and press Install once more. The robot is not harmed.", "bad");
     console.error(error);
   } finally {
@@ -98,7 +101,9 @@ async function showRelease() {
   $("version").textContent = current.version;
   $("parts").replaceChildren(...current.parts.map((p) => Object.assign(document.createElement("li"), { textContent: `${p.path} at 0x${p.offset.toString(16)}` })));
   $("install").disabled = false;
-  say("Ready. Plug the robot in with a USB cable, then press Install.");
+  const test = testBoxAllowed && $("testrelease").checked;
+  say(test ? `Ready. This is a test release signed with key ${current.keyId}. Only install it if you built it yourself. Plug the robot in with a USB cable, then press Install.`
+    : "Ready. Plug the robot in with a USB cable, then press Install.");
 }
 
 async function start() {
@@ -108,7 +113,10 @@ async function start() {
     return;
   }
   if (MANIFEST === null) return;
-  $("testrelease").addEventListener("change", showRelease);
+  if (testBoxAllowed) {
+    $("testrelease-row").hidden = false;
+    $("testrelease").addEventListener("change", showRelease);
+  }
   $("install").addEventListener("click", async () => {
     if (!current) return;
     $("install").disabled = true;

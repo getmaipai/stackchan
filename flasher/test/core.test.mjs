@@ -105,3 +105,38 @@ test("files that touch end to end are fine", async () => {
   const { parts, files } = await listFor([["a.bin", 0, new Uint8Array(4096).fill(1)], ["b.bin", 4096, new Uint8Array(100).fill(2)]]);
   assert.equal((await fetchAndVerify(parts, async (p) => files[p])).length, 2);
 });
+
+import { assertChip, testReleaseAllowed } from "../flasher-core.js";
+
+test("review fix: a signature that is not base64 says the release is damaged, not that the browser is old", async () => {
+  const base = { version: "1.0.0", builds: [] };
+  const { manifest, raw } = await signed(base);
+  const bad = { ...manifest, signature: { ...manifest.signature, sig: "not base64 !!" } };
+  await assert.rejects(verifyManifestSignature(bad, [raw]), (e) => e instanceof FlasherError && /not valid/.test(e.message) && !/browser/.test(e.message));
+});
+
+test("review fix: a key that is not an Ed25519 public key is refused, a real one still reads", () => {
+  const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  assert.throws(() => rawKeyFromPem(publicKey.export({ type: "spki", format: "pem" })), /damaged/);
+  const ed = generateKeyPairSync("ed25519").publicKey;
+  assert.equal(rawKeyFromPem(ed.export({ type: "spki", format: "pem" })).length, 32);
+  assert.throws(() => rawKeyFromPem("-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----"), /damaged/);
+});
+
+test("review fix: only an ESP32-S3 is written to", () => {
+  assert.doesNotThrow(() => assertChip({ chip: { CHIP_NAME: "ESP32-S3" } }));
+  for (const loader of [{ chip: { CHIP_NAME: "ESP32-C3" } }, { chip: { CHIP_NAME: "ESP32-S2" } }, { chip: { CHIP_NAME: "ESP32-S31" } }, { chip: null }, {}]) {
+    assert.throws(() => assertChip(loader), (e) => e instanceof FlasherError && /ESP32-S3/.test(e.message));
+  }
+});
+
+test("review fix: the test-release box is for localhost or ?test=1 only", () => {
+  const at = (href) => testReleaseAllowed(new URL(href));
+  assert.equal(at("https://flasher.example/flasher/"), false);
+  assert.equal(at("https://flasher.example/flasher/?test=0"), false);
+  assert.equal(at("https://flasher.example/flasher/?manifest=x"), false);
+  assert.equal(at("https://flasher.example/flasher/?test=1"), true);
+  assert.equal(at("http://localhost:8000/flasher/"), true);
+  assert.equal(at("http://127.0.0.1:8000/"), true);
+  assert.equal(at("https://localhost.evil.example/"), false);
+});

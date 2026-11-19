@@ -148,8 +148,11 @@ def test_a_real_release_must_have_a_higher_build_number_than_the_last(tmp_path):
     # A copy of release.sh in a small tree whose gate steps pass at once: this test is about the build number, not the gate (test_release_gate.py covers that).
     tree = tmp_path / "tree"
     (tree / "scripts").mkdir(parents=True)
-    for name in ("release.sh", "check-no-keys.py"):
+    for name in ("release.sh", "check-no-keys.py", "pinned-key-check.py"):
         shutil.copy(ROOT / "scripts" / name, tree / "scripts" / name)
+    (tree / "flasher").mkdir()  # a real release needs its key pinned for the web flasher
+    pub = subprocess.run([openssl_cli(), "pkey", "-in", str(key), "-pubout"], check=True, capture_output=True).stdout.decode()
+    (tree / "flasher" / "trusted-keys.json").write_text(json.dumps({"keys": [pub]}))
     (tree / "scripts" / "check.sh").write_text("exit 0\n")
     (tree / "scripts" / "test-all.sh").write_text("exit 0\n")
     (tree / "scripts" / "security-scan.py").write_text("print('[PASS] x: ok')\n")
