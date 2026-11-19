@@ -21,7 +21,7 @@ KINDS = {"language": 0, "font": 1, "style": 2, "look": 3, "game": 4, "sound": 5,
 BOARD_ID = b"m5cores3"
 PIECE = 2048
 SECTOR = 4096
-OWN_CONTENT_LICENSE = 1  # an index into schema/licenses.json (not on main yet); non-zero is what the unit requires
+OWN_CONTENT_LICENSE = 1  # an index into schema/licenses.json, the owner's own content (host/tests/test_asset_transport.py checks the id against the table); non-zero is what the unit requires
 
 
 def build_header(

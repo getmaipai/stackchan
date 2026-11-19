@@ -24,10 +24,16 @@ See [Install the small stack](local-stack.md).
 
 ## Two routes: hosted or custom
 
-The Brain page offers two equal routes, the same choice the stock firmware gives. Hosted sends your voice to M5Stack/Xiaozhi's servers, outside your home. Custom keeps it where you point it. <span class="planned-tag">Planned</span> The hosted route is shown but cannot be saved yet: it waits for a test build to prove that their server accepts this firmware. If it does not, the route is hidden and this page says why. When you leave hosted, the page tells you that anything their servers already kept stays on their side, and only they can delete it.
+The Brain page offers two equal routes, the same choice the stock firmware gives.
 
-- **A: Hosted by M5Stack/Xiaozhi.** Their servers answer. **Your voice leaves your home** for those servers, under their terms.
+- **A: Hosted by M5Stack/Xiaozhi.** Their servers answer. **Your voice leaves your home** for those servers, under their terms. On this route the robot also asks a public time server for the time, so its clock is right when it talks to them. <span class="planned-tag">Planned</span> You cannot pick it yet. It opens once a test build shows that their server accepts this firmware. If it does not, the route is hidden and this page says why.
 - **B: Custom.** Your own key, a community server address, your own host or MaiPai Home, or a model on your computer. Your voice stays where you point it. The three ways above are all part of this route.
+
+### Leaving the hosted route
+
+When you pick a custom way, the host asks each robot to leave the hosted route. The robot erases the saved link to M5Stack/Xiaozhi (its address and sign-in), keeps its pairing with your host, shows a notice, and restarts when you tap OK. After that your voice goes where you pointed it.
+
+What we cannot delete: your robot's record in their account, and any voice history their servers already kept. Those live on their servers. Remove the robot in their console and ask them about stored data.
 
 Either way, if the brain cannot be reached the robot falls back to what it can do alone.
 

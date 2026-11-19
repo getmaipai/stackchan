@@ -41,13 +41,17 @@ The camera is opt-in. Frames stay on the host. You set how long to keep them and
 
 Mute powers the microphone chip down, so the robot cannot hear you or the wake word. Only a tap on the mouth, the settings page on your host or MaiPai Home undoes it. Camera off and full quiet are separate switches. See [Mute, camera off and full quiet](mute-and-camera-off.md).
 
+## The hosted brain route
+
+The hosted route is planned. On it, your voice goes to M5Stack/Xiaozhi's servers, outside your home, and the robot asks a public time server for the time. On a custom route your voice stays where you point it. Leaving the hosted route erases the saved link on the robot and the host. It cannot delete what their servers already hold: the robot's record in their account and any voice history. Ask them to remove it.
+
 ## Jokes and games content
 
 If you turn on the [jokes and games content](jokes-and-games-content.md) package, your own model writes jokes, riddles, trivia and stories, and the host checks and keeps them on your computer. That check curates the stored content so it is fit for kids. It does not filter your chats. The robot sends nothing to the internet for this beyond the model address you already set.
 
 ## Time
 
-The host sends the time. The robot does not call public time servers.
+The host sends the time. The robot does not call public time servers, with one exception: on the planned hosted route (see [Choose a brain](choose-a-brain.md)) it asks a public time server for the time. Custom routes never do.
 
 ## The link on your network
 

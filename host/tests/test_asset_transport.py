@@ -95,3 +95,14 @@ def test_a_pantry_shelf_reuses_its_slot_with_a_higher_version_and_a_new_one_take
     older = FakeUnit(items=[{"slot": 1, "name": "pantry-joke-en", "version": 5}])
     AssetTransport(older, clock=lambda: 1_800_000_000).install_pantry_shelf("u", "joke", "en", b"s")
     assert parse(older.header)["version"] == 1_800_000_000, "the clock when it is higher"
+
+
+def test_the_license_id_sent_is_the_owner_content_id_of_the_shared_table():
+    import json
+    from pathlib import Path
+
+    from maipai_body.asset_transport import OWN_CONTENT_LICENSE
+
+    table = json.loads((Path(__file__).resolve().parents[2] / "schema" / "licenses.json").read_text())
+    assert OWN_CONTENT_LICENSE in table["owner_content_ids"]
+    assert OWN_CONTENT_LICENSE in {row["id"] for row in table["licenses"]} and OWN_CONTENT_LICENSE != 0
