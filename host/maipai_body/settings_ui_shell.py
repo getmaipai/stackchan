@@ -77,7 +77,9 @@ CSS = (
 .r.go{cursor:pointer;transition:background .15s}.r.go:hover{background:var(--hover)}
 .r .ri{width:30px;height:30px;border-radius:8px;background:var(--ac);color:var(--on-ac);display:grid;place-items:center;flex:none}
 .r .ri svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.r .rl{flex:1 1 auto;min-width:0}
+.r .rl{flex:1 1 auto;min-width:0;white-space:nowrap}
+a.r{text-decoration:none;color:var(--fg)}
+.r input.tx{flex:0 1 55%}
 .r .rv{color:var(--mut);flex:none}
 .r .chev{width:18px;height:18px;stroke:var(--mut);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none;opacity:.7}
 .r.sl{display:grid;gap:8px;padding:12px 16px}.r.sl .rtop{display:flex;justify-content:space-between;gap:12px}
