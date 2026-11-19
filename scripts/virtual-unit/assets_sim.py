@@ -21,16 +21,41 @@ PIECE = 2048
 BOARD = b"STACKCHN"
 
 
-def _test_key():
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+SEED = hashlib.sha256(b"FAKETESTKEY asset signing for the virtual unit").digest()
 
-    return Ed25519PrivateKey.from_private_bytes(hashlib.sha256(b"FAKETESTKEY asset signing for the virtual unit").digest())
+
+def _sign(msg: bytes) -> bytes:
+    """Sign with the fake test key: the `cryptography` package when there is one, else the plain Python Ed25519 beside this file (the browser build has no packages). Same bytes either way."""
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    except ImportError:
+        import ed25519_pure
+        return ed25519_pure.sign(SEED, msg)
+    return Ed25519PrivateKey.from_private_bytes(SEED).sign(msg)
+
+
+def _verify(public: bytes, sig: bytes, msg: bytes) -> bool:
+    try:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    except ImportError:
+        import ed25519_pure
+        return ed25519_pure.verify(public, sig, msg)
+    try:
+        Ed25519PublicKey.from_public_bytes(public).verify(sig, msg)
+    except (InvalidSignature, ValueError):
+        return False
+    return True
 
 
 def test_public_key():
-    from cryptography.hazmat.primitives import serialization
-
-    return _test_key().public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    try:
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    except ImportError:
+        import ed25519_pure
+        return ed25519_pure.public_key(SEED)
+    return Ed25519PrivateKey.from_private_bytes(SEED).public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
 
 
 def make_asset(kind: str, name: str, body: bytes, *, version: int = 1, code: str = "", psram: int = 0, flags: int = 0, board: bytes = BOARD, kinds: list[dict] | None = None) -> tuple[bytes, bytes, bytes]:
@@ -39,7 +64,7 @@ def make_asset(kind: str, name: str, body: bytes, *, version: int = 1, code: str
     index = [k["kind"] for k in table].index(kind)
     flash = -(-len(body) // 4096) * 4096
     header = HEADER.pack(MAGIC, version, len(body), hashlib.sha256(body).digest(), board.ljust(8, b"\0"), index, 1, flags, 0, name.encode().ljust(40, b"\0"), code.encode().ljust(8, b"\0"), psram, flash, b"\0" * 8)
-    return header, _test_key().sign(header), body
+    return header, _sign(header), body
 
 
 def err(code: str, en: str, es: str) -> dict:
@@ -114,9 +139,6 @@ class AssetStore:
         return out
 
     def install(self, kind: str, slot: int, header_b64: str, sig_b64: str) -> dict:
-        from cryptography.exceptions import InvalidSignature
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-
         k = self._kind(kind)
         if k is None:
             return err("kind_unknown", f"That kind is not known: use one of {', '.join(x['kind'] for x in self.kinds)}.", "Ese tipo no existe: usa uno de la lista.")
@@ -128,9 +150,7 @@ class AssetStore:
             return err("bad_header", "The header is not valid base64: send it again.", "La cabecera no es base64 válido: envíala otra vez.")
         if len(raw) != 128:
             return err("bad_header", "The header must be 128 bytes: rebuild the asset.", "La cabecera debe tener 128 bytes: vuelve a crear el recurso.")
-        try:
-            Ed25519PublicKey.from_public_bytes(self.public).verify(sig, raw)
-        except (InvalidSignature, ValueError):
+        if not _verify(self.public, sig, raw):
             return err("bad_signature", "The signature does not match: the asset is not installed. Get it again from the catalog.", "La firma no coincide: el recurso no se instala. Vuelve a pedirlo del catálogo.")
         magic, version, length, sha, board, kidx, fmt, flags, minfw, name_b, code_b, psram, flash, _ = HEADER.unpack(raw)
         if magic != MAGIC:

@@ -12,7 +12,7 @@
       mod,
       cmd(line) {
         lines.length = 0;
-        const m = /^(snap|sheet|lock|pad)\s.*?(\/\S+)\s*$/.exec(line);   // a command that writes a PNG: the folder has to exist in the module's memory file system
+        const m = /^(snap|snapnow|sheet|lock|pad)\s.*?(\/\S+)\s*$/.exec(line);   // a command that writes a PNG: the folder has to exist in the module's memory file system
         if (m) { const d = m[2].replace(/\/[^/]*$/, ''); if (d) mod.FS.mkdirTree(d); }
         cmd(line); return lines.slice();
       },

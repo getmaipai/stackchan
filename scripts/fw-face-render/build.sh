@@ -15,7 +15,7 @@ cp "$FW/build-bench/config/sdkconfig.h" "$OUT/inc/sdkconfig.h" 2>/dev/null || cp
 L="$FW/managed_components/lvgl__lvgl"
 S="$FW/main/stackchan/avatar/skins/default"; H="$FW/main/hal"
 U="$FW/components/smooth_ui_toolkit/src"
-CFLAGS=(-O1 -w -I"$OUT/inc" -I"$HERE/stub" -I"$L" -I"$L/src" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1)
+CFLAGS=(-O1 -ffp-contract=off -w -I"$OUT/inc" -I"$HERE/stub" -I"$L" -I"$L/src" -DESP_PLATFORM=1 -DLV_CONF_SKIP=1)
 if [ ! -f "$OUT/lvgl.a" ]; then
   OBJS=()
   while IFS= read -r f; do
@@ -25,7 +25,7 @@ if [ ! -f "$OUT/lvgl.a" ]; then
   done < <(find "$L/src" -name '*.c')
   rm -f "$OUT/lvgl.a"; ar rcs "$OUT/lvgl.a" "${OBJS[@]}"
 fi
-CXXFLAGS=(-std=gnu++20 -O1 -w -I"$OUT/inc" -I"$HERE" -I"$HERE/stub" -I"$L" -I"$L/src" -DESP_PLATFORM=1 -DMAIPAI_HOST_RENDER=1 -DMD_HOST_SWITCH=1 -DLV_CONF_SKIP=1 -I"$U" -I"$U/lvgl" -I"$U/.." -I"$FW/main" -I"$H")
+CXXFLAGS=(-std=gnu++20 -O1 -ffp-contract=off -w -I"$OUT/inc" -I"$HERE" -I"$HERE/stub" -I"$L" -I"$L/src" -DESP_PLATFORM=1 -DMAIPAI_HOST_RENDER=1 -DMD_HOST_SWITCH=1 -DLV_CONF_SKIP=1 -I"$U" -I"$U/lvgl" -I"$U/.." -I"$FW/main" -I"$H")
 CXXFLAGS+=($MAIPAI_RENDER_DEFS)
 OBJS=()
 for f in "${MAIPAI_RENDER_SRC:-$HERE/render.cc}" "${MAIPAI_RENDER_HOOKS:-$HERE/hooks_new.cc}" $MAIPAI_RENDER_EXTRA "$S/eyes.cpp" "$S/mouth.cpp" "$S/default.cpp" "$S/speech_bubble.cpp" "$H/maipai_facefx.cc" "$HERE/mumble_stub.cc"; do
