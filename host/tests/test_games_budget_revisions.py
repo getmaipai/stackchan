@@ -47,4 +47,5 @@ def test_the_games_own_dirty_rectangles_cover_every_changed_pixel():
     for name in ("Balance (a lean)", "Maze (a roll)"):
         if name in rows and rows[name]["dirty_px"]:
             assert rows[name]["outside_dirty"] == 0, f"{name}: {rows[name]['outside_dirty']} changed pixels lay outside the rectangles the game invalidates"
-    assert rows["Pong (a rally)"]["flush_ms_dirty"] < 1.5 and rows["Flappy-style flyer (flying)"]["flush_ms_dirty"] < 6.0
+    # at the unit's measured 0.849 ms per 1,000 px (docs/plan/games-visual-budget.md): the motion rule allows a mean of 5.5 ms and a worst frame of 13.6 ms; Pong measures 0.8 and 1.1, the flyer 4.8 and 8.5
+    assert rows["Pong (a rally)"]["flush_ms_dirty"] < 2.0 and rows["Flappy-style flyer (flying)"]["flush_ms_dirty"] < 5.5 and rows["Flappy-style flyer (flying)"]["flush_ms_dirty_worst"] < 13.6

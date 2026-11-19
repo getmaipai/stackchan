@@ -1,0 +1,513 @@
+{
+ "name": "game-over-look",
+ "build_dir": "~/esp/stackchan-rebuild/NEWBUILD/firmware/build-bench",
+ "soak_s": 30,
+ "settle_s": 2,
+ "heap_interval_s": 5,
+ "checks": [
+  {
+   "name": "heap-before",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  },
+  {
+   "name": "over-look0-won",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 0,
+    "result": 1,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 14
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look0-lost",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 0,
+    "result": 2,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 14
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look0-draw",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 0,
+    "result": 3,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 14
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look0-over",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 0,
+    "result": 4,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 14
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look0-timeup",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 0,
+    "result": 5,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 14
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look0-newbest",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 0,
+    "result": 1,
+    "new_best": 1,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 14
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look1-won",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 1,
+    "result": 1,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look1-lost",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 1,
+    "result": 2,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look1-draw",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 1,
+    "result": 3,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look1-over",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 1,
+    "result": 4,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look1-timeup",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 1,
+    "result": 5,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look1-newbest",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 1,
+    "result": 1,
+    "new_best": 1,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 15000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look2-won",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 2,
+    "result": 1,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 25000
+    },
+    "us_mean": {
+     "max": 8000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look2-lost",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 2,
+    "result": 2,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 25000
+    },
+    "us_mean": {
+     "max": 8000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look2-draw",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 2,
+    "result": 3,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 25000
+    },
+    "us_mean": {
+     "max": 8000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look2-over",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 2,
+    "result": 4,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 25000
+    },
+    "us_mean": {
+     "max": 8000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look2-timeup",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 2,
+    "result": 5,
+    "new_best": 0,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 25000
+    },
+    "us_mean": {
+     "max": 8000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "over-look2-newbest",
+   "tool": "self.game.bench_over",
+   "args": {
+    "look": 2,
+    "result": 1,
+    "new_best": 1,
+    "lang": 0
+   },
+   "expect": {
+    "ok": true,
+    "frames": {
+     "min": 60
+    },
+    "objects": {
+     "max": 2
+    },
+    "entry_us": {
+     "max": 100000
+    },
+    "us_worst": {
+     "max": 25000
+    },
+    "us_mean": {
+     "max": 8000
+    }
+   },
+   "wait": 6
+  },
+  {
+   "name": "heap-after",
+   "tool": "self.bench.heap_info",
+   "expect": {
+    "ok": true
+   }
+  }
+ ],
+ "person": [
+  "look at the screen while look 2 plays for each outcome (the tool shows it for about two seconds and removes it): the trophy with turning rays and confetti, the rain cloud and the droopy face, the clasp, the finish flag, the clock with a sweeping hand, the crown over a ribbon with sparkles; say if anything flickers, tears or stutters, and if the buttons read as buttons",
+  "the results that matter are in result.json for each look and outcome: entry_us (the full-screen frame when the screen appears; the gate is 100 ms), us_mean and us_worst (the motion frames after it, one draw and flush per 30 ms step; at look 2 the gates are 8,000 and 25,000 us), objects (2 at looks 1 and 2, about 12 at look 0), and internal_free_before and internal_free_during per look"
+ ]
+}

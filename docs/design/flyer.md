@@ -4,7 +4,7 @@ Rank 8 of `docs/plan/more-games.md`. Status: on branch `ux/unproven-games`, unpr
 
 ## How it plays
 
-A small bird falls; a tap anywhere hops it up about 30 px. Pipes with a 76 px gap scroll in from the right at 2.5 px a tick, one every 130 px. One point for every pipe passed. A pipe, the sky or the floor ends the game on **Game over** with the pipes passed and the new-best mark (a score-only game, owner decision 33). The gaps come from a seed, 24 px clear of the sky and the floor.
+A small bird falls; a tap anywhere hops it up about 30 px. Pipes with a 76 px gap scroll in from the right at 2.5 px a tick, one every 160 px. One point for every pipe passed. A pipe, the sky or the floor ends the game on **Game over** with the pipes passed and the new-best mark (a score-only game, owner decision 33). The gaps come from a seed, 24 px clear of the sky and the floor.
 
 ## The numbers
 
