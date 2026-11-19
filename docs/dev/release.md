@@ -49,3 +49,7 @@ A real release still needs the owner's signing key and a pinned key in `flasher/
 ## Pinning the release key and a date floor
 
 `flasher/trusted-keys.json` holds the release public keys the web flasher trusts and an optional `not_before` date (for example `"2026-11-19"`). A signed release list made before that date is refused, so an old release with a known hole stops being offered once the date is raised. An empty `not_before` means no floor. A real release is refused while `keys` is empty or lacks the key it is signed with.
+
+## Dry run 3 (2026-11-19, clean checkout of main at 1614c061, passed)
+
+The gate passed in 14 minutes 2 seconds with the three "play a game" end to end checks hard again (the virtual unit now accepts the host's token). Packaging produced the signed manifest, update header and signature, `SHA256SUMS` with its minisign signature and the evidence bundle, with a throwaway key. A real release still needs the owner's keys (see `docs/dev/open-questions.md`).
