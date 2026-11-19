@@ -364,3 +364,8 @@ SF103-review-fix-orientation-hold-cap.patch
 SF104-review-fix-keypad-pause.patch
 SF105-review-fix-pairing-key-checks-and-confirm.patch
 SF106-review-fix-locked-unit-keeps-network-setup.patch
+UX13d-first-run-at-finger-size.patch
+UX13f-timers-and-alarms-at-finger-size.patch
+UX13g-lock-keypad-at-finger-size.patch
+UX15c-game-over-neutral-end-after-sf82.patch
+UX18-dice-poker.patch

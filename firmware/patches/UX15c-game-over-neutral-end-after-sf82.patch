@@ -1,0 +1,64 @@
+# Intent: A game that only counts a score never says "You won!" or "You lost" (owner decision 33, 2026-11-18). The shared game-over screen gets two neutral results: MGO_OVER ("Game over", Fin del juego) and MGO_TIMEUP ("Time's up", Se acabo el tiempo, for a timed game), each with a calm sand-colored level face, the score line and the new-best mark as before. Won, Lost and Draw stay for games with a real winner. A neutral end plays the draw clip. Display only: no safety, lock, cue, limiter or head-motion code.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_game_over_core.h, maipai_game_over.h (ours, patches UX15 and SF82). The old UX15b change redone on the SF82 header so it applies after it.
+# Check after a flash: Whack-a-Mole, Color Memory, Do It, Snake and a stuck 2048 end on Game over or Time's up with their score; Four in a Row, Match, Hangman, Mine Finder, Tic-Tac-Toe and Rock Paper Scissors still say won, lost or draw.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_game_over_core.h b/firmware/main/hal/maipai_game_over_core.h
+--- a/firmware/main/hal/maipai_game_over_core.h
++++ b/firmware/main/hal/maipai_game_over_core.h
+@@ -10,7 +10,8 @@
+ 
+ #include <stdint.h>
+ 
+-enum { MGO_WON = 1, MGO_LOST = 2, MGO_DRAW = 3 };
++/* Won and Lost are only for games with a real winner (owner decision 33). A game that only counts a score ends on MGO_OVER (Game over) or, when it is timed, MGO_TIMEUP (Time's up). */
++enum { MGO_WON = 1, MGO_LOST = 2, MGO_DRAW = 3, MGO_OVER = 4, MGO_TIMEUP = 5 };
+ enum { MGO_BTN_NONE = 0, MGO_BTN_AGAIN = 1, MGO_BTN_QUIT = 2 };
+ /* The sound for the moment the screen shows (the unit maps these to its clips: win MGS_C_FANFARE, lose MGS_C_GRID_LOSE, draw MGS_C_GRID_DRAW, new best MGS_C_TING after the win or loss sound). */
+ enum { MGO_CUE_WIN = 1, MGO_CUE_LOSE = 2, MGO_CUE_DRAW = 3, MGO_CUE_NEW_BEST = 4 };
+@@ -58,6 +59,8 @@
+     switch (result) {
+         case MGO_WON: return es ? "Ganaste" : "You won!";
+         case MGO_LOST: return es ? "Perdiste" : "You lost";
++        case MGO_OVER: return es ? "Fin del juego" : "Game over";
++        case MGO_TIMEUP: return es ? "Se acabo el tiempo" : "Time's up";
+         default: return es ? "Empate" : "Draw";
+     }
+ }
+@@ -79,7 +82,7 @@
+ /* The sound for the moment the screen shows; the unit plays MGO_CUE_NEW_BEST after it when the score is a new best. */
+ static inline int mgo_cue(int result)
+ {
+-    return result == MGO_WON ? MGO_CUE_WIN : (result == MGO_LOST ? MGO_CUE_LOSE : MGO_CUE_DRAW);
++    return result == MGO_WON ? MGO_CUE_WIN : (result == MGO_LOST ? MGO_CUE_LOSE : MGO_CUE_DRAW);   /* a neutral end plays the draw clip */
+ }
+ 
+ /* The face's size in permille of its normal size, `elapsed` ms after the screen appeared: 1000 to 1120 and back (the pop). */
+diff --git a/firmware/main/hal/maipai_game_over.h b/firmware/main/hal/maipai_game_over.h
+--- a/firmware/main/hal/maipai_game_over.h
++++ b/firmware/main/hal/maipai_game_over.h
+@@ -44,7 +44,7 @@
+     return l;
+ }
+ 
+-// result: MGO_WON, MGO_LOST or MGO_DRAW. score_text is the game's own score line ("Score 66", "Cleared in 96 s", "Length 31"), best_text its best line ("Best 70"); both may be empty.
++// result: MGO_WON, MGO_LOST, MGO_DRAW, or for a game with no winner MGO_OVER or MGO_TIMEUP (a calm face, no verdict). score_text is the game's own score line ("Score 66", "Cleared in 96 s", "Length 31"), best_text its best line ("Best 70"); both may be empty.
+ // new_best marks the score as beating the old best: the best line is replaced by the amber "New best!" mark.
+ inline Screen build(lv_obj_t* parent, int result, const char* score_text, const char* best_text, bool new_best, bool es)
+ {
+@@ -57,12 +57,12 @@
+     lv_obj_set_style_bg_color(s.root, lv_color_black(), 0);
+     lv_obj_set_style_bg_opa(s.root, LV_OPA_COVER, 0);
+     // the face: amber and smiling for a win, blue and sad for a loss, gray and level for a draw
+-    const uint32_t body = result == MGO_WON ? 0xF2B24A : (result == MGO_LOST ? 0x7FA0D0 : 0xB4B4B4);
++    const uint32_t body = result == MGO_WON ? 0xF2B24A : (result == MGO_LOST ? 0x7FA0D0 : (result == MGO_OVER || result == MGO_TIMEUP) ? 0xD9C9A0 : 0xB4B4B4);
+     const int cx = MGO_ICON_CX, cy = MGO_ICON_CY, r = MGO_ICON_R;
+     s.icon = part(s.root, cx - r, cy - r, 2 * r, 2 * r, body, LV_RADIUS_CIRCLE);
+     part(s.icon, r - 14, r - 12, 8, 8, 0x10141C, LV_RADIUS_CIRCLE);   // the eyes
+     part(s.icon, r + 6, r - 12, 8, 8, 0x10141C, LV_RADIUS_CIRCLE);
+-    if (result == MGO_DRAW) {
++    if (result == MGO_DRAW || result == MGO_OVER || result == MGO_TIMEUP) {
+         part(s.icon, r - 9, r + 8, 18, 4, 0x10141C, 2);                 // a level mouth
+     } else {
+         lv_obj_t* m = lv_arc_create(s.icon);                            // a smile (the lower half of a circle) or a frown (the upper half, lower down)

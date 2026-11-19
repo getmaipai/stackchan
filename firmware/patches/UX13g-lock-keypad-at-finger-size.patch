@@ -1,0 +1,55 @@
+# Intent: The lock keypad meets the finger-size standard (owner decision 2026-11-18, superseding the earlier exception; batch UX13g of docs/plan/screen-standards-audit.md). Twelve keys in four columns and three rows, each 70 by 56 px with 8 px gaps and an 8 px margin, from y 52 to y 236 under the dots row: the digits 1 to 8 in the first two rows, then 9, 0, back and cancel. Three columns by four rows of 56 px keys did not fit (188 px are free under the dots; four rows need 224). Display geometry only: the code rules, the hash, the delay, the block and the unlock logic are untouched; only mlk_key_char's order and the key sizes and positions change. Risky surface (the lock core): full check and a review.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_lock_core.h (ours)
+# Check after a flash: the keypad shows four keys across and three down, each easy to press with a gap between them; a code of four to six digits still unlocks; back removes the last digit and cancel returns to the lock screen; a wrong code still clears.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_lock_core.h b/firmware/main/hal/maipai_lock_core.h
+--- a/firmware/main/hal/maipai_lock_core.h
++++ b/firmware/main/hal/maipai_lock_core.h
+@@ -35,9 +35,9 @@
+ #define LK_KDF_ROUNDS 2000
+ #define LK_KEYPAD_TIMEOUT_MS 15000 /* the keypad goes back to the lock screen after this long with no key */
+ #define LK_KEYS 12
+-#define LK_KEY_SIZE 44             /* every key is at least 44 px high and wide (patch UI01's target size) */
+-#define LK_KEY_W 100               /* large keys, three across the full width, four down (owner request 2026-11-17) */
+-#define LK_KEY_H 44
++#define LK_KEY_SIZE 56             /* every key is at least 56 px high and wide (the primary target of docs/design/screen-style.md; patch UX13g) */
++#define LK_KEY_W 70                /* large keys, four across the full width, three down (patch UX13g: 3 by 4 of 56 px keys did not fit under the dots row) */
++#define LK_KEY_H 56
+ 
+ /* ---- SHA-256, HMAC and PBKDF2 (portable: the host test checks them against Python's hashlib) ---- */
+ static const uint32_t LK_K[64] = {
+@@ -425,22 +425,22 @@
+     s->keypad_since_ms = now;
+ }
+ 
+-/* The key characters, row by row: 1 2 3 / 4 5 6 / 7 8 9 / back 0 cancel. */
++/* The key characters, row by row: 1 2 3 4 / 5 6 7 8 / 9 0 back cancel (patch UX13g). */
+ static inline char mlk_key_char(int i)
+ {
+-    static const char k[LK_KEYS] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', 'B', '0', 'C'};
++    static const char k[LK_KEYS] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'B', 'C'};
+     return (i >= 0 && i < LK_KEYS) ? k[i] : '\0';
+ }
+-/* The keypad fills the content zone under the banner row (patch N01: 0 to 28): a row of entry dots at y 30 to 44, then four rows of three
+- * 100 by 44 px keys with 4 px gaps from y 48 to y 236, 6 px from each side. No title and no help line: the dots and the keys are the screen. */
+-#define LK_PAD_X 6
+-#define LK_PAD_Y 48
+-#define LK_PAD_GAPX 4
+-#define LK_PAD_GAPY 4
++/* The keypad fills the content zone under the banner row (patch N01: 0 to 28): a row of entry dots at y 30 to 44, then three rows of four
++ * 70 by 56 px keys with 8 px gaps from y 52 to y 236, 8 px from each side (patch UX13g). No title and no help line: the dots and the keys are the screen. */
++#define LK_PAD_X 8
++#define LK_PAD_Y 52
++#define LK_PAD_GAPX 8
++#define LK_PAD_GAPY 8
+ #define LK_DOTS_Y 30
+ #define LK_DOT_SIZE 14
+-static inline int mlk_key_x(int i) { return LK_PAD_X + (i % 3) * (LK_KEY_W + LK_PAD_GAPX); }
+-static inline int mlk_key_y(int i) { return LK_PAD_Y + (i / 3) * (LK_KEY_H + LK_PAD_GAPY); }
++static inline int mlk_key_x(int i) { return LK_PAD_X + (i % 4) * (LK_KEY_W + LK_PAD_GAPX); }
++static inline int mlk_key_y(int i) { return LK_PAD_Y + (i / 4) * (LK_KEY_H + LK_PAD_GAPY); }
+ 
+ /* One key. Every digit from the fourth on is checked against the code: no "enter" key and no early "wrong", so the screen never
+  * tells a watcher how long the code is. After six digits a wrong entry is cleared and the line "wrong code" shows. */
