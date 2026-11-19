@@ -100,6 +100,14 @@ def plan(shelves: list[dict], state: UnitState, now: float, *, window: tuple[flo
     return out
 
 
+def _packs(record: Record, rating: str) -> bool:
+    try:
+        shelf.pack([record], rating_ceiling=rating)
+    except Exception:
+        return False
+    return True
+
+
 def build_shelf(library: Library, unit: str, kind: str, language: str, free_bytes: int, *, rating: str = "kid") -> bytes | None:
     """A shelf for one unit: unheard records first, older heard ones only to fill the size. None when there is not enough room for a useful shelf."""
     heard = library.heard(unit)
@@ -118,7 +126,9 @@ def build_shelf(library: Library, unit: str, kind: str, language: str, free_byte
         try:
             body = shelf.pack(take, rating_ceiling=rating)
         except Exception:
-            take = take[: int(len(take) * 0.9)]
+            sound = [r for r in take if _packs(r, rating)]
+            # A record that cannot be packed on its own is dropped; only when every record is fine alone is the list too big, and then it is trimmed.
+            take = sound if len(sound) < len(take) else take[: int(len(take) * 0.9)]
             continue
         if len(body) <= room:
             return body

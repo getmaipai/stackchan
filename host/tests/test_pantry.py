@@ -598,3 +598,36 @@ def test_review_fix_an_unknown_state_still_reads_the_heard_list_but_installs_not
     state = read_unit_state(_unit_reply(**{"self.game.list": {"ok": False}}), "kitchen", idle=True)
     done = run_unit(library, unit, "kitchen", state, now=NOON)
     assert done["heard"] == 1 and done["swapped"] == [] and unit.installed == []
+
+
+def test_review_fix_a_line_that_breaks_a_rule_is_skipped_when_the_library_is_read(tmp_path):
+    from maipai_packages.pantry.talk_fallback import PantryTalk
+    from maipai_packages.pantry.twenty_fallback import TwentyQuestions
+
+    library = Library(tmp_path)
+    bad_trivia = Record("trivia", "en", "kid", "Which planet is red?", "Mars", "Venus")  # one wrong answer
+    short_object = Record("object", "en", "kid", "a thing", "thing", "101")  # extra shorter than 12
+    library.add([bad_trivia, short_object, TRIVIA, JOKE])
+    kept = {(r.kind, r.text) for r in library.records()}
+    assert kept == {("trivia", TRIVIA.text), ("joke", JOKE.text)}
+    talk = PantryTalk(library)
+    line, _ = talk.line("a", "trivia", "en", "go")  # was an IndexError on the broken record
+    assert "Jupiter" in line
+    assert TwentyQuestions().new(library.records("object", "en"), 1.0) is None
+
+
+def test_review_fix_build_shelf_drops_the_record_that_raises_and_keeps_the_rest(tmp_path):
+    library = Library(tmp_path)
+    jokes = [Record("joke", "en", "kid", f"Joke number {i} about topic {i * 7} | punchline {i * 3}") for i in range(30)]
+    library.add(jokes)
+    broken = Record("joke", "en", "kid", "no punchline in this one")
+    real = library.records
+
+    def with_broken_first(kind=None, language=None):
+        return [broken, *real(kind, language)]
+
+    library.records = with_broken_first  # a future caller that hands the shelf an unchecked record
+    body = build_shelf(library, "kitchen", "joke", "en", shelf.ITEM_CAP_BYTES)
+    assert body is not None
+    texts = [r.text for r in shelf.unpack(body)]
+    assert len(texts) == 30 and broken.text not in texts, "one bad record does not cost the shelf its other records"
