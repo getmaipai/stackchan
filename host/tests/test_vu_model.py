@@ -512,3 +512,15 @@ def test_the_web_copy_is_the_same_model_stored_small():
     assert [m["name"] for m in w["materials"]] == [m["name"] for m in j["materials"]], "the same materials: nothing is left out of the web copy"
     by = {n["name"]: n for n in w["nodes"]}
     assert by["yaw_joint"]["extras"] == nodes_by_name(j)["yaw_joint"][1]["extras"] and "mesh" not in by["head"]
+
+
+def test_the_heads_board_is_laid_out_from_the_owners_close_photo():
+    j, _ = read_glb(GLB)
+    by = nodes_by_name(j)
+    mat = lambda name: {j["materials"][p["material"]]["name"] for p in j["meshes"][by[name][1]["mesh"]]["primitives"]}
+    assert {"chip", "conn", "cap_tan", "pin_gold"} <= mat("board_parts"), "the cable socket, the flat cable socket, tan capacitors and gold test pads"
+    assert mat("coil") == {"ribbon"} and mat("cable") == {"ribbon"}, "the black cable, on the head and over the holder"
+    assert {"flex", "flex_ink"} == mat("flex_cable_ring")
+    flex, coil, green = (by[n][1]["translation"][0] for n in ("flex_cable_ring", "coil", "green_connector"))
+    assert flex < coil < green, "seen from behind: the blue connector on the robot's left, the black cable in the middle, the white flat cable on its right"
+    assert abs(by["cable"][1]["translation"][0]) < 0.002, "the cable over the holder is in the middle, under the one on the head"

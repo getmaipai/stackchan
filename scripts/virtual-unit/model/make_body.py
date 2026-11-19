@@ -99,6 +99,7 @@ MATERIALS = [  # name, base color (linear RGBA), metallic, roughness, emissive. 
     ('conn_green', (0.25, 0.55, 0.85, 1.0), 0.0, 0.5, None),         # light blue in daylight (it looked green under amber light); the name is kept
     ('flex_ink', (0.08, 0.22, 0.75, 1.0), 0.0, 0.6, None),           # the print on the flat cables is blue (owner's photos)
     ('ring_led', (0.75, 0.75, 0.72, 1.0), 0.0, 0.4, None),
+    ('cap_tan', (0.55, 0.38, 0.22, 1.0), 0.0, 0.5, None),
     ('ribbon', (0.055, 0.055, 0.06, 1.0), 0.0, 0.45, None),         # the black flat cable: a shade lighter and glossier than the boards, so it reads against them
 ]
 LIGHT_OFF = (0.42, 0.70, 0.72, 1.0)
@@ -681,31 +682,55 @@ def assemble():
         c = (side_x * 21.3, ring_under - 0.45, -(BAR_Y + along - YAW_Y))
         ring_leds.append((c, box(c, (1.4, 0.9, 2.2))))
     zb = front - 1.7                                          # the back of the upright board
+    # The upright board and what is on it, laid out from the owner's close photo of the open back (board-7p-flex-ribbon-lit). Places are
+    # read off the photo at about 30 pixels per millimeter: `left` is millimeters toward the robot's left of the middle, `down` is
+    # millimeters below the underside of the ring board. Sizes are to about half a millimeter; heights off the board are assumed.
     board_7p = {'pcb': box((0.0, cy + 1.0, front - 1.1), (48.0, 46.0, 1.2)), 'silk': []}
-    quads, length = lettering('7P', 1.7, 0.3)                 # the white print beside the seven-pin socket (owner's photo)
-    for quad in quads:
-        board_7p['silk'] += flat(lambda u, v, c: (u, v, zb - c), [(9.6 - a, top - 12.9 + b) for a, b in quad], 0.02)
-    for x0, x1, y0, y1 in ((16.6, 9.0, 9.2, 9.35), (16.6, 9.0, 6.6, 6.75), (15.0, 10.6, 13.6, 13.75), (15.0, 10.6, 18.4, 18.55), (-3.0, -11.0, 20.0, 20.15)):   # thin white outlines
-        board_7p['silk'] += flat(lambda u, v, c: (u, v, zb - c), [(x0, top - y0), (x1, top - y0), (x1, top - y1), (x0, top - y1)], 0.02)
 
     def onboard(u, v, c):                                     # u toward the robot's left, v up, c out of the board toward the back
         return (u, v, zb - c)
-    board_parts = {'chip': [], 'conn': [], 'port_metal': []}
-    for material, x, dy, w, h, t in (('chip', 12.75, 16.0, 3.5, 3.5, 0.8), ('chip', 8.9, 16.0, 3.2, 2.9, 0.6), ('conn', 5.2, 12.1, 3.6, 2.0, 1.2),
-                                     ('chip', -0.6, 17.0, 7.3, 8.8, 0.2), ('conn', -7.1, 16.5, 3.0, 3.8, 0.5), ('conn', -7.0, 12.2, 1.6, 2.4, 0.5),
-                                     ('port_metal', 10.0, 8.0, 1.0, 1.0, 0.4), ('port_metal', 12.0, 8.0, 1.0, 1.0, 0.4),
-                                     ('port_metal', 14.0, 8.0, 1.0, 1.0, 0.4), ('port_metal', 16.0, 8.0, 1.0, 1.0, 0.4), ('chip', 15.0, 24.0, 2.4, 2.4, 0.6),
-                                     ('conn', -17.0, 22.0, 2.0, 5.0, 1.0), ('conn', 18.5, 30.0, 2.0, 6.0, 1.0)):
-        board_parts[material] += slab(onboard, x - w / 2, x + w / 2, top - dy - h / 2, top - dy + h / 2, 0.0, t)
+
+    def at(left, down, w, h, c0, c1):                         # a block on the board: centered `left` and `down`, w across, h tall
+        return slab(onboard, left - w / 2, left + w / 2, ring_under - down - h / 2, ring_under - down + h / 2, c0, c1)
+
+    def outline(left, down, w, h):                            # the thin white frame printed round a part
+        m = 0.3
+        return (at(left, down - h / 2 - m, w + 2 * m, 0.12, 0.0, 0.02) + at(left, down + h / 2 + m, w + 2 * m, 0.12, 0.0, 0.02)
+                + at(left - w / 2 - m, down, 0.12, h + 2 * m, 0.0, 0.02) + at(left + w / 2 + m, down, 0.12, h + 2 * m, 0.0, 0.02))
+    quads, length = lettering('7P', 1.0, 0.16)                # the small white print beside the blue connector
+    for quad in quads:
+        board_7p['silk'] += flat(onboard, [(6.4 - a, ring_under - 8.3 + b) for a, b in quad], 0.02)
+    for dn in (4.4, 4.9, 5.4):                                # the version print near the flat cable's socket: three short bars stand in for it
+        board_7p['silk'] += at(-15.2, dn, 1.6, 0.22, 0.0, 0.02)
+    board_parts = {'chip': [], 'conn': [], 'cap_tan': [], 'pin_gold': []}
+    board_parts['chip'] += at(0.0, 3.3, 7.0, 4.0, 0.0, 2.5)                 # the socket the black cable plugs into
+    board_parts['conn'] += at(-11.8, 1.9, 3.6, 2.4, 0.0, 1.3)               # the white socket of the flat cable, at the ring board
+    board_parts['chip'] += at(-6.5, 8.0, 2.6, 2.4, 0.0, 0.8)                # a dark part with bright ends
+    board_parts['conn'] += at(-7.6, 8.0, 0.4, 2.4, 0.0, 0.82) + at(-5.4, 8.0, 0.4, 2.4, 0.0, 0.82)
+    for dn in (10.5, 11.7, 12.9):                                           # three tan capacitors in a row
+        board_parts['cap_tan'] += at(-6.5, dn, 2.4, 0.9, 0.0, 0.7)
+        board_7p['silk'] += outline(-6.5, dn, 2.4, 0.9)
+    board_parts['chip'] += at(-4.0, 8.3, 1.8, 2.2, 0.0, 0.6)
+    for dn in (9.9, 11.3):                                                  # two tan capacitors left of the cable
+        board_parts['cap_tan'] += at(5.7, dn, 3.0, 1.1, 0.0, 0.8)
+        board_7p['silk'] += outline(5.7, dn, 3.0, 1.1)
+    board_parts['chip'] += at(9.0, 10.6, 2.4, 2.4, 0.0, 0.7)                # a square chip in a white frame
+    board_7p['silk'] += outline(9.0, 10.6, 2.4, 2.4)
+    board_parts['chip'] += at(8.8, 13.0, 1.0, 2.0, 0.0, 0.6)
+    board_parts['cap_tan'] += at(10.6, 13.4, 1.2, 1.0, 0.0, 0.5) + at(3.6, 7.4, 1.5, 2.3, 0.0, 0.3)   # a small part, and the tan tape on the cable's end
+    for row_left in (13.4, 15.2):                                           # two rows of five gold test pads near the left edge
+        for k5 in range(5):
+            board_parts['pin_gold'] += at(row_left, 7.0 + 2.2 * k5, 1.3, 0.7, 0.0, 0.05)
+    post = moved(circle(1.5, 14), 13.8, ring_under - 2.0)                   # a cream standoff with a hole, by the blue connector
+    board_parts['conn'] += tube(onboard, post, 0.0, 2.6) + band(onboard, post, moved(circle(0.7, 14), 13.8, ring_under - 2.0), 2.6)
+    board_parts['chip'] += flat(onboard, moved(circle(0.7, 14), 13.8, ring_under - 2.0), 2.55)
     # the flat cable from the upright board up to the ring board: pale, with green print along it (owner's photo)
     flex = {'flex': [], 'flex_ink': []}
-    flex_x, fpath = -5.5, [(top - 21.0, zb - 0.25), (top - 9.5, zb - 0.6), (top - 5.4, zb - 2.6), (top - 3.9, zb - 6.0)]   # (height, depth) along the cable
-    for (y0, zf0), (y1, zf1) in zip(fpath, fpath[1:]):
-        d = ((y1 - y0) / 2.0, (zf1 - zf0) / 2.0)
-        ln = math.hypot(*d)
-        flex['flex'] += obox((flex_x, (y0 + y1) / 2.0, (zf0 + zf1) / 2.0), (2.35, 0, 0), (0, d[0] * 1.04, d[1] * 1.04), (0, -d[1] / ln * 0.1, d[0] / ln * 0.1))
-    for k6 in range(6):
-        flex['flex_ink'] += slab(lambda u, v, c: (u, v, zb - 0.45 - c), flex_x - 0.9, flex_x + 0.9, top - 19.6 + 1.6 * k6, top - 18.6 + 1.6 * k6, 0.0, 0.03)
+    flex_x = -11.8                                            # 3.2 mm wide, down the board on the robot's right, from its socket at the ring board
+    flex['flex'] += at(flex_x, 8.6, 3.2, 12.4, 0.25, 0.4)
+    flex['flex'] += slab(onboard, flex_x - 1.6, flex_x + 1.6, ring_under - 2.6, ring_under - 0.4, 0.4, 1.3)   # the end that goes up into the socket
+    for dn, ln in ((6.0, 0.9), (7.2, 0.9), (8.4, 0.9), (10.4, 0.7), (11.4, 0.7), (12.4, 0.7), (13.4, 0.7)):     # blue print along it: a word and a number, as blocks
+        flex['flex_ink'] += at(flex_x, dn, 1.5, ln, 0.4, 0.43)
     # ---- inside the servo holder (assembly mm): two servos of the published size, stacked, and the battery behind the back cover
     L, W, H = SERVO_MM
     ax, ay = YAW_X, YAW_Y
@@ -745,10 +770,10 @@ def assemble():
     cable = []                                                # the flat cable from the holder up toward the head (assumed path)
     path = [(-300.4, 9.0), (-299.4, 15.5), (-302.5, 20.3), (-308.5, 21.9)]
     for (y0, z0_), (y1, z1_) in zip(path, path[1:]):
-        m0, m1 = world((ax + 14.0, y0, z0_)), world((ax + 14.0, y1, z1_))
+        m0, m1 = world((ax - 0.5, y0, z0_)), world((ax - 0.5, y1, z1_))   # in the middle, where the black cable comes down from the head (owner's photo)
         d = [(m1[i] - m0[i]) / 2.0 for i in range(3)]
         ln = math.sqrt(d[1] * d[1] + d[2] * d[2])
-        cable += obox([(m0[i] + m1[i]) / 2.0 for i in range(3)], (4.0, 0, 0), (0, d[1] * 1.05, d[2] * 1.05), (0, -d[2] / ln * 0.2, d[1] / ln * 0.2))
+        cable += obox([(m0[i] + m1[i]) / 2.0 for i in range(3)], (3.7, 0, 0), (0, d[1] * 1.05, d[2] * 1.05), (0, -d[2] / ln * 0.2, d[1] / ln * 0.2))
     screen_c = (0.0, cy - SCREEN_DROP_MM, face + 0.03)
 
     def screw(f, u, v, r, c0, c1, socket=False):
@@ -924,7 +949,7 @@ def assemble():
               ('battery', {'battery': battery}, '550 mAh battery behind the holder back cover (capacity published; size and position assumed)'),
               ('battery_lead', battery_lead, 'red and black lead from the battery to a small plug (assumed)'),
               ('servo_wires', servo_wires, 'the three-wire leads of the two servos (assumed path)'),
-              ('cable', {'cable': cable}, 'flat cable from the holder toward the head (assumed)')]
+              ('cable', {'ribbon': cable}, "the black cable where it runs over the back of the holder toward the head (owner's photos; the path is assumed)")]
     for name, parts, what in inside:
         c = [round(v, 3) for v in [(a0 + b0) / 2.0 for a0, b0 in zip(*bounds([t for m in parts.values() for t in m]))]]
         g.node(name, yaw, sub(c, YAW_O), g.mesh(name, many(parts, c)), {'what': what, 'basis': 'assumed'})
@@ -971,13 +996,15 @@ def assemble():
     b7 = (0.0, cy + 1.0, front - 1.1)
     g.node('board_7p', head, sub(b7, PITCH_O), g.mesh('board_7p', many(board_7p, b7)),
            {'what': 'the upright board behind the controller, with its white print (7P beside the seven-pin socket)', 'basis': 'assumed', 'note': "print seen in the owner's photo and in the maker's back picture"})
-    coil, coil_c = [], (2.0, top - 17.0, front - 5.2)             # the folded black flat cable behind the upright board (owner's photos): a service loop,
-    for n in range(6):                                           # six folds stacked and joined at alternate ends; it rides on the head
-        y = coil_c[1] - 2.0 + 0.8 * n
-        coil += box((coil_c[0], y, coil_c[2]), (7.5, 0.4, 6.0))
-        coil += box((coil_c[0], y + 0.4, coil_c[2] + (2.8 if n % 2 else -2.8)), (7.5, 0.5, 0.4))
+    # The black cable from its socket on the board toward the holder (owner's close photo): eight wires side by side, 7.4 mm across. It
+    # arches off the board just below the socket, then lies flat on its way down. It rides on the head.
+    coil, coil_c = [], (-0.5, ring_under - 10.0, zb - 1.5)
+    for wire in range(8):
+        wx = coil_c[0] - 3.24 + 0.925 * wire
+        for dn0, dn1, c0, c1 in ((5.2, 6.4, 0.9, 1.8), (6.4, 7.6, 1.7, 2.7), (7.6, 10.6, 2.2, 3.2), (10.6, 11.8, 1.4, 2.4), (11.8, 15.6, 0.5, 1.4)):
+            coil += slab(onboard, wx - 0.38, wx + 0.38, ring_under - dn1, ring_under - dn0, c0, c1)
     g.node('coil', head, sub(coil_c, PITCH_O), g.mesh('coil', [g.primitive(coil, coil_c, 'ribbon')]),
-           {'what': 'folded black flat cable (a service loop) behind the upright board, on its way to the holder', 'basis': 'assumed', 'note': "seen in the owner's photos of the open back; it flexes as the head nods, drawn at rest"})
+           {'what': 'black eight-wire cable from its socket on the upright board toward the holder, arched just below the socket', 'basis': 'assumed', 'note': "laid out from the owner's close photo of the open back; it flexes as the head nods, drawn at rest"})
     low = {'flex': [], 'flex_ink': []}                           # a second flat cable, white with blue print, low on the board (owner's photo from below)
     low['flex'] += slab(lambda u, v, c: (u, v, zb - c), -13.0, -2.0, cy - 16.0, cy - 12.6, 0.0, 0.2)
     for k7 in range(7):
@@ -990,7 +1017,7 @@ def assemble():
            {'what': 'flat cable with green print from the upright board up to the ring board', 'basis': 'assumed', 'note': "seen in the owner's photo; the exact path is assumed"})
     bp = (0.0, top - 16.0, zb)
     g.node('board_parts', head, sub(bp, PITCH_O), g.mesh('board_parts', many(board_parts, bp)),
-           {'what': 'parts on the back of the upright board: chips, sockets, pin pads and a dark ribbon, as plain blocks (layout from the back photo)', 'basis': 'assumed'})
+           {'what': "parts on the back of the upright board, laid out from the owner's close photo: the cable socket, the flat cable's socket, chips, tan capacitors, gold test pads and a standoff", 'basis': 'assumed'})
     for i, sx in enumerate((-21.85, 21.85)):                     # dark screws in the shell's two lower front holes, heads toward the back (holes from the shell file)
         head_t, cross = screw(lambda u, v, c: (u, v, 15.75 - c), sx, 21.88, 1.5, 0.0, 0.8)
         c = (sx, 21.88, 15.35)

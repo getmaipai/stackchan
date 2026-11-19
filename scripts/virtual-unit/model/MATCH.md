@@ -187,6 +187,10 @@ All are the owner's own photos, kept out of this repository in the session's not
 
 Three flat cables show in the owner's photos and are drawn: the white one with blue print from the upright board up to the ring board (`flex_cable_ring`), a second white one with blue print low on the board (`flex_cable_low`), and the thick black one that leaves the board as a folded stack (`coil`, riding on the head) and goes down into the holder in front of the tilt servo (`ribbon_to_holder`). Their paths between the ends are assumed. The pitch sweep was run again with them in place.
 
+## The head's board, part by part (owner's close photo, 2026-11-18)
+
+The owner pointed out that the inside of the head was still not drawn as it is. The upright board was laid out again from `board-7p-flex-ribbon-lit-2026-11-18.jpg`, read at about 30 pixels per millimeter and checked in `compare-own-board.png` (the model with the holder hidden, beside the photo). Seen from behind, left to right: two rows of gold test pads at the edge; a cream standoff and the blue connector under the ring board; the print `7P`; a square chip in a white frame with two tan capacitors beside it; the black eight-wire cable from its socket, arched just below it and then flat on its way to the holder; three tan capacitors in white frames; the white flat cable, 3.2 mm wide, with blue print, going up into its socket at the ring board; three short bars where the version print is. The old gray strip that stood for a cable on one side is gone: the cable over the holder is black and in the middle. Part heights off the board and the cable's exact arch are assumed. The traces, the smallest parts and the real print on the flat cable are not drawn.
+
 ## Names and marks on the model (owner's policy, 2026-11-18)
 
 For a few hours the model left out the maker's two-character mark, the robot's name on the side labels and the artwork of the two rating labels. That was a precaution, not a requirement of any license or published policy, and the owner reversed it the same day: the model shows the real robot. They are drawn again, in simple strokes made for this model (no artwork file of the maker's is copied):

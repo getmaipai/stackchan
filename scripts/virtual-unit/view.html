@@ -242,7 +242,9 @@ $('drain').onchange=e=>hw('drain',e.target.checked);
 async function loadBackends(){try{const d=await (await fetch('/backends')).json(),sel=$('backend'),keep=sel.value;sel.innerHTML='';
   d.backends.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=b.name+(b.kind==='robot'?(b.online===false?' (offline)':b.busy_by?' (in use by '+b.busy_by+')':' (real robot)'):'');sel.appendChild(o);});
   if([...sel.options].some(o=>o.value===keep))sel.value=keep;
-  if(!d.host_set&&d.backends.length===1)$('backendmsg').textContent='Only the Simulation is set up. To reach a real robot, start the view with your host address and a playground token.';}catch(e){}}
+  if(!d.host_set&&d.backends.length===1)$('backendmsg').textContent='Only the Simulation is set up. To reach a real robot, start the view with your host address and a playground token.';}
+ catch(e){const sel=$('backend');if(!sel.options.length){const o=document.createElement('option');o.value='sim';o.textContent='Simulation';sel.appendChild(o);}   // an older server has no robot list: the Simulation is still what is running
+  $('backendmsg').textContent='This server is older than the page and offers no robot list. Restart the view to pick a robot.';}}
 $('bconnect').onclick=async()=>{const id=$('backend').value;
  if(id!=='sim'&&!confirm('Connect to the real robot? Everything you do in this page will then happen on it.'))return;
  const r=await post('/backend',{id});$('backendmsg').textContent=r.isError?r.text:(r.active.notice||'');loadBackends();};
