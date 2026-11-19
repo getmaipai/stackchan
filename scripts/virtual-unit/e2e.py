@@ -598,9 +598,14 @@ async def play_a_game(rig: Rig, check) -> None:
     check("every 'play a game' started a game on the robot", len(seen) == 6, str(seen), known_gap="the virtual unit's self.game.start does not accept the `token` argument the host stamps on it (patch FM03, remote_trust.py); playground track: accept token in the tool schema")
     check("never the same game twice in a row", all(a[1] != b[1] for a, b in zip(plays, plays[1:]) if b[0] == a[0] + 1), str(plays))
     check("the games vary", len(set(seen)) >= min(2, len(seen)), str(seen))
+    before = len([c for c in rig.fw.tool_calls if c[0] == "self.game.start"])
     await rig.say("play memory", speech_s=0.8, tail_s=1.0, wait_stop=25.0)
-    starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
-    check("'play memory' starts memory", bool(starts) and starts[-1] == "memory", str(starts[-3:]))
+    for _ in range(40):  # a loaded machine answers late: wait for the start call instead of reading once
+        starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
+        if len(starts) > before:
+            break
+        await asyncio.sleep(0.5)
+    check("'play memory' starts memory", len(starts) > before and starts[-1] == "memory", str(starts[-3:]))
     check("no model was asked for any of it", not any("play a game" in json.dumps(r["messages"]) for r in rig.models.llm_requests))
 
 
