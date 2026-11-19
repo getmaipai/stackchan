@@ -77,6 +77,8 @@ class SettingsBackend:
         self.brain_setup: Any = None  # brain_setup.controller.BrainSetup: the Brain page (set by the host)
         self.pair_code: Callable[[], str] | None = None  # mints a pairing code (set by the host)
         self.pair_exchange: Any = None  # the voice server (waiting_exchanges, approve_exchange); set by the host
+        self.service_state: Any = None  # () -> {"can_install": bool}, set by the host
+        self.service_handover: Any = None  # () -> {"ok", "message"}: starts the handover to the service
         self.pantry: Any = None  # the content pantry package (set by the host only when switched on)
         self.wakeword: Any = None  # the wake word maker package (set by the host only when switched on)
         self.phone_link: Callable[[], dict[str, Any]] | None = None  # {"lan", "base", "token"} for the phone login link
@@ -824,6 +826,9 @@ class SettingsBackend:
             from maipai_body import health as health_mod
 
             doc = self.health()
+            state_of = getattr(self, "service_state", None)
+            if state_of is not None:
+                doc = {**doc, "service": state_of()}
             if path == HEALTH_PAGE:
                 return 200, "text/html; charset=utf-8", health_mod.render_page(doc)
             return 200, JSON, json.dumps(doc).encode()
@@ -906,6 +911,14 @@ class SettingsBackend:
         The update route checks the release and changes nothing unless the body says
         ``"confirm": true``."""
         prefix = "/api/stackchan/settings/"
+        if path == "/api/stackchan/service/keep-running" and getattr(self, "service_handover", None) is not None:
+            if local_admin is not True:
+                return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}
+            if body.get("confirm") is not True:
+                return 400, {"error": "Press Confirm to keep the host running. Nothing was changed."}
+            if not (getattr(self, "service_state", lambda: {})() or {}).get("can_install"):
+                return 400, {"error": "The host already runs as a service, or this computer is not supported. Nothing was changed."}
+            return 200, self.service_handover()
         if path.startswith(PANTRY + "/") and getattr(self, "pantry", None) is not None:
             if local_admin is not True:
                 return 403, {"error": t(normalize(str(body.get("lang", "")) or self.language), "settings.local_only")}

@@ -3981,6 +3981,15 @@ def _start_settings_page(voice, pairing, units, behavior, faces=None, link_secur
         _start_coding_companion(backend, voice)
         _start_wake_word_maker(backend)
         _start_pantry(backend)
+        from maipai_body import service_handover
+        from maipai_body.service_cmd import Service
+
+        def _service_state() -> dict:
+            probe = Service(say=lambda _text: None)
+            return {"can_install": probe.system in ("mac", "linux") and not probe.file().exists()}
+
+        backend.service_state = _service_state
+        backend.service_handover = service_handover.start_handover
         backend.pair_code = pairing.create_pair_code
         backend.pair_exchange = voice
         backend.phone_link = lambda: {
