@@ -52,6 +52,7 @@ if [ "$GATE" = 1 ]; then
   cd "$ROOT"
   gate() { local name="$1"; shift; echo "release gate: $name ..."; if ! "$@" > "$EVIDENCE/$name.txt" 2>&1; then echo "release gate: $name FAILED. Nothing was built. Read $EVIDENCE/$name.txt, fix it, then run the release again." >&2; exit 1; fi; }
   gate check bash scripts/check.sh
+  gate host-env bash scripts/build-clean-host-env.sh
   gate security-scan python3 scripts/security-scan.py
   gate exposure python3 scripts/exposure-test.py
   gate tests bash scripts/test-all.sh
