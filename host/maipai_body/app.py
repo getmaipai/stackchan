@@ -4931,11 +4931,21 @@ def _start_pantry(backend, voice=None) -> None:
     if voice is None:
         return
     # Every five minutes, for each connected unit: take its heard list, send denials, and refill what the rule says (docs/design/content-pantry.md section 5).
-    # Until the multi-slot asset transport is wired the shelf install is refused and the unit keeps its old shelf; the heard list and denials already work.
     from maipai_packages.pantry.sync import UnitState, run_unit
     from maipai_packages.pantry.unit_link import ToolUnitLink
 
-    link = ToolUnitLink(lambda unit, tool, args: voice.robot.client.for_unit(unit)._call(tool, args))
+    from maipai_body.asset_transport import AssetTransport
+
+    call_unit = lambda unit, tool, args: voice.robot.client.for_unit(unit)._call(tool, args)  # noqa: E731
+    transport = AssetTransport(call_unit)
+
+    def install_shelf(unit: str, kind: str, language: str, body: bytes) -> bool:
+        result = transport.install_pantry_shelf(unit, kind, language, body, record_count=int.from_bytes(body[8:10], "little"))
+        if not result.ok:
+            logger.info("pantry: the %s %s shelf was not installed: %s", language, kind, result.message)
+        return result.ok
+
+    link = ToolUnitLink(call_unit, install_shelf)
     done_tonight: set[tuple[str, str]] = set()
     pantry_stop = threading.Event()
 
