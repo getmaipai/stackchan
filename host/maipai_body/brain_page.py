@@ -18,42 +18,45 @@ button{font:inherit;font-weight:600;min-height:44px;padding:0 1.1rem;border-radi
 .muted{color:var(--muted);font-size:.9rem}.good{color:var(--good)}.bad{color:var(--bad)}progress{width:100%;height:1rem}.row{display:flex;gap:.6rem;align-items:end}.row>div{flex:1}
 .routes{display:grid;grid-template-columns:15rem 1fr;gap:1rem}.tabs{display:flex;flex-direction:column;gap:.5rem}.tab{display:block;text-align:left;background:var(--card);color:var(--fg);border:2px solid transparent;margin:0;padding:.6rem .8rem;min-height:44px;line-height:1.3}.tab.on{border-color:var(--accent)}.tab small{display:block;font-weight:400;color:var(--muted)}
 @media (max-width:640px){.routes{grid-template-columns:1fr}.tabs{flex-direction:row}.tab{flex:1}}
+.nowline{font-size:1.05rem;margin:0 0 16px}
+.tabs{display:flex;flex-direction:row;gap:2px;padding:2px;border-radius:10px;background:var(--hover,#8882);margin:0 0 20px}.tab{flex:1;margin:0!important;min-height:36px!important;border-radius:8px!important;background:none!important;color:var(--fg)!important;border:0!important;font-weight:600}.tab.on{background:var(--pill,var(--card))!important;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+details.opt{background:var(--grp,var(--card));border-radius:14px;margin:0 0 12px;overflow:hidden}details.opt>summary{list-style:none;cursor:pointer;min-height:52px;display:flex;align-items:center;padding:0 16px;font-weight:600;font-size:1.05rem;gap:10px}details.opt>summary::-webkit-details-marker{display:none}details.opt>summary::after{content:"›";margin-left:auto;color:var(--muted);font-size:1.5rem;transition:transform .15s}details.opt[open]>summary::after{transform:rotate(90deg)}details.opt.on>summary::before{content:"✓";color:var(--good)}details.opt .body{padding:0 16px 16px}
+.grp p{margin:0 0 12px}
+.routes{display:block}
 </style></head><body><main>
-<h1>Choose a brain</h1>
-<p id="welcome" class="muted" hidden>Welcome. The robot needs a brain to think and talk. Pick a route, then one way on it. You can change it later on this page.</p>
-<p id="now" role="status" aria-live="polite"></p>
+<h1>Brain</h1>
+<p id="welcome" class="muted" hidden>Welcome. Pick where your robot thinks. You can change it later.</p>
+<p id="now" role="status" aria-live="polite" class="nowline"></p>
 
-<div class="routes"><nav class="tabs" aria-label="Brain route">
-<button class="tab" id="t_hosted" type="button" data-route="hosted">Hosted by M5Stack/Xiaozhi<small>Your voice goes to their servers, outside your home.</small></button>
-<button class="tab" id="t_custom" type="button" data-route="custom">Custom<small>Your voice stays where you point it.</small></button></nav>
-<div class="pane">
-<section class="card" id="r_hosted" hidden><h2>Hosted by M5Stack/Xiaozhi</h2>
-<p>Your voice goes to M5Stack/Xiaozhi's servers, outside your home. They run the model, the listening and the speaking.</p>
+<nav class="tabs" aria-label="Brain route">
+<button class="tab" id="t_hosted" type="button" data-route="hosted">Hosted</button>
+<button class="tab" id="t_custom" type="button" data-route="custom">Custom</button></nav>
+<section class="grp" id="r_hosted" hidden>
+<p class="muted">Hosted by M5Stack/Xiaozhi. Your voice goes to their servers, outside your home.</p>
 <p class="muted" id="hosted_plan">Planned. It opens once a test build shows their server accepts this firmware. Until then, use Custom.</p>
 <button id="save_hosted" type="button">Use the hosted route</button><p id="m_hosted" role="status"></p></section>
 <div id="r_custom" hidden>
-<p class="muted">Custom: your voice stays where you point it. Pick one of the three ways below: your own key or server, your own host or MaiPai Home, or a model on your computer.</p>
-<section class="card" id="c_home"><h2>1. MaiPai Home</h2>
+<details class="opt" id="c_home"><summary>MaiPai Home</summary><div class="body">
 <p class="muted">Use a MaiPai Home hub on your network. Home keeps the household, the voices and the rules. You pair the robot with it after you save.</p>
 <label for="home_url">Home's address</label><input id="home_url" placeholder="http://192.0.2.10:8000" inputmode="url">
-<button id="save_home" type="button">Use MaiPai Home</button><p id="m_home" role="status"></p></section>
+<button id="save_home" type="button">Use MaiPai Home</button><p id="m_home" role="status"></p></div></details>
 
-<section class="card" id="c_own"><h2>2. Your own stack</h2>
+<details class="opt" id="c_own"><summary>Your own model</summary><div class="body">
 <p class="muted">Use a language model, a speech-to-text server and a text-to-speech server you already run. Each has a test button.</p>
 <label for="llm_url">Language model address (the part before /v1)</label><div class="row"><div><input id="llm_url" placeholder="http://192.0.2.10:8080" inputmode="url"></div><button class="plain" type="button" data-test="model">Test</button></div><p id="t_model" role="status" class="muted"></p>
 <label for="model">Model name</label><input id="model" placeholder="the name your server uses">
 <label for="stt_url">Speech to text address</label><div class="row"><div><input id="stt_url" placeholder="http://192.0.2.10:9000" inputmode="url"></div><button class="plain" type="button" data-test="stt">Test</button></div><p id="t_stt" role="status" class="muted"></p>
 <label for="tts_url">Text to speech address</label><div class="row"><div><input id="tts_url" placeholder="http://192.0.2.10:9001" inputmode="url"></div><button class="plain" type="button" data-test="tts">Test</button></div><p id="t_tts" role="status" class="muted"></p>
 <label for="api_key_env">Name of the variable that holds the key (optional)</label><input id="api_key_env" placeholder="MY_MODEL_KEY">
-<button id="save_own" type="button">Use my own stack</button><p id="m_own" role="status"></p></section>
+<button id="save_own" type="button">Use my own model</button><p id="m_own" role="status"></p></div></details>
 
-<section class="card" id="c_local"><h2>3. A small stack on this computer</h2>
+<details class="opt" id="c_local"><summary>Small stack on this computer</summary><div class="body">
 <p class="muted">The host downloads a small language model, a speech-to-text model and a text-to-speech voice and runs them here. After the download nothing leaves this computer. It is slower and simpler than the other two ways.</p>
 <div id="needs" class="muted"></div>
 <label for="choice">Model size</label><select id="choice"></select>
 <button id="install" type="button">Install</button><button id="stop" class="plain" type="button" hidden>Stop</button><button id="remove" class="plain" type="button" hidden>Remove it</button>
-<progress id="bar" max="100" value="0" hidden aria-label="Install progress"></progress><p id="m_local" role="status" aria-live="polite"></p></section>
-</div></div></div>
+<progress id="bar" max="100" value="0" hidden aria-label="Install progress"></progress><p id="m_local" role="status" aria-live="polite"></p></div></details>
+</div>
 </main>
 <script>
 const $=id=>document.getElementById(id);

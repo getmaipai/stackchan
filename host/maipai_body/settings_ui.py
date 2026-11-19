@@ -177,7 +177,7 @@ ol.how{margin:0;padding-left:22px;display:grid;gap:8px}
 JS = r"""
 const BASE={lang:'__LANG__'},LANG='__LANG__';
 try{const th=localStorage.getItem('theme');if(th&&th!=='auto')document.documentElement.setAttribute('data-theme',th)}catch(e){}
-const T=k=>S['settings.ui.'+k]||k;
+const T=k=>S['settings.ui.'+k]||S[k]||k;
 const $=(s,r)=>(r||document).querySelector(s);
 const ICO={packs:'M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10',home:'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',remote:'M12 2v4M12 18v4M2 12h4M18 12h4M12 8l-3 3 3 3 3-3z',look:'M12 3a9 9 0 100 18 9 9 0 000-18zM9 10v2M15 10v2M9 15c1.5 1.4 4.5 1.4 6 0',voice:'M12 3a3 3 0 013 3v6a3 3 0 01-6 0V6a3 3 0 013-3zM5 11a7 7 0 0014 0M12 18v3',network:'M2 9a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0M12 19.5h.01',behavior:'M4 6h16M4 12h16M4 18h16M8 4v4M16 10v4M10 16v4',play:'M6 12h4M8 10v4M15 11h.01M18 13h.01M17 7H7a5 5 0 00-4.9 6l.7 3.6A2.5 2.5 0 007.3 17.8l.9-1.3h7.6l.9 1.3a2.5 2.5 0 004.5-1.2l.7-3.6A5 5 0 0017 7z',system:'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1'};
 function h(tag,props,...kids){const el=document.createElement(tag);

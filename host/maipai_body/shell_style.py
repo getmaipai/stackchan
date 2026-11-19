@@ -11,22 +11,22 @@ NAV: tuple[tuple[str, str, str, str], ...] = (
     ("robot", "Robot", "/settings#robot", "M12 3v3M7 6h10a3 3 0 013 3v7a3 3 0 01-3 3H7a3 3 0 01-3-3V9a3 3 0 013-3zM9 12v1M15 12v1M9.5 16h5"),
     ("brain", "Brain", "/brain", "M9 4a3 3 0 00-3 3 3 3 0 00-2 5 3 3 0 002 5 3 3 0 003 3h1V4zM15 4a3 3 0 013 3 3 3 0 012 5 3 3 0 01-2 5 3 3 0 01-3 3h-1V4z"),
     ("safety", "Safety", "/settings#safety", "M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z"),
-    ("more", "More", "/settings#more", "M5 12h.01M12 12h.01M19 12h.01"),
+    ("more", "More", "/settings#more", "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"),
 )
 BRAND_ICON = "/assets/brand/maipai-bot-icon-{theme}.png"  # light and dark copies of the org's robot mark, never redrawn
 SEARCH_PLACEHOLDER = "Search settings"
 SPONSOR_LINE = 'Support this project: <a href="https://github.com/sponsors/JesseWebDotCom">GitHub Sponsors</a>.'
 
 CSS = """
-:root{color-scheme:light dark;--bg:#f2f2f7;--grp:#fff;--grp2:#f2f2f7;--sep:#e5e5ea;--fg:#1c1c1e;--mut:#6c6c70;--ac:#0a7cff;--on-ac:#fff;--ok:#1f9d55;--warn:#b26a00;--bad:#d1342b;--side:#f9f9fb;--hover:rgba(60,60,67,.07);--font:system-ui,-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#000;--grp:#1c1c1e;--grp2:#2c2c2e;--sep:#38383a;--fg:#f2f2f7;--mut:#98989f;--ac:#4da3ff;--on-ac:#001a33;--ok:#32d583;--warn:#f0b64a;--bad:#ff6b61;--side:#111113;--hover:rgba(235,235,245,.08)}}
-:root[data-theme=dark]{color-scheme:dark;--bg:#000;--grp:#1c1c1e;--grp2:#2c2c2e;--sep:#38383a;--fg:#f2f2f7;--mut:#98989f;--ac:#4da3ff;--on-ac:#001a33;--ok:#32d583;--warn:#f0b64a;--bad:#ff6b61;--side:#111113;--hover:rgba(235,235,245,.08)}
+:root{color-scheme:light dark;--bg:#f2f2f7;--grp:#fff;--grp2:#f2f2f7;--sep:#e5e5ea;--fg:#1c1c1e;--mut:#6c6c70;--ac:#0a7cff;--on-ac:#fff;--ok:#1f9d55;--warn:#b26a00;--bad:#d1342b;--side:#f9f9fb;--pill:#fff;--hover:rgba(60,60,67,.07);--font:system-ui,-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#000;--grp:#1c1c1e;--grp2:#2c2c2e;--sep:#38383a;--fg:#f2f2f7;--mut:#98989f;--ac:#4da3ff;--on-ac:#001a33;--ok:#32d583;--warn:#f0b64a;--bad:#ff6b61;--side:#111113;--pill:#555559;--hover:rgba(235,235,245,.08)}}
+:root[data-theme=dark]{color-scheme:dark;--bg:#000;--grp:#1c1c1e;--grp2:#2c2c2e;--sep:#38383a;--fg:#f2f2f7;--mut:#98989f;--ac:#4da3ff;--on-ac:#001a33;--ok:#32d583;--warn:#f0b64a;--bad:#ff6b61;--side:#111113;--pill:#555559;--hover:rgba(235,235,245,.08)}
 :root[data-theme=light]{color-scheme:light}
 .side{position:sticky;top:0;height:100vh;width:232px;flex:none;background:var(--side);border-right:1px solid var(--sep);padding:20px 12px;display:flex;flex-direction:column;gap:20px;box-sizing:border-box;font-family:var(--font)}
 .side .brand{display:flex;align-items:center;gap:10px;padding:0 8px;font-weight:700;font-size:15px;letter-spacing:-.01em;color:var(--fg);text-decoration:none}
 .side .brand img{width:30px;height:30px;display:block}
 .side .nv{display:flex;flex-direction:column;gap:2px}
-.side .nv a,.side .nv button{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 10px;border:0;border-radius:10px;background:none;color:var(--fg);font:500 15px/1 var(--font);text-align:left;text-decoration:none;cursor:pointer;transition:background .15s}
+.side .nv a,.side .nv button{display:flex;align-items:center;gap:12px;min-height:40px;padding:0 10px;border:0;border-radius:10px;background:none;color:var(--fg);font:500 15px/1 var(--font);text-align:left;text-decoration:none;cursor:pointer}
 .side .nv a:hover,.side .nv button:hover{background:var(--hover)}
 .side .nv [aria-current=page]{background:var(--ac);color:var(--on-ac)}
 .side .nv svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}

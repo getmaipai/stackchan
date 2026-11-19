@@ -90,7 +90,7 @@ CSS = (
 .sw2[aria-checked=true]{background:var(--ok)}.sw2[aria-checked=true]::after{transform:translateX(20px)}
 .sg{display:flex;gap:2px;padding:2px;border-radius:9px;background:var(--hover)}
 .sg button{flex:1 1 0;min-height:32px;border:0;border-radius:7px;background:none;color:var(--fg);font:500 14px/1 var(--font);cursor:pointer;padding:0 10px;transition:background .15s}
-.sg button[aria-checked=true]{background:var(--grp);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.sg button[aria-checked=true]{background:var(--pill);box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .tiles4{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 28px}
 .big{display:flex;flex-direction:column;align-items:flex-start;gap:14px;min-height:104px;padding:16px;border:0;border-radius:18px;background:var(--grp);color:var(--fg);font:600 17px/1.2 var(--font);text-align:left;cursor:pointer;transition:transform .15s,background .15s}
 .big:hover{background:color-mix(in srgb,var(--grp) 92%,var(--ac))}.big:active{transform:scale(.98)}
@@ -131,7 +131,7 @@ function drawChips(){drawPick()}
 function loc(){const[a,b]=(location.hash||'#home').slice(1).split('/');return{page:NAV2.some(n=>n[0]===a)?a:'home',detail:b||''}}
 /* rows */
 function chev(){return SVG(IC.chev,'chev')}
-function rowEl(o){const tag=o.go?'button':'div';
+function rowEl(o){const ctl=o.control&&!(o.control instanceof Node)?h('span',{style:'display:flex;gap:8px;align-items:center;flex:1 1 auto;justify-content:flex-end'},...o.control):o.control;o=Object.assign({},o,{control:ctl});const tag=o.go?'button':'div';
  const el=h(tag,{class:'r'+(o.go?' go':''),type:o.go?'button':null,onclick:o.go||null,'aria-label':o.go?o.label:null},
   o.icon?h('span',{class:'ri'},SVG(IC[o.icon]||o.icon)):null,h('span',{class:'rl'},o.label),o.value!=null&&o.value!==''?h('span',{class:'rv'},o.value):null,o.control||null,o.go?chev():null);
  if(!o.help||o.go)return el;const hp=h('div',{class:'rh',hidden:true},o.help);const i=h('button',{type:'button',class:'info','aria-label':T('More about')+' '+o.label,onclick:()=>{hp.hidden=!hp.hidden}},'i');el.insertBefore(i,o.control||null);
@@ -252,7 +252,13 @@ const DETAIL={
    grp(null,rowEl({label:T('Status'),value:S['settings.wifi.'+UNIT.wifi]||''}),rowEl({label:T('Run a check'),icon:'wifi',go:async()=>{toast(T('Checking')+'...');const r=await api(unitPath(UNIT.device_id,'network-test'),{});toast((r.d.summary||r.d.error||'').toString())}})),
    h('p',{class:'sub'},T('Join a new network on the robot: open its Wi-Fi settings and pick your network.')),
    h('div',{class:'next'},grp(T('Next'),rowEl({label:T('Choose a brain'),icon:'brain',go:()=>{location.href='/brain'}}))))},
- 'robot/pair':async v=>{add(v,...detailHead(T('Add a robot'),'robot'),h('p',{class:'sub'},T('net.pair_help')),legacyHolder('network'))},
+ 'robot/pair':async v=>{add(v,...detailHead(T('Pair your robot'),'robot'),h('p',{class:'sub'},T('pair.help')));
+  const code=h('div',{class:'ok2',hidden:true,style:'font-size:34px;letter-spacing:.3em;font-weight:700;justify-content:center'}),wait=h('div');
+  add(v,grp(null,rowEl({label:T('pair.button'),icon:'plus',go:async()=>{const r=await api('/api/stackchan/pairings/code',{});if(r.ok&&r.d.code){code.textContent=r.d.code;code.hidden=false;toast(T('pair.minutes'))}else toast(T('pair.error'),'bad')}})),code,wait);
+  const shown=new Set();const poll=async()=>{const r=await api('/api/stackchan/pairings/waiting');const w=r.ok&&r.d.waiting?r.d.waiting:[];
+   if(w.join()!==[...shown].join()){shown.clear();w.forEach(d=>shown.add(d));wait.replaceChildren(...(w.length?[grp(T('pair.waiting'),...w.map(d=>{const inp=h('input',{class:'tx',type:'text',inputmode:'numeric',maxlength:6,autocomplete:'one-time-code',placeholder:'000000','aria-label':T('pair.waiting')+' '+d});
+     return rowEl({label:d,control:[inp,h('button',{class:'info',style:'width:auto;padding:0 12px;height:30px;color:var(--ac)',type:'button',onclick:async()=>{const x=await api('/api/stackchan/pairings/code-entry',{device_id:d,code:inp.value});toast(x.ok?T('pair.paired'):(x.d.error||T('pair.error')),x.ok?'':'bad');if(x.ok){location.hash='#home';location.reload()}}},T('pair.approve'))]})}))]:[]))}
+   if(document.body.contains(wait)&&loc().detail==='pair')setTimeout(poll,2000)};poll()},
  'safety/lock':legacyView('security',T('Lock'),'safety'),
  'safety/quiet':async v=>{add(v,...detailHead(T('Quiet hours'),'safety'));const c=await cx();const sv=c.o.saved||{};const q=Object.assign({enabled:false,from:'22:00',to:'07:00',days:[0,1,2,3,4,5,6]},sv.quiet_schedule||{});
   const persist=async()=>(await dev({quiet_schedule:q})).ok;const dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];

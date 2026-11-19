@@ -9,9 +9,11 @@ Changing a setting never needs a reflash.
 
 ## Find a setting
 
-On the settings page, type in the **Search settings** box at the top. Pick a result and the page opens the right tab, opens the **Advanced** fold if the setting sits there, and highlights it.
+The search box is at the top of every page of the dashboard. Type a plain word such as "quiet", "volume", "wifi", "name", "camera" or "update". Each result is the setting itself, so you can change it right there.
 
-Long pages (Look, Behavior, Remote) have a row of tabs under the title, such as Movement, Sleep and quiet, and Reactions and people. Short pages have none. Settings most people never change sit behind **Advanced** at the bottom of a page.
+![The dashboard search for "quiet": Quiet now, Quiet hours and Volume show as rows you can change.](../images/dash-search-desktop.png)
+
+*Search for "quiet": each result is a real control, with no page to open first.*
 
 ## Face style (`face_style`)
 
@@ -81,16 +83,37 @@ The settings page on your host has a Remote controls section: beep, flash, find 
 
 ## What goes on the settings page
 
-Open the settings page your host serves. It has a page for each group. Changes apply to the robot at once, or the next time it connects.
+The dashboard has five items in the sidebar. On a phone they sit in a bar at the bottom.
 
-- **Face** (see [Change how the robot looks](face-and-look.md)): face style, face color, captions, the clock style and the night schedule. The same changes work from a terminal: `stackchan face set UNIT --style big_eyes --color mint --captions on`.
-- **Voice**: the voice, speech speed and pitch, the volume cap and the "While it thinks" sound.
-- **Time**: the time zone and the 24 hour clock.
-- **Pictures**, **Reactions**, **People**, **Games**, **Privacy**, **System** and **Units** pages.
+- **Home.** Your robot at a glance: its name, whether it is online and its battery. A short checklist (Pair your robot, Connect to Wi-Fi, Choose a brain, Pick a look) shows what is done and what is next, and goes away when everything is done. Four big buttons are below it: Wi-Fi, Look and feel, Remote control and Quiet now.
+- **Robot.** Look and feel, Volume, Screen brightness, Wi-Fi, Remote control, and Voice and listening. Less common things sit behind **More settings**.
+- **Brain.** Where your robot thinks. See [Choose a brain](choose-a-brain.md).
+- **Safety.** Quiet now, Quiet hours, Microphone off, Camera off, Lock and Remote access.
+- **More.** Packs, Games, Network, Updates, About and System.
+
+![The Home page: Kitchen is online, a checklist and four big buttons.](../images/dash-home-desktop.png)
+
+*Home: the robot at a glance, what to do next, and four big buttons.*
+
+![The Robot page on a phone: rows for Look and feel, Volume, Screen brightness, Wi-Fi, Remote control and Voice and listening.](../images/dash-robot-phone.png)
+
+*The Robot page on a phone. Volume and brightness change as you drag.*
+
+![The Safety page: switches for Quiet now, Microphone off and Camera off, and rows for Quiet hours, Lock and Remote access.](../images/dash-safety-desktop.png)
+
+*The Safety page: the switches that matter most are on top.*
+
+Tap a row with an arrow to open it. Tap the back arrow at the top to return. A small **i** next to a switch explains it. Changes apply to the robot at once, or the next time it connects.
+
+- **Look and feel** (see [Change how the robot looks](face-and-look.md)): face style, eye color and the robot's name, with a live picture. Every other look setting is behind **More settings**. The same changes work from a terminal: `stackchan face set UNIT --style big_eyes --color mint --captions on`.
 - **Language**: one of six. See [Switch the language](languages.md).
-- **Remote controls**: beep, flash, find my robot (it works even when muted), say something, head pad, nod, shake, dance, start a game and take a photo.
+- **Remote control**: say something, look around, dance, start a game and take a photo.
 
 Night mode dims the screen and the lights and softens the clock. Quiet hours are a separate window in which the robot stays quiet.
+
+![The Look and feel page: a live face, the face style, the eye color and the robot's name.](../images/dash-look-desktop.png)
+
+*Look and feel: pick a style and a color and the face changes at once.*
 
 ## What goes on the robot
 
