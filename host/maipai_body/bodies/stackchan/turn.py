@@ -826,6 +826,7 @@ class StackChanTurnBridge:
         # Talk games ("play twenty questions", "tell me a riddle"; talk_games.py): started here with a fixed line, then
         # the model plays with the game's rules next to its persona. None means no talk games.
         self.talk_games = None
+        self.talk_fallback = None  # PantryTalk (packages/pantry/talk_fallback.py): riddles and trivia from the library when the model cannot be reached
         # The spoken word "lock" ("bloquear"): locks the unit that heard it (lock_voice.py). None means the word goes to the model.
         self.lock_control = None
         # "What are you looking at?": answered from the head's own reason, never by the hub.
@@ -1692,7 +1693,9 @@ class StackChanTurnBridge:
         except Exception as exc:
             LOG.warning("StackChan voice turn failed: %s: %s", type(exc).__name__, str(exc)[:160])
             LOG.debug("StackChan voice turn failure detail", exc_info=True)
-            if isinstance(exc, (TurnAuthFailed, TurnLinkLost, TtsAuthFailed)):
+            if isinstance(exc, (TurnAuthFailed, TurnLinkLost)) and await self._pantry_game_turn(device_id, result, playback, base, cookie):
+                pass  # a riddle or trivia game went on from the pantry library
+            elif isinstance(exc, (TurnAuthFailed, TurnLinkLost, TtsAuthFailed)):
                 await asyncio.to_thread(self._offline_line, playback)
             else:
                 await asyncio.to_thread(self._speak_plain_error, playback, base, cookie)
@@ -2298,6 +2301,27 @@ class StackChanTurnBridge:
             self._reaction_speaking = False
             self._reaction_ended_at = self._clock()
             self._notify(self.on_turn_end, None)
+
+    async def _pantry_game_turn(self, device_id, result, playback, base, cookie) -> bool:
+        """The model is out of reach in the middle of a riddle or trivia game: play the turn from the pantry library (docs/design/model-games.md, S1). False when it cannot."""
+        try:
+            if self.talk_fallback is None or self.talk_games is None:
+                return False
+            state = self.talk_games.state(device_id)
+            if state is None or not self.talk_fallback.supports(state.game):
+                return False
+            out = await asyncio.to_thread(self.talk_fallback.line, device_id, state.game, state.lang, getattr(result, "text", "") or "", state.started)
+            if out is None:
+                return False
+            line, scored = out
+            if scored:
+                self.talk_games.add_point(device_id)
+            await asyncio.to_thread(self._say, playback, base, cookie, line)
+            self._breaker.note_speech()
+            return True
+        except Exception as exc:  # the usual offline line follows
+            LOG.warning("StackChan pantry game turn failed: %s", type(exc).__name__)
+            return False
 
     def _offline_line(self, playback) -> None:
         if not self._breaker.allow():  # a canned error line: same loop breaker as the apology

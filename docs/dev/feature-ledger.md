@@ -570,7 +570,6 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
-| **Host: brain_route** | One pass. | proven virtual | 70 | not declared | `host/maipai_body/brain_route.py` | file exists, a test names it | doc missing |
 | **Host: app** | MaiPai Bot's Reachy Mini app: the daemon's one running app. | proven on unit | 100 | not declared | `host/maipai_body/app.py` | `bench-b19.md`, `bench-b9.md` | doc missing |
 | **Host: asset_transport** | A pantry shelf: the same name takes the same slot with a higher version (the unit refuses a lower one); | proven virtual | 70 | not declared | `host/maipai_body/asset_transport.py` | file exists, a test names it | doc missing |
 | **Host: assets** | Signed, ranged, cacheable asset delivery (docs/plan/offload-to-host.md, candidate 1): the unit asks for a pack when it needs it and keeps only the active one. | proven on unit | 100 | not declared | `host/maipai_body/assets.py` | `bench-b9.md` | doc missing |
@@ -661,6 +660,7 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Host: interface** | Typed interface between the body host and its answering brain. | proven virtual | 70 | not declared | `host/maipai_body/brain/interface.py` | file exists, a test names it | doc missing |
 | **Host: own_llm** | Own-LLM brain using owner-configured HTTP services and optional local speech models. | proven virtual | 70 | not declared | `host/maipai_body/brain/own_llm.py` | file exists, a test names it | doc missing |
 | **Host: brain_page** | The Brain page and the first-run page (the same page; | proven virtual | 70 | not declared | `host/maipai_body/brain_page.py` | file exists, a test names it | doc missing |
+| **Host: brain_route** | One pass. | proven virtual | 70 | not declared | `host/maipai_body/brain_route.py` | file exists, a test names it | doc missing |
 | **Host: catalog** | The pinned downloads of the minimal local stack (docs/plan/minimal-stack.md). | proven virtual | 70 | not declared | `host/maipai_body/brain_setup/catalog.py` | file exists, a test names it | doc missing |
 | **Host: controller** | The Brain page's one object: what is set now, the test buttons, applying a mode, and the local stack's install, start and removal. | proven virtual | 70 | not declared | `host/maipai_body/brain_setup/controller.py` | file exists, a test names it | doc missing |
 | **Host: installer** | Install, stop and remove the minimal local stack. | proven virtual | 70 | not declared | `host/maipai_body/brain_setup/installer.py` | file exists, a test names it | doc missing |

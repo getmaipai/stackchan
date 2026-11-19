@@ -4939,6 +4939,12 @@ def _start_pantry(backend, voice=None) -> None:
     backend.pantry = Pantry(folder, ask, daily_cap=cfg.daily_cap, languages=tuple(cfg.languages), adult_humor=cfg.adult_humor)
     if voice is None:
         return
+    # Riddles and trivia go on from the library when the model cannot be reached in the middle of a game (talk_fallback.py).
+    from maipai_packages.pantry.talk_fallback import PantryTalk
+
+    game_bridge = getattr(voice, "gate_bridge", None)
+    if game_bridge is not None:
+        game_bridge.talk_fallback = PantryTalk(backend.pantry.library, adult_humor=lambda: bool(cfg.adult_humor))
     # Every five minutes, for each connected unit: take its heard list, send denials, and refill what the rule says (docs/design/content-pantry.md section 5).
     from maipai_packages.pantry.sync import UnitState, run_unit
     from maipai_packages.pantry.unit_link import ToolUnitLink
