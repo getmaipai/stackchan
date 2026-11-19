@@ -14,7 +14,7 @@ Tier 1 is Dutch, Polish, Turkish, Swedish, Danish, Norwegian (Bokmal) and Czech.
 | Turkish | G-breve, g-breve, dotted capital I, dotless i, S-cedilla, s-cedilla | 6 (c-cedilla, o and u with diaeresis are Latin-1) |
 | All three together | no letter is shared | 40 |
 
-Letters the tier 1 drafts actually use today (all 989 strings): 29 glyphs. On the robot's own screen (the 60 `unit.screen.*` rows): 24 glyphs (Polish 10, Czech 9, Turkish 5).
+Letters the tier 1 drafts actually use today (all 1,034 strings): 29 glyphs. On the robot's own screen (the 60 `unit.screen.*` rows): 24 glyphs (Polish 10, Czech 9, Turkish 5).
 Other letters wait for later languages and are not counted: Hungarian o-double-acute and u-double-acute (2 more glyphs), the rest of the Latin Extended-A block.
 
 Cost estimate. The 16 px font is 87 KB of flash for about 190 glyphs (`docs/design/screen-style.md`), so about 0.46 KB per glyph at 16 px, and about 0.72 KB at 20 px (area ratio 1.56).
@@ -30,4 +30,4 @@ Decision. Per decision 18 b, the subset is not in the base image. It ships insid
 ## What tier 1 left undone
 
 - The first-run language list and its golden frames are drawn by firmware code that holds six languages by index (`frun step N <index>`); the seven new languages need firmware work and a font pack first. The contact sheets and goldens were not extended.
-- The language-pack words (`pack.*` rows) are drafted and tested against the pack builder but not yet added to `language_packs.WORDS`, because the pack tests count five shipped packs.
+- The language-pack words (`pack.*` rows) are in `language_packs.WORDS` as plain ASCII packs (accents folded: Polish s-acute shows as s, Turkish dotless i as i), so the unit draws weekdays, months and the alarm and timer chips for the seven languages without the Latin-2 font. A test checks every tier 1 pack has every key and matches the review draft. The firmware's face language list (`MF_LANG_CODES`, in the base) still has six entries, so the unit will not apply a tier 1 pack until that list grows.

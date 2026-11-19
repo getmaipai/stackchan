@@ -90,7 +90,7 @@ class Polish:
         self._background = background
         self._threads: list[threading.Thread] = []
         try:
-            language_packs.install(self.library)  # the five shipped screen-language packs: a few hundred bytes each
+            language_packs.install(self.library)  # the shipped screen-language packs (twelve): a few hundred bytes each
         except Exception:
             logger.warning("the screen-language packs could not be put in the pack library", exc_info=True)
         self.prefs.after_save = self.on_prefs_saved

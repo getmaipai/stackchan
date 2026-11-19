@@ -56,7 +56,7 @@ def test_placeholders_formats_and_no_em_dash(code):
     english = i18n.CATALOG["en"]
     for key, text in i18n.CATALOG[code].items():
         assert sorted(FIELD.findall(text)) == sorted(FIELD.findall(english[key])), f"{code}: {key} changed a {{placeholder}}: keep it exactly"
-        assert "—" not in text, f"{code}: {key} has an em dash"
+        assert "\u2014" not in text, f"{code}: {key} has an em dash"
         text.format(**{re.split(r"[:!]", n[1:-1])[0]: 1 for n in FIELD.findall(text)})
     assert i18n.t(code, "settings.title") != "settings.title"
 
@@ -74,12 +74,30 @@ def test_robot_screen_rows_are_drawable_in_latin1(code, rows):
         assert not drawn, f"{code} needs no Latin-2 letters"
 
 
+def test_every_tier1_language_has_a_shipped_screen_words_pack():
+    assert set(language_packs.TIER1) == set(CODES) and set(CODES) <= set(language_packs.CODES)
+    assert not set(language_packs.BEFORE_K11) & set(CODES)
+
+
 @pytest.mark.parametrize("code", CODES)
-def test_screen_words_pack_is_accepted(code, monkeypatch):
-    draft = i18n_tier1.load(code)
-    monkeypatch.setitem(language_packs.WORDS, code, {"name": i18n_tier1.NATIVE[code], "weekdays": draft["pack.weekdays"].split(","), "months": draft["pack.months"].split(","), "alarm": draft["pack.alarm"], "timer": draft["pack.timer"]})
+def test_screen_words_pack_has_every_key_and_is_accepted(code):
+    row = language_packs.WORDS[code]
+    assert set(row) == {"name", "weekdays", "months", "alarm", "timer"}, f"{code}: the pack needs name, weekdays, months, alarm and timer"
+    assert row["name"] == i18n_tier1.NATIVE[code]
+    assert len(row["weekdays"]) == 7 and len(row["months"]) == 12 and row["alarm"] and row["timer"]
     text = language_packs.words_text(code)
     assert text.startswith(f"lang={code}\n") and text.isascii()
+    lines = dict(line.split("=", 1) for line in text.splitlines())
+    assert set(lines) == {"lang", "order", "weekdays", "months", "alarm", "timer"}
+    assert len(lines["weekdays"].split(",")) == 7 and len(lines["months"].split(",")) == 12
+    assert language_packs.build(code).size < 1200  # a few hundred bytes
+
+
+@pytest.mark.parametrize("code", CODES)
+def test_screen_words_pack_matches_the_review_draft(code):
+    draft, row = i18n_tier1.load(code), language_packs.WORDS[code]
+    assert ",".join(row["weekdays"]) == draft["pack.weekdays"] and ",".join(row["months"]) == draft["pack.months"]
+    assert row["alarm"] == draft["pack.alarm"] and row["timer"] == draft["pack.timer"], f"{code}: language_packs.WORDS and i18n_tier1/{code}_*.json disagree; change both"
 
 
 def test_status_label_and_export_in_sync(rows):

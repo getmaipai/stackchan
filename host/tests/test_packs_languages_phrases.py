@@ -113,7 +113,7 @@ def test_the_five_packs_carry_the_words_the_unit_had_built_in_before_k11() -> No
         / "patches"
         / "U06-face-style-packs-and-languages.patch"
     ).read_text()
-    for code in language_packs.CODES:
+    for code in language_packs.BEFORE_K11:
         row = language_packs.WORDS[code]
         for word in (*row["weekdays"], *row["months"], row["alarm"], row["timer"]):  # type: ignore[misc]
             plain = __import__("maipai_body.unit_extras", fromlist=["screen_text"]).screen_text(
@@ -127,16 +127,16 @@ def test_the_library_gets_the_shipped_packs_once_and_leaves_changed_ones_replace
 ) -> None:
     library = packs.PackLibrary(tmp_path / "packs", filler_root=tmp_path / "fillers")
     first = language_packs.install(library)
-    assert len(first) == 5 and language_packs.install(library) == []
+    assert len(first) == 12 and language_packs.install(library) == []
     listed = {p["lang"]: p for p in library.list("language")}
-    assert set(listed) == {"es", "fr", "de", "pt", "it"} and all(
+    assert set(listed) == {"es", "fr", "de", "pt", "it", "nl", "nb", "sv", "da", "pl", "tr", "cs"} and all(
         p["size"] < 1200 for p in listed.values()
     )
     library.delete(language_packs.pack_id("de"))
     assert language_packs.install(library) == ["language/screen-words-de"]
 
 
-@pytest.mark.parametrize("code", ["es", "fr", "de", "pt", "it"])
+@pytest.mark.parametrize("code", list(language_packs.CODES))
 def test_the_unit_accepts_each_shipped_pack_and_shows_its_words_only_for_its_own_language(
     unit, code
 ) -> None:  # noqa: F811
