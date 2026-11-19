@@ -40,6 +40,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - [Frame cost baseline from the virtual unit (2026-11-18)](frame-cost-baseline-2026-11-18.md)
 - [Fuzzing the unit's parsers, and a hostile peer against the host](fuzzing-and-hostile-peer.md)
 - [Screen audit of the data-pack games](games-audit.md)
+- [What the games cost in the image (measured from a built tree, 2026-11-18)](games-footprint.md)
 - [Gate numbers (2026-11-18)](gate-numbers.md)
 - [Hardware reference (what we know about the StackChan unit, and how we know it)](hardware-reference.md)
 - [Recording head moves on the unit (for the physics calibration)](head-recording.md)

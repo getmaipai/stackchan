@@ -245,7 +245,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/heap-map-b47.md` (54): The internal heap map of b47 (bench window 14): what holds the largest block, and what would move it above 36 
 - `docs/dev/host-and-brains.md` (44): Host and brains
 - `docs/dev/host-choices-audit.md` (77): Host choices audit (owner decision 20, 2026-11-18)
-- `docs/dev/index.md` (109): MaiPai for StackChan: developer guide
+- `docs/dev/index.md` (110): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
 - `docs/dev/model-previews/joints.gif` (1487): Binary file docs/dev/model-previews/joints.gif matches
@@ -519,7 +519,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
 - `docs/user/camera.md` (84): Use the camera
 - `docs/user/character-packs.md` (19): Character packs
-- `docs/user/choose-a-brain.md` (36): Choose a brain
+- `docs/user/choose-a-brain.md` (42): Choose a brain
 - `docs/user/coding-companion.md` (38): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
 - `docs/user/face-and-look.md` (128): Change how the robot looks
@@ -546,7 +546,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/mute-and-camera-off.md` (68): Mute, turn off the camera, or go fully quiet
 - `docs/user/no-stealth.md` (18): The robot never monitors in secret
 - `docs/user/parent-view.md` (39): Check on the robot from your phone
-- `docs/user/privacy.md` (67): What stays private
+- `docs/user/privacy.md` (71): What stays private
 - `docs/user/release-notes.md` (45): Release notes
 - `docs/user/run-as-a-service.md` (38): Keep the host running
 - `docs/user/security.md` (65): Keep the robot secure
@@ -2323,7 +2323,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_app.py` (608): The app's real boot path: hold neutral until paired, log state
 - `host/tests/test_app_link_ladder.py` (107): LINK-STATE-01 in the app: the page's state frame, the setting and the wiring."""
 - `host/tests/test_asset_licenses.py` (22): schema/licenses.json is the one definition of the asset store's license ids: unique, never 0 (the unit refuses
-- `host/tests/test_asset_transport.py` (97): The asset transport (firmware SF89 and SF90): the header bytes, the order of the calls, abort on any failure, 
+- `host/tests/test_asset_transport.py` (108): The asset transport (firmware SF89 and SF90): the header bytes, the order of the calls, abort on any failure, 
 - `host/tests/test_assets.py` (97): Signed, ranged, cacheable asset delivery: the manifest is signed and checks out, ranges answer correctly, a un
 - `host/tests/test_assets_kinds_drift.py` (27): The asset store's kind table in the unit's core is the one in schema/asset-kinds.json (one definition, one pla
 - `host/tests/test_assets_sim_ed25519.py` (27): The plain Python Ed25519 beside assets_sim gives the same keys and signatures as the `cryptography` package (t
@@ -2920,7 +2920,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/make-hero-robot-gif.py` (80): Make docs/images/hero-robot.gif from the virtual unit: the unit's own screen renderer, scripted and reproducib
 - `scripts/make-lights.py` (105): draw the robot's ring colors and tone shapes as small animated SVGs for the docs.
 - `scripts/make-mumble-samples.py` (38): Make the offline mumble samples to listen to: docs/dev/mumble/<lang>.wav (8 kHz, 16 bit, about 3 seconds each)
-- `scripts/make-object-seed.py` (25): write the six <language>-object.json seed files from host/maipai_packages/pantry/objects/objects.json (one tab
+- `scripts/make-object-seed.py` (32): write the six <language>-object.json seed files from host/maipai_packages/pantry/objects/ (core.json: group, b
 - `scripts/make-placeholders.py` (24): draw an SVG placeholder for every screenshot named in the docs, and swap the text note for an image.
 - `scripts/make-update-vectors.py` (92): write the signed-update test vectors (host/tests/fixtures/update-signature-vectors.json) from a fixed TEST see
 - `scripts/make-vu-screenshots.py` (52): the screenshots for the user docs come from the virtual unit's golden frames (real LVGL drawing of the unit's 
