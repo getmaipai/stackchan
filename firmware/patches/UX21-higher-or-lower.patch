@@ -1,0 +1,270 @@
+# Intent: Higher or Lower (spec docs/design/higher-or-lower.md, rank 1 of docs/plan/more-games.md): a shuffled deck of 52, one card face up; the person says Higher or Lower, the next card is turned over; right adds one to the streak, the same rank is a push, wrong ends the game on Game over with the streak (owner decision 33). Two new header-only files: the pure core (deck, answers, odds hint, finger-size buttons) and the screen drawn by the very code the host renderer compiles. Registering the game, the touches, the sounds (tick, good, bad), the best score and the game-over call are the firmware track's.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_hilo_core.h, maipai_hilo.h (new, ours)
+# Check after a flash: Games, Higher or Lower: a face-up card and a face-down one, two big buttons; a right answer shows both cards and the streak grows; a wrong answer ends on Game over with the streak; the hint line counts the cards left.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_hilo_core.h b/firmware/main/hal/maipai_hilo_core.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_hilo_core.h
+@@ -0,0 +1,135 @@
++/*
++ * SPDX-License-Identifier: MIT
++ *
++ * Higher or Lower (patch UX21; spec docs/design/higher-or-lower.md): a shuffled deck of 52 cards, one face up. The player says whether the next card is higher or lower; the next card is turned
++ * over. A right answer adds one to the streak and the new card becomes the current one; the same rank is a push (no change, the next card is drawn); a wrong answer ends the game. A score-only
++ * game: it ends on Game over with the streak (owner decision 33). Aces are low. Pure C99, no ESP and no LVGL call, no heap. The rules and the touch targets live here so a host test checks them.
++ */
++#ifndef MAIPAI_HILO_CORE_H
++#define MAIPAI_HILO_CORE_H
++
++#include <stdint.h>
++#include <string.h>
++
++#define HL_DECK 52
++enum { HL_PLAY = 0, HL_OVER };                 /* the game is on, or a wrong answer (or the last card) ended it */
++enum { HL_IGNORED = 0, HL_RIGHT, HL_WRONG, HL_PUSH };
++enum { HL_B_NONE = 0, HL_B_HIGHER, HL_B_LOWER };
++
++typedef struct {
++    uint8_t deck[HL_DECK];     /* card = suit * 13 + (rank - 1); rank 1 (ace) to 13 (king), suit 0 clubs, 1 diamonds, 2 hearts, 3 spades */
++    uint8_t pos;               /* the index of the current (face-up) card in the deck; the next card is pos + 1 */
++    uint8_t phase;
++    uint8_t last;              /* the card turned over by the last answer (valid when last_result is not 0) */
++    uint8_t last_result;       /* HL_RIGHT, HL_WRONG or HL_PUSH for the answer just given, 0 before the first */
++    uint16_t streak;
++    uint16_t pushes;
++    uint32_t rng;
++} hl_t;
++
++static inline uint32_t hl_rand(hl_t* g)
++{
++    g->rng = g->rng * 1664525u + 1013904223u;
++    return g->rng >> 8;
++}
++
++static inline int hl_rank(int card) { return card % 13 + 1; }
++static inline int hl_suit(int card) { return card / 13; }
++static inline int hl_red(int card) { return hl_suit(card) == 1 || hl_suit(card) == 2; }
++
++static inline void hl_init(hl_t* g, uint32_t seed)
++{
++    memset(g, 0, sizeof(*g));
++    g->rng = seed != 0 ? seed : 1u;
++    for (int i = 0; i < HL_DECK; i++) g->deck[i] = (uint8_t)i;
++    for (int i = HL_DECK - 1; i > 0; i--) {   /* Fisher-Yates */
++        const int j = (int)(hl_rand(g) % (uint32_t)(i + 1));
++        const uint8_t t = g->deck[i];
++        g->deck[i] = g->deck[j];
++        g->deck[j] = t;
++    }
++    g->phase = HL_PLAY;
++}
++
++static inline int hl_current(const hl_t* g) { return g->deck[g->pos]; }
++
++/* The answer: higher (1) or lower (0). The next card is turned over; returns HL_RIGHT, HL_WRONG or HL_PUSH, or HL_IGNORED when the game is over. A push (the same rank) changes nothing but
++ * moves on to the next card. Turning the last card of the deck (right or push) also ends the game (the deck is out), the streak stays. */
++static inline int hl_guess(hl_t* g, int higher)
++{
++    if (g->phase != HL_PLAY || g->pos + 1 >= HL_DECK) return HL_IGNORED;
++    const int a = hl_rank(g->deck[g->pos]), nx = g->deck[g->pos + 1], b = hl_rank(nx);
++    g->last = (uint8_t)nx;
++    int res;
++    if (b == a) {
++        res = HL_PUSH;
++        g->pushes++;
++    } else if ((b > a) == (higher != 0)) {
++        res = HL_RIGHT;
++        g->streak++;
++    } else {
++        res = HL_WRONG;
++    }
++    g->last_result = (uint8_t)res;
++    g->pos++;
++    if (res == HL_WRONG || g->pos + 1 >= HL_DECK) g->phase = HL_OVER;
++    return res;
++}
++
++/* How many of the cards still in the deck (after the current one) are higher and lower than the current rank, as a hint of the odds: out[0] higher, out[1] lower, out[2] the same. */
++static inline void hl_remaining(const hl_t* g, int* out)
++{
++    out[0] = out[1] = out[2] = 0;
++    const int a = hl_rank(g->deck[g->pos]);
++    for (int i = g->pos + 1; i < HL_DECK; i++) {
++        const int b = hl_rank(g->deck[i]);
++        out[b > a ? 0 : (b < a ? 1 : 2)]++;
++    }
++}
++
++/* ---- the screen: a header line, two cards, two big buttons (all targets 8 px apart on the 8 px margin) ---- */
++typedef struct { int16_t x, y, w, h; uint8_t id; } hl_rect_t;
++static inline void hl_set(hl_rect_t* r, int x, int y, int w, int h, int id) { r->x = (int16_t)x; r->y = (int16_t)y; r->w = (int16_t)w; r->h = (int16_t)h; r->id = (uint8_t)id; }
++/* Two buttons 148 by 56 at y 176: Higher on the left, Lower on the right. */
++static inline int hl_buttons(hl_rect_t* r)
++{
++    hl_set(&r[0], 8, 176, 148, 56, HL_B_HIGHER);
++    hl_set(&r[1], 164, 176, 148, 56, HL_B_LOWER);
++    return 2;
++}
++/* The two cards, 84 by 104 at y 60 (they are not touch targets): the current one on the left, the next on the right. */
++static inline void hl_card_box(int which, int* x, int* y, int* w, int* h)
++{
++    *x = which == 0 ? 52 : 184;
++    *y = 60;
++    *w = 84;
++    *h = 104;
++}
++static inline int hl_hit(const hl_rect_t* r, int n, int px, int py)
++{
++    for (int i = 0; i < n; i++) if (px >= r[i].x && px < r[i].x + r[i].w && py >= r[i].y && py < r[i].y + r[i].h) return r[i].id;
++    return HL_B_NONE;
++}
++
++static inline const char* hl_rank_text(int card)
++{
++    static const char* const t[13] = {"A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"};
++    return t[hl_rank(card) - 1];
++}
++static inline const char* hl_suit_name(int card, int es)
++{
++    static const char* const en[4] = {"clubs", "diamonds", "hearts", "spades"};
++    static const char* const sp[4] = {"treboles", "diamantes", "corazones", "picas"};
++    return es ? sp[hl_suit(card)] : en[hl_suit(card)];
++}
++static inline const char* hl_result_text(int result, int es)
++{
++    switch (result) {
++        case HL_RIGHT: return es ? "Bien" : "Right";
++        case HL_WRONG: return es ? "Fallaste" : "Wrong";
++        case HL_PUSH: return es ? "Igual" : "Same";
++        default: return "";
++    }
++}
++
++#endif
+diff --git a/firmware/main/hal/maipai_hilo.h b/firmware/main/hal/maipai_hilo.h
+new file mode 100644
+--- /dev/null
++++ b/firmware/main/hal/maipai_hilo.h
+@@ -0,0 +1,119 @@
++// SPDX-License-Identifier: MIT
++// The Higher or Lower screen (patch UX21; spec docs/design/higher-or-lower.md). Header only, so the host renderer compiles the very same drawing code. The firmware track wires the touches,
++// the sounds, the best score and the shared game-over screen (Game over with the streak). No ESP call here.
++#ifndef MAIPAI_HILO_H
++#define MAIPAI_HILO_H
++
++#include <lvgl.h>
++#include <stdio.h>
++#include "maipai_hilo_core.h"
++
++namespace hlo {
++
++inline lv_obj_t* tile(lv_obj_t* parent, int x, int y, int w, int h, uint32_t fill, uint32_t edge, int edge_w, int radius)
++{
++    lv_obj_t* o = lv_obj_create(parent);
++    lv_obj_remove_style_all(o);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
++    lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_pos(o, x, y);
++    lv_obj_set_size(o, w, h);
++    lv_obj_set_style_bg_color(o, lv_color_hex(fill), 0);
++    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
++    lv_obj_set_style_radius(o, radius, 0);
++    lv_obj_set_style_border_width(o, edge_w, 0);
++    lv_obj_set_style_border_color(o, lv_color_hex(edge), 0);
++    return o;
++}
++
++inline lv_obj_t* words(lv_obj_t* parent, const char* t, const lv_font_t* font, uint32_t rgb, int x, int y, int w, lv_text_align_t align)
++{
++    lv_obj_t* l = lv_label_create(parent);
++    lv_label_set_text(l, t);
++    lv_obj_set_style_text_font(l, font, 0);
++    lv_obj_set_style_text_color(l, lv_color_hex(rgb), 0);
++    lv_obj_set_style_text_align(l, align, 0);
++    lv_obj_set_width(l, w);
++    lv_obj_set_pos(l, x, y);
++    return l;
++}
++
++// A card: face down (a blue back with a question mark), or face up: white, the rank large (the 20 px text drawn at twice the size), the suit as a colored shape and its name small.
++// `dim` is the card that was current before the answer.
++inline void card(lv_obj_t* parent, int which, int cardv, bool face_up, bool es, bool dim)
++{
++    int x, y, w, h;
++    hl_card_box(which, &x, &y, &w, &h);
++    if (!face_up) {
++        lv_obj_t* back = tile(parent, x, y, w, h, 0x2C3E7A, 0x6A86D8, 2, 10);
++        lv_obj_t* q = lv_label_create(back);
++        lv_label_set_text(q, "?");
++        lv_obj_set_style_text_font(q, &lv_font_montserrat_20, 0);
++        lv_obj_set_style_text_color(q, lv_color_white(), 0);
++        lv_obj_set_style_transform_scale(q, 512, 0);
++        lv_obj_center(q);
++        lv_obj_update_layout(q);
++        lv_obj_set_style_transform_pivot_x(q, lv_obj_get_width(q) / 2, 0);   // scale around the middle of the text, not its corner
++        lv_obj_set_style_transform_pivot_y(q, lv_obj_get_height(q) / 2, 0);
++        return;
++    }
++    const uint32_t ink = hl_red(cardv) ? 0xC0392B : 0x1A1A1A;
++    lv_obj_t* c = tile(parent, x, y, w, h, dim ? 0xCFCBBE : 0xF4F1E8, 0xB8B2A0, 1, 10);
++    lv_obj_t* r = lv_label_create(c);
++    lv_label_set_text(r, hl_rank_text(cardv));
++    lv_obj_set_style_text_font(r, &lv_font_montserrat_20, 0);
++    lv_obj_set_style_text_color(r, lv_color_hex(ink), 0);
++    lv_obj_set_style_transform_scale(r, 512, 0);
++    lv_obj_align(r, LV_ALIGN_TOP_MID, 0, 18);
++    lv_obj_update_layout(r);
++    lv_obj_set_style_transform_pivot_x(r, lv_obj_get_width(r) / 2, 0);   // scale around the middle of the text, not its corner
++    lv_obj_set_style_transform_pivot_y(r, lv_obj_get_height(r) / 2, 0);
++    const int s = hl_suit(cardv);
++    lv_obj_t* mark = tile(c, w / 2 - 8, h - 40, 16, 16, ink, ink, 0, (s == 0 || s == 2) ? LV_RADIUS_CIRCLE : 2);
++    if (s == 1 || s == 3) lv_obj_set_style_transform_rotation(mark, 450, 0);   // diamonds and spades: a square turned on its corner
++    words(c, hl_suit_name(cardv, es), &lv_font_montserrat_14, ink, 0, h - 20, w, LV_TEXT_ALIGN_CENTER);
++}
++
++// `reveal`: the screen right after an answer: the card that was current (dimmed) on the left, the card just turned over on the right. Otherwise the current card on the left and a face-down card.
++inline lv_obj_t* screen(lv_obj_t* parent, const hl_t& g, bool reveal, bool es)
++{
++    lv_obj_t* r = lv_obj_create(parent);
++    lv_obj_remove_style_all(r);
++    lv_obj_remove_flag(r, LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(r, 320, 240);
++    lv_obj_set_style_bg_color(r, lv_color_black(), 0);
++    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
++    char sc[24];
++    snprintf(sc, sizeof(sc), es ? "Racha %d" : "Streak %d", g.streak);
++    words(r, sc, &lv_font_montserrat_16, 0xE8E8E8, 8, 30, 160, LV_TEXT_ALIGN_LEFT);
++    if (reveal && g.last_result) {
++        const uint32_t col = g.last_result == HL_RIGHT ? 0x7FE0B8 : (g.last_result == HL_WRONG ? 0xE07A7A : 0x9AA3B0);
++        words(r, hl_result_text(g.last_result, es), &lv_font_montserrat_16, col, 212, 30, 100, LV_TEXT_ALIGN_RIGHT);
++        card(r, 0, g.deck[g.pos - 1], true, es, true);
++        card(r, 1, g.deck[g.pos], true, es, false);
++    } else {
++        int left[3];
++        hl_remaining(&g, left);
++        char hint[40];
++        snprintf(hint, sizeof(hint), es ? "Mayor %d  Menor %d" : "Higher %d  Lower %d", left[0], left[1]);   // the cards still in the deck, as an honest hint of the odds
++        words(r, hint, &lv_font_montserrat_14, 0x9AA3B0, 160, 32, 152, LV_TEXT_ALIGN_RIGHT);
++        card(r, 0, hl_current(&g), true, es, false);
++        card(r, 1, 0, false, es, false);
++    }
++    hl_rect_t b[2];
++    const int n = hl_buttons(b);
++    for (int i = 0; i < n; i++) {
++        const bool up = b[i].id == HL_B_HIGHER;
++        lv_obj_t* o = tile(r, b[i].x, b[i].y, b[i].w, b[i].h, up ? 0x2E7D4F : 0x2C3E7A, up ? 0x7FE0B8 : 0x6A86D8, 1, 12);
++        lv_obj_t* t = lv_label_create(o);
++        lv_label_set_text(t, up ? (es ? "Mayor" : "Higher") : (es ? "Menor" : "Lower"));
++        lv_obj_set_style_text_font(t, &lv_font_montserrat_20, 0);
++        lv_obj_set_style_text_color(t, lv_color_white(), 0);
++        lv_obj_center(t);
++    }
++    return r;
++}
++
++}  // namespace hlo
++
++#endif

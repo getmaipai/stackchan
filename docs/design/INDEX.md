@@ -753,7 +753,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (371): no header
+- `firmware/patches/ORDER` (378): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -791,6 +791,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF08-stamp-window-lock-backoff-servo-lock.patch` (487): Safety fix, train 8. The millisecond-stamp helper reads a passed deadline as not pending at any later time (de
 - `firmware/patches/SF09-first-run-wiring.patch` (161): Wires the first-run flow (screens from patch UX05b). At the first standby of a unit with no saved answers it s
 - `firmware/patches/SF10-mouth-cues-tool.patch` (254): The unit tool self.face.mouth_cues {"cues": "[[ms, level 0..4], ...]"}: a list of mouth cues from the host pla
+- `firmware/patches/SF100-leave-hosted-shows-the-notice-screen.patch` (78): Leaving the hosted brain shows the playground's notice screen (UX20: "Hosted link removed", what was removed, 
 - `firmware/patches/SF101-old-default-quick-actions-move-to-the-new-default.patch` (24): The saved quick-actions list is moved to the new default when it still is the old default. A unit that saved "
 - `firmware/patches/SF103-review-fix-orientation-hold-cap.patch` (55): Review fix (orientation): the hold on the accelerometer while the head's pitch moves is capped. The hold is ho
 - `firmware/patches/SF104-review-fix-keypad-pause.patch` (141): Review fix (keypad): the lock keypad pauses after a run of wrong codes (owner decision 2026-11-18). After 5 wr
@@ -963,6 +964,12 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX16-offline-mumble-core.patch` (197): The offline mumble (owner decision 24, 2026-11-18; spec docs/design/offline-mumble.md). When the unit has word
 - `firmware/patches/UX17-question-and-answer-game-screens.patch` (285): The screens of the question-and-answer games (owner decisions 25 to 27, 2026-11-18; spec docs/design/qa-game-s
 - `firmware/patches/UX18-dice-poker.patch` (249): Dice Poker (the first of the new games of docs/plan/more-games.md, ranked 2; spec docs/design/dice-poker.md). 
+- `firmware/patches/UX19-brain-two-equal-routes.patch` (182): The brain step of the first run offers two equal routes (owner decision 34, 2026-11-18): A "Hosted by M5Stack/
+- `firmware/patches/UX19b-first-run-lines-that-fit.patch` (26): Two first-run lines no longer wrap into the text below or get cut off (owner request: text never overlaps anot
+- `firmware/patches/UX20-hosted-link-removed-notice.patch` (146): The notice "Hosted link removed" (owner decision 34): shown on the unit after it left the hosted brain (M5Stac
+- `firmware/patches/UX20b-notice-console-line.patch` (90): The "Hosted link removed" notice (UX20) gets the owner's plain line (decision 34): "To stop your account keepi
+- `firmware/patches/UX21-higher-or-lower.patch` (270): Higher or Lower (spec docs/design/higher-or-lower.md, rank 1 of docs/plan/more-games.md): a shuffled deck of 5
+- `firmware/patches/UX22-reversi.patch` (304): Reversi (spec docs/design/reversi.md, rank 3 of docs/plan/more-games.md): 8 by 8, the person plays black and m
 - `firmware/patches/V01-serial-tool-path.patch` (192): Train 3 verification path (docs/design/unit-verification-plan-2026-11-16.md). A bench build can call the unit'
 - `firmware/patches/V02-offline-phrases.patch` (409): Train 6 item 1, offline phrases on the unit (legacy patch 118 rebuilt on the Train 4 tree). When the wake word
 - `firmware/patches/V03-music-dance.patch` (1461): Train 6 item 2, music dance on the unit (legacy patches 100, 101, 121, 124, 126 to 128, 130 and 131 rebuilt as
@@ -2172,7 +2179,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/facefx_core_test.c` (134): Host test for the fluid face core (patch H02): easing, time constants, speech level, mouth curve, gaze drift. 
 - `host/tests/firmware/filler_core_test.c` (220): Host test for "While it thinks" (patch TB03): the delay rule, the pick, the index reader, mu-law and the tone.
 - `host/tests/firmware/find_core_test.c` (27): Host test for the find-my-robot sound rule (patch Y02): the full sounds core with the find bypass. */
-- `host/tests/firmware/firstrun_core_test.c` (162): include <stdio.h>
+- `host/tests/firmware/firstrun_core_test.c` (181): include <stdio.h>
 - `host/tests/firmware/flyer_core_test.c` (136): Host test of maipai_flyer_core.h (patch UX25, Flappy-style flyer): gravity, the hop, the pipes and their gaps,
 - `host/tests/firmware/fx_core_test.c` (347): Host test for the screen effects and the governor (patches TA02, TA05): scanline row math, split invariance, c
 - `host/tests/firmware/fx_cost.c` (94): Host cost model for the overlays and effects (patches TA02, TA03). Runs every overlay for 30 simulated seconds
@@ -2437,7 +2444,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (74): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (77): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw

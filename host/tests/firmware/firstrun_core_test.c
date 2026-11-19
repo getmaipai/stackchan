@@ -157,6 +157,25 @@ int main(void)
         if (check_boxes((const int (*)[4])b, 2)) return 1;              /* privacy and the last screen: Back (or nothing) and Got it */
         CHECK(b[1][3] >= 56 && b[1][1] + b[1][3] + 8 <= 240);
     }
+    {   /* patch UX19 (decision 34): two equal routes; B opens the three ways, Back returns, A is the hosted answer, Skip never picks A */
+        mfr_t m;
+        mfr_init(&m, 1, 0);
+        CHECK(mfr_choose_language(&m, MFR_LANG_EN) && mfr_choose_name(&m, 0) && m.step == MFR_BRAIN && m.custom == 0);
+        CHECK(mfr_open_custom(&m) && m.custom == 1 && m.step == MFR_BRAIN);
+        mfr_back(&m);
+        CHECK(m.step == MFR_BRAIN && m.custom == 0);   /* Back from the Custom page stays on the step */
+        mfr_back(&m);
+        CHECK(m.step == MFR_NAME);                     /* a second Back leaves the step */
+        CHECK(mfr_choose_name(&m, 0) && mfr_skip(&m) && m.mode != MFR_MODE_HOSTED && m.step == MFR_PRIVACY);   /* Skip takes Home or set-one-up, never the hosted route */
+        mfr_init(&m, 1, 0);
+        CHECK(mfr_open_custom(&m) == 0);               /* only on the brain step */
+        CHECK(mfr_choose_language(&m, MFR_LANG_EN) && mfr_choose_name(&m, 0));
+        CHECK(mfr_choose_mode(&m, MFR_MODE_HOSTED) && m.mode == MFR_MODE_HOSTED && m.custom == 0 && m.step == MFR_PRIVACY);
+        int r[2][4];
+        for (int i = 0; i < 2; i++) mfr_route_box(i, &r[i][0], &r[i][1], &r[i][2], &r[i][3]);
+        CHECK(r[0][2] == 304 && r[1][2] == 304 && r[0][3] == r[1][3]);                       /* equal tiles */
+        CHECK(r[1][1] - (r[0][1] + r[0][3]) >= 8 && r[0][1] - 52 >= 8 && r[1][1] + r[1][3] <= 224);
+    }
     puts("firstrun_core_test: all passed");
     return 0;
 }

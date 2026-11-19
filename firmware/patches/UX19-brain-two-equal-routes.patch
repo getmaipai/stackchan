@@ -1,0 +1,182 @@
+# Intent: The brain step of the first run offers two equal routes (owner decision 34, 2026-11-18): A "Hosted by M5Stack/Xiaozhi" and B "Custom", each with one plain line about where the voice goes (A: to their servers, outside the home; B: where you point it), in all six languages. B opens the page with the three ways (MaiPai Home, my own servers, set one up for me). Neither route is highlighted and neither is an extra. A saves mode 3 (MFR_MODE_HOSTED) and sends it in first_run_done like the other modes; Skip still takes the old default (Home or set one up), never A. Back from the Custom page returns to the two routes.
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_firstrun_core.h, maipai_firstrun.cc (ours, patches UX12 and UX13d)
+# Check after a flash: first run step 4 shows two tiles with one line each and no tile highlighted; tapping Custom shows the three ways with a Back arrow that returns to the two tiles; tapping Hosted goes on to the privacy step and first_run_done carries mode 3; Skip still lands on Home or set one up.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_firstrun_core.h b/firmware/main/hal/maipai_firstrun_core.h
+--- a/firmware/main/hal/maipai_firstrun_core.h
++++ b/firmware/main/hal/maipai_firstrun_core.h
+@@ -32,6 +32,7 @@
+     MFR_MODE_NONE = -1,
+     MFR_MODE_HOME = 0,
+     MFR_MODE_OWN = 1,
++    MFR_MODE_HOSTED = 3, /* patch UX19 (decision 34): route A, hosted by M5Stack/Xiaozhi: the voice leaves the home for their servers. Routes A and B are equal; B is the three ways below */
+     MFR_MODE_SETUP = 2 /* patch UX12: "Set one up for me" (decision 12 of 2026-11-18, way c: a minimal local stack the host installs); 0 is MaiPai Home, 1 the person's own servers (way b) */
+ };
+ 
+@@ -51,6 +52,7 @@
+     uint8_t wifi_set;
+     uint8_t hub_known;
+     uint8_t answered_mask;
++    uint8_t custom;   /* patch UX19: on the brain step, the Custom page (the three ways) is open instead of the two routes */
+ } mfr_t;
+ 
+ static inline void mfr_init(mfr_t* m, int wifi_set, int hub_known)
+@@ -62,6 +64,7 @@
+     m->wifi_set = (uint8_t)(wifi_set != 0);
+     m->hub_known = (uint8_t)(hub_known != 0);
+     m->answered_mask = 0;
++    m->custom = 0;
+ }
+ 
+ static inline int mfr_choose_language(mfr_t* m, int lang)
+@@ -116,15 +119,26 @@
+ 
+ static inline int mfr_choose_mode(mfr_t* m, int mode)
+ {
+-    if (m->step != MFR_BRAIN || (mode != MFR_MODE_HOME && mode != MFR_MODE_OWN && mode != MFR_MODE_SETUP)) {
++    if (m->step != MFR_BRAIN || (mode != MFR_MODE_HOME && mode != MFR_MODE_OWN && mode != MFR_MODE_SETUP && mode != MFR_MODE_HOSTED)) {
+         return 0;
+     }
+     m->mode = (int8_t)mode;
++    m->custom = 0;
+     m->answered_mask |= MFR_ANSWER_BRAIN;
+     m->step = MFR_PRIVACY;
+     return 1;
+ }
+ 
++/* Route B (Custom): opens the page with the three ways. Only on the brain step. */
++static inline int mfr_open_custom(mfr_t* m)
++{
++    if (m->step != MFR_BRAIN) {
++        return 0;
++    }
++    m->custom = 1;
++    return 1;
++}
++
+ static inline int mfr_ack_privacy(mfr_t* m)
+ {
+     if (m->step != MFR_PRIVACY) {
+@@ -150,6 +164,11 @@
+ 
+ static inline void mfr_back(mfr_t* m)
+ {
++    if (m->step == MFR_BRAIN && m->custom) {   /* patch UX19: Back from the Custom page returns to the two routes */
++        m->custom = 0;
++        return;
++    }
++    m->custom = 0;
+     if (m->step <= MFR_LANGUAGE || m->step >= MFR_DONE) {
+         return;
+     }
+@@ -198,6 +217,8 @@
+ static inline void mfr_name_wide_box(int* x, int* y, int* w, int* h) { mfr_set_box(8, 60, 304, 48, x, y, w, h); }
+ static inline void mfr_name_box(int i, int* x, int* y, int* w, int* h) { mfr_set_box(8 + (i % 3) * 104, 116 + (i / 3) * 56, 96, 48, x, y, w, h); }
+ static inline void mfr_mode_box(int i, int* x, int* y, int* w, int* h) { mfr_set_box(8, 60 + i * 56, 304, 48, x, y, w, h); }
++/* patch UX19: the two equal routes of the brain step, 304 by 78 each, 8 px apart (y 60 to 138 and 146 to 224): a title and one plain line about where the voice goes */
++static inline void mfr_route_box(int i, int* x, int* y, int* w, int* h) { mfr_set_box(8, 60 + i * 86, 304, 78, x, y, w, h); }
+ static inline void mfr_got_box(int* x, int* y, int* w, int* h) { mfr_set_box(80, 176, 160, 56, x, y, w, h); }
+ 
+ #endif
+diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_firstrun.cc
+--- a/firmware/main/hal/maipai_firstrun.cc
++++ b/firmware/main/hal/maipai_firstrun.cc
+@@ -25,26 +25,30 @@
+         const char* next_b;
+         const char* next_none;
+         const char* next_c;
++        const char* route_a;    // patch UX19 (decision 34): route A, hosted by the vendor
++        const char* route_a_line;
++        const char* route_b;    // route B, Custom (opens the three ways)
++        const char* route_b_line;
+     };
+     const Words words[MFR_LANG_COUNT] = {
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "What should I be called?", "Let's join your Wi-Fi", "Where should my brain live?", "Private by design", "All set!"},
+          "Let's join your Wi-Fi", "Where should my brain live?", "MaiPai Home", "My own servers", "Your voice stays in your home either way.", "Private by design", "Your voice and pictures stay in your home.", "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "Type your own name later, on the settings page.",
+-         "Skip", "Set one up for me", "What now?", "Say \"Hi, Stack Chan\" and ask me something.", "Change anything on the settings page:", "on the computer that runs the host", "Phone: tap Show the phone code there."},
++         "Skip", "Set one up for me", "What now?", "Say \"Hi, Stack Chan\" and ask me something.", "Change anything on the settings page:", "on the computer that runs the host", "Phone: tap Show the phone code there.", "Hosted by M5Stack/Xiaozhi", "Your voice goes to their servers, outside your home.", "Custom", "Your voice stays where you point it."},
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "¿Cómo me llamo?", "Conectemos tu Wi-Fi", "¿Dónde debe vivir mi cerebro?", "Privado por diseño", "¡Todo listo!"},
+          "Conectemos tu Wi-Fi", "¿Dónde debe vivir mi cerebro?", "MaiPai Home", "Mis propios servidores", "Tu voz queda en casa en cualquier caso.", "Privado por diseño", "Tu voz y fotos quedan en casa.", "Nada va a internet si no lo activas.", "Entendido", "¡Todo listo!", "Escribe tu propio nombre luego, en la página de ajustes.",
+-         "Omitir", "Prepara uno por mí", "¿Y ahora?", "Di \"Hi, Stack Chan\" y pregúntame algo.", "Cambia todo en la página de ajustes:", "en el equipo que ejecuta el host", "Móvil: pulsa Mostrar el código del teléfono."},
++         "Omitir", "Prepara uno por mí", "¿Y ahora?", "Di \"Hi, Stack Chan\" y pregúntame algo.", "Cambia todo en la página de ajustes:", "en el equipo que ejecuta el host", "Móvil: pulsa Mostrar el código del teléfono.", "Alojado por M5Stack/Xiaozhi", "Tu voz va a sus servidores, fuera de casa.", "Personalizado", "Tu voz queda donde tú indiques."},
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Comment m'appeler ?", "Rejoignons votre Wi-Fi", "Où doit vivre mon cerveau ?", "Privé par design", "Tout est prêt !"},
+          "Rejoignons votre Wi-Fi", "Où doit vivre mon cerveau ?", "MaiPai Home", "Mes propres serveurs", "Votre voix reste chez vous dans tous les cas.", "Privé par design", "Voix et photos restent chez vous.", "Rien ne va sur internet sans accord.", "Compris", "Tout est prêt !", "Tapez votre propre nom plus tard, dans les réglages.",
+-         "Passer", "En installer un pour moi", "Et maintenant ?", "Dites \"Hi, Stack Chan\" et posez une question.", "Tout se règle dans les réglages :", "sur l'ordinateur qui exécute l'hôte", "Téléphone : touchez Afficher le code téléphone."},
++         "Passer", "En installer un pour moi", "Et maintenant ?", "Dites \"Hi, Stack Chan\" et posez une question.", "Tout se règle dans les réglages :", "sur l'ordinateur qui exécute l'hôte", "Téléphone : touchez Afficher le code téléphone.", "Hébergé par M5Stack/Xiaozhi", "Votre voix part vers leurs serveurs, hors de chez vous.", "Personnalisé", "Votre voix reste là où vous l'indiquez."},
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Wie soll ich heißen?", "WLAN verbinden", "Wo soll mein Gehirn wohnen?", "Privat von Anfang an", "Alles bereit!"},
+          "WLAN verbinden", "Wo soll mein Gehirn wohnen?", "MaiPai Home", "Meine eigenen Server", "Ihre Stimme bleibt in jedem Fall zu Hause.", "Privat von Anfang an", "Stimme und Bilder bleiben zu Hause.", "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Eigenen Namen später in den Einstellungen eingeben.",
+-         "Später", "Richtet eins für mich ein", "Und jetzt?", "Sagen Sie \"Hi, Stack Chan\" und fragen Sie etwas.", "Alles ändern Sie in den Einstellungen:", "auf dem Computer mit dem Host", "Handy: Handy-Code anzeigen wählen."},
++         "Später", "Richtet eins für mich ein", "Und jetzt?", "Sagen Sie \"Hi, Stack Chan\" und fragen Sie etwas.", "Alles ändern Sie in den Einstellungen:", "auf dem Computer mit dem Host", "Handy: Handy-Code anzeigen wählen.", "Gehostet von M5Stack/Xiaozhi", "Ihre Stimme geht an deren Server, außer Haus.", "Eigene Wahl", "Ihre Stimme bleibt, wo Sie es festlegen."},
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Como devo me chamar?", "Conectar ao Wi-Fi", "Onde meu cérebro deve morar?", "Privado por design", "Tudo pronto!"},
+          "Conectar ao Wi-Fi", "Onde meu cérebro deve morar?", "MaiPai Home", "Meus próprios servidores", "Sua voz fica em casa de qualquer forma.", "Privado por design", "Voz e fotos ficam em casa.", "Nada vai a internet sem sua permissão.", "Entendi", "Tudo pronto!", "Digite seu próprio nome depois, nas configurações.",
+-         "Pular", "Configure um para mim", "E agora?", "Diga \"Hi, Stack Chan\" e pergunte algo.", "Mude tudo na página de configurações:", "no computador que executa o host", "Celular: toque em Mostrar o código do celular."},
++         "Pular", "Configure um para mim", "E agora?", "Diga \"Hi, Stack Chan\" e pergunte algo.", "Mude tudo na página de configurações:", "no computador que executa o host", "Celular: toque em Mostrar o código do celular.", "Hospedado por M5Stack/Xiaozhi", "Sua voz vai para os servidores deles, fora de casa.", "Personalizado", "Sua voz fica onde você indicar."},
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Come mi chiamo?", "Connetti il Wi-Fi", "Dove deve vivere il mio cervello?", "Privato per design", "Tutto pronto!"},
+          "Connetti il Wi-Fi", "Dove deve vivere il mio cervello?", "MaiPai Home", "I miei server", "La tua voce resta a casa in ogni caso.", "Privato per design", "Voce e foto restano a casa.", "Nulla va online senza permesso.", "Capito", "Tutto pronto!", "Scrivi il tuo nome dopo, nelle impostazioni.",
+-         "Salta", "Preparane uno per me", "E adesso?", "Di' \"Hi, Stack Chan\" e chiedimi qualcosa.", "Cambia tutto nelle impostazioni:", "sul computer che esegue l'host", "Telefono: tocca Mostra il codice del telefono."}
++         "Salta", "Preparane uno per me", "E adesso?", "Di' \"Hi, Stack Chan\" e chiedimi qualcosa.", "Cambia tutto nelle impostazioni:", "sul computer che esegue l'host", "Telefono: tocca Mostra il codice del telefono.", "Ospitato da M5Stack/Xiaozhi", "La tua voce va ai loro server, fuori casa.", "Personalizzato", "La tua voce resta dove la indichi."}
+     };
+     const char* langs[6] = {"English", "Español", "Français", "Deutsch", "Português", "Italiano"};
+     const char* names[MFR_NAME_COUNT] = {"Astro", "Clover", "Ember", "Nova", "Pippa", "Rover", "StackChan"};   // by saved index; the screen shows StackChan first
+@@ -135,6 +139,17 @@
+             if (mfr_wifi_done(&flow)) {
+                 draw(flow.step);
+             }
++            return;
++        }
++        if (code == 33) {   // patch UX19: route A, hosted
++            mode = MFR_MODE_HOSTED;
++            mfr_choose_mode(&flow, mode);
++            draw(flow.step);
++            return;
++        }
++        if (code == 35) {   // patch UX19: route B, Custom: the three ways open
++            mfr_open_custom(&flow);
++            draw(flow.step);
+             return;
+         }
+         if (code >= 30 && code <= 32) {   // 30 MaiPai Home, 31 my own servers, 32 set one up for me (patch UX12)
+@@ -241,7 +256,8 @@
+         }
+         const int left = mfr_back_visible(step) ? 72 : 8;                     // the title keeps clear of the back arrow and of Skip (patch UX13d: both are wider)
+         const int tw = (mfr_skip_visible(step) ? 232 : 312) - left;
+-        lv_obj_t* title = label(root, w.title[step], fit_font(w.title[step], tw),
++        const char* head_text = (step == MFR_BRAIN && flow.custom) ? w.route_b : w.title[step];   // patch UX19: the Custom page is titled Custom
++        lv_obj_t* title = label(root, head_text, fit_font(head_text, tw),
+                                 maipai_ui_style::text(), tw);
+         lv_obj_align(title, LV_ALIGN_TOP_LEFT, left, 10);
+         if (step == MFR_LANGUAGE) {
+@@ -265,6 +281,21 @@
+         } else if (step == MFR_BRAIN) {
+             // Where the robot's brain (the language model, speech to text and text to speech it asks) lives, the three ways of decision 12 of 2026-11-18: MaiPai Home, the person's own servers, or a small local stack the host sets up. Nothing on the robot reads
+             // the choice to change what it does today; it is recorded and sent to the host, which builds the three ways (docs/plan/first-run-brain-choice.md). The default shown is Home when a hub is known, else "set one up for me".
++            if (!flow.custom) {
++                // patch UX19 (decision 34): two equal routes, neither highlighted, neither an "extra": A is hosted by the vendor, B is Custom. Each says in one plain line where the voice goes.
++                for (int i = 0; i < 2; i++) {
++                    int rx, ry, rw, rh;
++                    mfr_route_box(i, &rx, &ry, &rw, &rh);
++                    lv_obj_t* tile = box(root, rx, ry, rw, rh, maipai_ui_style::surface(), true);
++                    lv_obj_add_event_cb(tile, event, LV_EVENT_CLICKED, (void*)(intptr_t)(i == 0 ? 33 : 35));
++                    const char* head = i == 0 ? w.route_a : w.route_b;
++                    lv_obj_t* h = label(tile, head, fit_font(head, 288), maipai_ui_style::text(), 288);
++                    lv_obj_align(h, LV_ALIGN_TOP_MID, 0, 2);
++                    lv_obj_t* l = label(tile, i == 0 ? w.route_a_line : w.route_b_line, f16, maipai_ui_style::text(), 288);
++                    lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -2);
++                }
++                return;
++            }
+             const int shown = mfr_mode_shown(&flow);
+             const bool all_big = fit_font(w.home, 288) == f24 && fit_font(w.own, 288) == f24 && fit_font(w.setup, 288) == f24;
+             const char* mode_words[3] = {w.home, w.own, w.setup};
+@@ -306,7 +337,8 @@
+     flow.mode = MFR_MODE_NONE;
+     flow.hub_known = 0;   // a preview shows the name step as it is before anyone has picked: StackChan highlighted
+     language = lang;
+-    mode = selected_mode;
++    flow.custom = (selected_mode == 9);   // patch UX19: the preview value 9 shows the Custom page of the brain step
++    mode = selected_mode == 9 ? MFR_MODE_NONE : selected_mode;
+     draw(step);
+ }
+ 
