@@ -73,9 +73,9 @@ def test_the_first_run_event_keeps_its_fields_when_the_host_reads_the_unit_event
     assert event.kind == "first_run_done" and event.extra == {"lang": 0, "name": 6, "mode": 1}
 
 
-def test_the_brain_answer_has_three_words_and_a_bad_value_has_none():
+def test_the_brain_answer_has_four_words_and_a_bad_value_has_none():
     assert [mode_word(i) for i in (0, 1, 2)] == ["home", "own", "setup"]
-    assert mode_word(3) is None and mode_word(True) is None and mode_word("2") is None
+    assert mode_word(3) == "hosted" and mode_word(4) is None and mode_word(True) is None and mode_word("2") is None
 
 
 def test_the_brain_choice_goes_to_the_handlers_and_a_failing_handler_does_not_stop_the_name(store):
@@ -85,3 +85,11 @@ def test_the_brain_choice_goes_to_the_handlers_and_a_failing_handler_does_not_st
     names.on_brain.append(lambda device_id, word: 1 / 0)   # a broken handler
     assert names.on_event(UNIT, {"lang": 2, "name": 6, "mode": 2}) == "StackChan"
     assert seen == [(UNIT, "setup")]
+
+
+def test_a_hosted_choice_reaches_the_handlers_as_the_word_hosted(store):
+    names = FirstRunNames(store)
+    seen = []
+    names.on_brain.append(lambda device_id, word: seen.append((device_id, word)))
+    names.on_event(UNIT, {"lang": 0, "name": 6, "mode": 3})
+    assert seen == [(UNIT, "hosted")]

@@ -16,7 +16,7 @@ LOG = logging.getLogger("maipai_body.first_run_name")
 # The brain step's answer (UX12, owner decision 12 of 2026-11-18): the three ways to get a brain. 0 is MaiPai Home, 1 is the person's own servers (an existing stack: addresses for the language
 # model, speech to text and text to speech), 2 is "set one up for me" (a minimal local stack the host installs). Saved on the unit and sent in first_run_done. The app track builds what each way
 # does (docs/plan/first-run-brain-choice.md): this module hands the word to whoever registered for it with FirstRunNames.on_brain and logs it. The brain the host uses today is `brain` in robot.toml.
-MODES = {0: "home", 1: "own", 2: "setup"}
+MODES = {0: "home", 1: "own", 2: "setup", 3: "hosted"}  # 3: "Hosted by M5Stack/Xiaozhi" (decision 34); "Custom" is only a page on the unit and saves 0, 1 or 2
 
 
 def mode_word(value: object) -> str | None:
@@ -39,7 +39,7 @@ class FirstRunNames:
 
     def __init__(self, store: Any) -> None:
         self._store = store
-        self.on_brain: list[Callable[[str | None, str], object]] = []   # called with (device_id, "home" | "own" | "setup") when the first run answered the brain step
+        self.on_brain: list[Callable[[str | None, str], object]] = []   # called with (device_id, "home" | "own" | "setup" | "hosted") when the first run answered the brain step
 
     def on_event(self, device_id: str | None, extra: Mapping[str, object] | None) -> str | None:
         """The name that was saved, or None when nothing was (no unit, no valid index, or the unit already has a name)."""
