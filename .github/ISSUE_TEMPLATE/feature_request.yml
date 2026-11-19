@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest something the robot should do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [What the robot can do](https://github.com/getmaipai/stackchan/blob/main/docs/user/features.md) first. The feature may already be there or planned.
+  - type: textarea
+    id: want
+    attributes:
+      label: What should the robot do
+      description: Say it in plain words.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why you want it
+      description: What problem it solves for you.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where would it run
+      options:
+        - On the robot
+        - On the host computer
+        - Needs a model or MaiPai Home
+        - Not sure
+  - type: checkboxes
+    id: safe
+    attributes:
+      label: Before you send
+      options:
+        - label: I did not paste any token, password or pairing code.
+          required: true
