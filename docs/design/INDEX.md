@@ -182,7 +182,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1177): Feature ledger
+- `docs/dev/feature-ledger.md` (1180): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -477,6 +477,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/screen-standards-audit.md` (45): Every unit screen against the UX13 standard (audit and fix list)
 - `docs/plan/seam-refactor.md` (39): Put StackChan behind the robot seam (plan step 4), proposal 2026-11-18
 - `docs/plan/service-and-supervision.md` (115): The host as a managed service, with supervised parts
+- `docs/plan/settings-simplification.md` (70): Settings simplification and the dashboard makeover
 - `docs/plan/signed-update-anti-rollback.md` (20): Signed update with a build number (proposal for the app track, 2026-11-18)
 - `docs/plan/signed-update-header.md` (32): Signed update header with a build number (agreed with the firmware track, 2026-11-18)
 - `docs/plan/spec-proposals/README.md` (14): Shared-spec proposals (step 4, 2026-11-18)
@@ -1324,7 +1325,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/dashboard/__main__.py` (73): no header
 - `host/maipai_body/dashboard/server.py` (498): The dashboard's stdlib HTTP server: a page, a JSON API, and a server-sent-event feed."""
 - `host/maipai_body/dashboard/telemetry.py` (128): The dashboard's view of a body: the latest state frame plus presence, as one JSON snapshot."""
-- `host/maipai_body/dashboard_shell.py` (51): ruff: noqa: E501
+- `host/maipai_body/dashboard_shell.py` (28): ruff: noqa: E501
 - `host/maipai_body/degraded_banner.py` (63): ruff: noqa: E501
 - `host/maipai_body/expression/__init__.py` (21): The expression package: the primitive vocabulary, rendered on a body's HAL seam.
 - `host/maipai_body/expression/cue.py` (99): The typed cue and the phase-to-primitive mapping (``dev.md`` section 5).
@@ -1597,10 +1598,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/service_handover.py` (104): ruff: noqa: E501
 - `host/maipai_body/service_threads.py` (71): Background threads of the host service, each started with the stop event it waits on.
 - `host/maipai_body/settings_keys.py` (65): Settings keys shared by body settings consumers."""
-- `host/maipai_body/settings_page.py` (1059): ruff: noqa: E501
+- `host/maipai_body/settings_page.py` (1072): ruff: noqa: E501
 - `host/maipai_body/settings_server.py` (189): ruff: noqa: E501
 - `host/maipai_body/settings_sim.py` (458): ruff: noqa: E501
-- `host/maipai_body/settings_ui.py` (781): ruff: noqa: E501
+- `host/maipai_body/settings_ui.py` (787): ruff: noqa: E501
 - `host/maipai_body/settings_ui_character.py` (21): ruff: noqa: E501
 - `host/maipai_body/settings_ui_family.py` (39): ruff: noqa: E501
 - `host/maipai_body/settings_ui_link.py` (23): ruff: noqa: E501
@@ -1608,7 +1609,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/settings_ui_nav.py` (122): ruff: noqa: E501
 - `host/maipai_body/settings_ui_pages.py` (129): ruff: noqa: E501
 - `host/maipai_body/settings_ui_polish.py` (171): ruff: noqa: E501
+- `host/maipai_body/settings_ui_shell.py` (303): ruff: noqa: E501
 - `host/maipai_body/settings_ui_wakemaker.py` (34): ruff: noqa: E501
+- `host/maipai_body/shell_style.py` (102): ruff: noqa: E501
 - `host/maipai_body/speaker_evidence.py` (119): The one shape of `speaker_evidence` the body puts on a turn.
 - `host/maipai_body/speaker_fusion.py` (139): SPEAK-04: face and voice fusion into one `speaker_evidence` and one `present`.
 - `host/maipai_body/spec_pin.py` (22): Shared commons spec source pin consumed by runtime and repository tooling."""
@@ -2912,8 +2915,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/camera-sweep-table.py` (64): turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the o
 - `scripts/captions-check.py` (25): every image in README.md, docs/user, docs/playground and docs/dev has a visible caption: a standalone image is
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (43): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (44): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/choices-check.py` (44): Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices
+- `scripts/dashboard-words-check.py` (46): the dashboard's front pages stay calm (owner request 2026-11-19): at most 6 controls, at most 60 words, labels
 - `scripts/dev-dashboard.sh` (37): run the host settings dashboard against seeded demo data (two stand-in units, no hardware, no real data) so it
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
