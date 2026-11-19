@@ -1,17 +1,17 @@
 # Feature ledger
 
-Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 897 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
+Made by `python3 scripts/feature-ledger.py` from the repository; do not edit by hand. The page to read first is `feature-ledger.html` (searchable, filters). Rows: 898 (and 9 scrapped, listed at the end and not counted). How a status and a percent are worked out: a patch is built 40, proven virtual 70 when a test or golden frame names it, proven on the unit 100 when a bench note names it; several patches average (partial credit); a host-only feature is built 40 when its file exists, 70 when a test names it, 100 when a bench note names it; designed 10; idea 0; 'needs person' caps at 89. 'Scrapped' is a status of its own: the owner dropped it on purpose (decision 10 scrapped the baby monitor; the plan's not-included lists add more), so it is listed in a collapsed Scrapped section with the reason and never counted in a percent, a bar or a row total. The Decisions tab lists each owner decision of 2026-11-18 as built, in progress or not started, from the files that exist (scripts/ledger_decisions.py).
 
 ## Memory (owner decision 15)
 
-Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 52 items, 6 measured, 19 estimated, 27 placeholders or not built. 83 of 897 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
+Declared costs come from `schema/memory-budget.json` (the firmware track's numbers, `docs/dev/memory-budget.md`): 52 items, 6 measured, 19 estimated, 27 placeholders or not built. 83 of 898 rows name a declared cost. Internal RAM that is always on: 80,592 B (inside the baseline). Headroom over the gate: 28,500 B at the median, 8,024 B at the lowest; the largest block has 8,024 B of margin. The biggest transient internal item: Game pack tasks (pack_boot and pack_write) (12,288 B). Standing optional features that stay loaded: 5,596 B internal.
 
 ## Progress
 
 | Audience | idea | designed | built | proven virtual | proven on unit | needs person | Rows | Average percent |
 |---|---|---|---|---|---|---|---|---|
 | Everyday user | 3 | 18 | 29 | 267 | 8 | 51 | 376 | 64 |
-| Maker and tech | 0 | 0 | 70 | 391 | 60 | 0 | 521 | 69 |
+| Maker and tech | 0 | 0 | 71 | 391 | 60 | 0 | 522 | 69 |
 
 ## Everyday user
 
@@ -987,11 +987,12 @@ Declared costs come from `schema/memory-budget.json` (the firmware track's numbe
 | **Script: test-sharded.py** | Run the host suite in N pytest processes at once, one group of test files each (no plugin needed). | built | 40 | not declared | `scripts/test-sharded.py` | file exists | doc missing |
 | **Script: translation-pack.py** | The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and correct, and the importer that takes the corrections back with checks. | proven virtual | 70 | not declared | `scripts/translation-pack.py` | file exists, a test names it | doc missing |
 
-### Tool protocol (35)
+### Tool protocol (36)
 
 | Feature | What it does | Status | % | Memory | Where | Evidence | Doc |
 |---|---|---|---|---|---|---|---|
 | **Tools: self.audio.* (7)** | hourly_chime, notify, offline_phrase, play_sound, quiet_now, set_sound_policy, sound_info | proven virtual | 70 | not declared | `schema/tools.json` | 6 of 7 simulated by the virtual unit; no bench note names the area | doc missing |
+| **Tools: self.audio_speaker.* (1)** | set_volume | built | 40 | not declared | `schema/tools.json` | 0 of 1 simulated by the virtual unit; no bench note names the area | doc missing |
 | **Tools: self.banner.* (1)** | face_seen | proven virtual | 70 | I 800 / P 0 / F 0 B (placeholder); when a message needs it | `schema/tools.json` | 1 of 1 simulated by the virtual unit; no bench note names the area | doc missing |
 | **Tools: self.battery.* (2)** | get_status, simulate | built | 40 | not declared | `schema/tools.json` | 0 of 2 simulated by the virtual unit; no bench note names the area | doc missing |
 | **Tools: self.bench.* (21)** | asset_use, barge_test, firstrun, firstrun_loop, head_read, heap_info, heap_trace, i2c_scan... | proven on unit | 100 | not declared | `schema/tools.json` | `bench-b19.md`, `bench-window10.md` | doc missing |
