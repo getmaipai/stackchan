@@ -52,7 +52,13 @@ class Pantry:
     def refill(self, kind: str, language: str, batches: int = 1) -> dict:
         if self.ask is None:
             return {"added": 0, "stopped": "No model is set. Choose a brain on the Brain page, then press Refill again."}
-        return generate(self.library, self.ask, kind, language, batches=batches, daily_cap=self.daily_cap, adult_allowed=self.adult_humor)
+        lock = self.library.refill_lock(kind, language)
+        if not lock.acquire(blocking=False):
+            return {"added": 0, "stopped": "A refill of this kind and language is already running. Wait for it to finish, then press Refill again."}
+        try:
+            return generate(self.library, self.ask, kind, language, batches=batches, daily_cap=self.daily_cap, adult_allowed=self.adult_humor)
+        finally:
+            lock.release()
 
 
 __all__ = ["Library", "Pantry", "Record", "generate"]

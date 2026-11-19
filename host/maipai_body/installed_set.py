@@ -18,6 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
+from maipai_body.asset_transport import AssetTransport
 from maipai_body.packs import MAX_BYTES, TYPES, PackError, PackLibrary
 
 LOG = logging.getLogger(__name__)
@@ -77,10 +78,9 @@ class InstalledStore:
 class InstalledSets:
     def __init__(self, library: PackLibrary, store: InstalledStore, transport: Transport, *, language: Callable[[str], str] = lambda unit: "en", clock: Callable[[], float] = time.time) -> None:
         self.library, self.store, self.transport, self._language, self._clock = library, store, transport, language, clock
-        self._unit_locks: dict[str, threading.Lock] = {}
 
-    def _lock(self, unit: str) -> threading.Lock:
-        return self._unit_locks.setdefault(unit, threading.Lock())
+    def _lock(self, unit: str) -> threading.RLock:
+        return AssetTransport.lock_for(unit)  # shared with the pantry shelf installer: the unit holds one install session
 
     # -- the catalog and the defaults -------------------------------------------------------------------------------------
     def catalog(self) -> dict[str, list[dict[str, Any]]]:

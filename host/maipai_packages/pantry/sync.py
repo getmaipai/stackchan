@@ -17,6 +17,8 @@ from maipai_packages.pantry.record import Record
 
 LOW_FRACTION = 0.25  # refill when unheard records fall below this share of the shelf
 MAX_SWAPS_PER_WINDOW = 3
+DENY_BATCH = 16  # ids in one self.pantry.deny call (the unit writes flash once per call that holds a new id)
+DENY_BATCHES_PER_PASS = 8
 FLOOR_SECTORS = 8  # below this the owner is asked to remove a pack
 
 
@@ -24,7 +26,7 @@ class UnitLink(Protocol):
     def status(self, unit: str) -> list[dict]: ...  # per shelf: {"kind", "language", "count", "unheard", "bytes"}
     def heard_since(self, unit: str, seq: int) -> tuple[list[dict], int]: ...
     def install_shelf(self, unit: str, kind: str, language: str, body: bytes) -> bool: ...
-    def deny(self, unit: str, ids: list[str]) -> bool: ...
+    def deny(self, unit: str, ids: list[str]) -> bool: ...  # True only when the unit took every id in the call
 
 
 @dataclass
@@ -100,9 +102,13 @@ def run_unit(library: Library, link: UnitLink, unit: str, state: UnitState, *, n
     if entries:
         result["heard"] = library.note_heard(unit, entries)
     library._write_json(f"seq-{unit}.json", {"seq": seq})
-    refused = sorted(library.refused())
-    if refused:
-        link.deny(unit, refused)
+    # Only ids this unit has not yet acknowledged, in small batches: an id already denied is never sent again, so the unit writes no flash for it.
+    pending = sorted(library.refused() - library.denied_on(unit))
+    for start in range(0, min(len(pending), DENY_BATCH * DENY_BATCHES_PER_PASS), DENY_BATCH):
+        batch = pending[start : start + DENY_BATCH]
+        if not link.deny(unit, batch):
+            break  # the rest goes on the next pass
+        library.note_denied(unit, batch)
     shelves = link.status(unit)
     todo = plan(shelves, state, now, window=window, nightly_done=nightly_done or set())
     if not todo:

@@ -940,7 +940,11 @@ class SettingsBackend:
                 rid = body.get("id")
                 if not isinstance(rid, str) or not rid:
                     return 400, {"error": "Say which one. Pick a row and try again."}
-                return 200, {"ok": True, "removed": pantry.delete(rid) if action == "delete" else pantry.never_again(rid), "message": "Done."}
+                try:
+                    removed = pantry.delete(rid) if action == "delete" else pantry.never_again(rid)
+                except ValueError as error:
+                    return 400, {"error": str(error)}
+                return 200, {"ok": True, "removed": removed, "message": "Done."}
             if action == "list":  # the filter row: kind, language, a search word, a unit (for heard or not)
                 one = lambda key: str(body.get(key) or "") or None  # noqa: E731
                 return 200, pantry.view(kind=one("kind"), language=one("language"), query=one("q") or "", unit=one("unit"))

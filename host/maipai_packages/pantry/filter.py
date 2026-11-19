@@ -49,9 +49,12 @@ def _yes(reply: str) -> bool:
 
 def _ask(ask: Ask, prompt: str) -> str:
     try:
-        return ask(prompt)
+        reply = ask(prompt)
     except Exception as error:
         raise ModelDown(f"The model did not answer ({type(error).__name__}). The filter stops; unchecked records are not kept.") from error
+    if not isinstance(reply, str) or not reply.strip():
+        raise ModelDown("The model gave an empty answer. The filter stops; unchecked records are not kept. Try again later or choose another model.")
+    return reply
 
 
 def _language_ok(record: Record) -> bool:
@@ -87,12 +90,12 @@ def filter_records(candidates: list[Record], ask: Ask, *, adult_allowed: bool = 
                 continue
             got = normalize(_ask(ask, f"Answer in a few words, no explanation:\n{record.text}"))
             want = normalize(record.answer)
-            if not want or (want not in got and got not in want):
+            if not want or len(got) < 3 or not (f" {want} " in f" {got} " or f" {got} " in f" {want} "):  # whole words only, and a real answer
                 report.drop("fact not confirmed")
                 continue
         if record.kind == "riddle":
             second = normalize(_ask(ask, f"Riddle: {record.text}\nThe intended answer is: {record.answer}\nIs there a different, equally good answer? Reply with it, or reply none."))
-            if second and second.split()[:1] != ["none"] and normalize(record.answer) not in second:
+            if not second or (second.split()[:1] != ["none"] and normalize(record.answer) not in second):  # a reply with no words is not "none"
                 report.drop("riddle has two answers")
                 continue
         kept.append(record)

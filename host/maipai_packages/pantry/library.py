@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -13,12 +14,28 @@ from pathlib import Path
 from maipai_packages.pantry.record import Record
 
 
+ID_RE = re.compile(r"[0-9a-f]{16}")  # a record id: 8 bytes as lowercase hex
+
+
+def check_id(id_hex: object) -> str:
+    """The id when it is 16 lowercase hex digits; otherwise a ValueError that says what to do (the dashboard shows it as a 400)."""
+    if not isinstance(id_hex, str) or not ID_RE.fullmatch(id_hex):
+        raise ValueError("A record id is 16 lowercase hex digits. Pick a row from the list and try again.")
+    return id_hex
+
+
 class Library:
     def __init__(self, folder: Path, *, clock: Callable[[], float] = time.time) -> None:
         self.folder = Path(folder)
         self._clock = clock
         self._lock = threading.RLock()
+        self._refill_locks: dict[tuple[str, str], threading.RLock] = {}
         self.folder.mkdir(parents=True, exist_ok=True)
+
+    def refill_lock(self, kind: str, language: str) -> threading.RLock:
+        """One lock per kind and language: two refills of the same shelf run one after the other, never side by side."""
+        with self._lock:
+            return self._refill_locks.setdefault((kind, language), threading.RLock())
 
     # -- records --------------------------------------------------------------------------------------------------------
     def _file(self, language: str, kind: str) -> Path:
@@ -73,11 +90,12 @@ class Library:
 
     def delete(self, id_hex: str) -> bool:
         """Remove a record from the library. It may be generated again later; use never_again to keep it out."""
-        return self._rewrite({id_hex}) > 0
+        return self._rewrite({check_id(id_hex)}) > 0
 
     def never_again(self, id_hex: str) -> bool:
         """Remove it and keep its id on the rejected list, so it is never generated, stored or offered again."""
-        removed = self._rewrite({id_hex})
+        check_id(id_hex)
+        self._rewrite({id_hex})
         with self._lock:
             ids = self.refused()
             ids.add(id_hex)
@@ -85,10 +103,20 @@ class Library:
         return True
 
     def refused(self) -> set[str]:
-        return set(self._read_json("rejected.json", []))
+        stored = self._read_json("rejected.json", [])
+        return {x for x in stored if isinstance(x, str) and ID_RE.fullmatch(x)} if isinstance(stored, list) else set()  # a damaged entry is skipped, never fatal
 
     def refused_ids(self) -> set[bytes]:
         return {bytes.fromhex(x) for x in self.refused()}
+
+    # -- what each unit has been told to refuse ---------------------------------------------------------------------------
+    def denied_on(self, unit: str) -> set[str]:
+        stored = self._read_json(f"denied-{_safe(unit)}.json", [])
+        return {x for x in stored if isinstance(x, str) and ID_RE.fullmatch(x)} if isinstance(stored, list) else set()
+
+    def note_denied(self, unit: str, ids: list[str]) -> None:
+        with self._lock:
+            self._write_json(f"denied-{_safe(unit)}.json", sorted(self.denied_on(unit) | {i for i in ids if ID_RE.fullmatch(i)}))
 
     # -- heard ----------------------------------------------------------------------------------------------------------
     def heard(self, unit: str) -> dict[str, dict]:
@@ -101,12 +129,18 @@ class Library:
             heard = self.heard(unit)
             added = 0
             for entry in entries:
-                full = known.get(str(entry.get("id", ""))[:8])
+                if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not re.fullmatch(r"[0-9a-f]{8,16}", entry["id"]):
+                    continue  # not a record id: skipped, never fatal
+                full = known.get(entry["id"][:8])
                 if full is None:
+                    continue
+                try:
+                    counter = int(entry.get("counter", 0))
+                except (TypeError, ValueError):
                     continue
                 row = heard.setdefault(full, {"n": 0, "counter": 0})
                 row["n"] += 1
-                row["counter"] = max(int(row["counter"]), int(entry.get("counter", 0)))
+                row["counter"] = max(int(row["counter"]), counter)
                 row["at"] = int(self._clock())
                 added += 1
                 if entry.get("deny") or entry.get("denied"):

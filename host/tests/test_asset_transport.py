@@ -106,3 +106,51 @@ def test_the_license_id_sent_is_the_owner_content_id_of_the_shared_table():
     table = json.loads((Path(__file__).resolve().parents[2] / "schema" / "licenses.json").read_text())
     assert OWN_CONTENT_LICENSE in table["owner_content_ids"]
     assert OWN_CONTENT_LICENSE in {row["id"] for row in table["licenses"]} and OWN_CONTENT_LICENSE != 0
+
+
+def test_a_pantry_shelf_install_and_an_installed_set_apply_on_one_unit_never_overlap(tmp_path):
+    import threading
+    import time
+
+    from maipai_body.installed_set import InstalledSets, InstalledStore
+    from maipai_body.packs import PackLibrary, make_pack, zip_payload
+
+    class Slow(FakeUnit):
+        def __call__(self, unit, tool, args):
+            if tool == "self.assets.data":
+                time.sleep(0.15)
+            return super().__call__(unit, tool, args)
+
+    unit = Slow()
+    log = []
+
+    class SetTransport:
+        def connected(self, u):
+            return True
+
+        def multi_slot(self, u):
+            return False
+
+        def held(self, u, kind):
+            return []
+
+        def install(self, u, kind, pack_id):
+            log.append(("set-start", len(unit.calls)))
+            log.append(("set-end", len(unit.calls)))
+
+        def remove(self, u, kind, sha):
+            pass
+
+    lib = PackLibrary(tmp_path / "packs", filler_root=tmp_path / "fillers")
+    lib.add(make_pack("look", "default", zip_payload({"a.txt": b"x" * 10})))
+    sets = InstalledSets(lib, InstalledStore(tmp_path / "s.json"), SetTransport(), language=lambda u: "en")
+    sets.choose("u", "custom", {"look": ["look/default"]})
+    shelf_done = []
+    shelf = threading.Thread(target=lambda: shelf_done.append(AssetTransport(unit).install_pantry_shelf("u", "joke", "en", b"s" * 5000)))
+    shelf.start()
+    while not any(c[0] == "self.assets.data" for c in unit.calls):
+        time.sleep(0.005)
+    sets.reconcile("u")  # starts while the shelf is half sent
+    shelf.join()
+    commit_at = next(i for i, c in enumerate(unit.calls) if c[0] == "self.assets.commit")
+    assert shelf_done[0].ok and log[0][0] == "set-start" and log[0][1] > commit_at, "the set waits until the shelf is committed"

@@ -9,7 +9,7 @@ import json
 import re
 
 from maipai_packages.pantry.dedupe import dedupe
-from maipai_packages.pantry.filter import Ask, ModelDown, filter_records
+from maipai_packages.pantry.filter import KID_BLOCK, Ask, ModelDown, filter_records
 from maipai_packages.pantry.library import Library
 from maipai_packages.pantry.record import TEXT_CAPS, Record
 
@@ -55,6 +55,14 @@ def generate(library: Library, ask: Ask, kind: str, language: str, *, rating: st
     if kind not in SHAPE:
         summary["stopped"] = f"The model does not write {kind} records. They come with the built-in set."
         return summary
+    if rating == "kid" and language not in KID_BLOCK:
+        summary["stopped"] = f"There is no kid word list for {LANGUAGE_NAMES.get(language, language)} yet, so kid records are not written in it. Use one of {', '.join(sorted(KID_BLOCK))}."
+        return summary
+    with library.refill_lock(kind, language):  # one refill of a shelf at a time; the cap and the known records are read after the lock is held
+        return _generate_locked(library, ask, kind, language, summary, rating, batches, daily_cap, adult_allowed, seed)
+
+
+def _generate_locked(library: Library, ask: Ask, kind: str, language: str, summary: dict, rating: str, batches: int, daily_cap: int, adult_allowed: bool, seed: int) -> dict:
     for index in range(batches):
         topic = TOPICS[(seed + index) % len(TOPICS)]
         # one call for the batch plus about one per record for the filter: the daily cap counts them all

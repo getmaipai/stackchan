@@ -28,10 +28,22 @@ class RecordError(ValueError):
     """A record that cannot be kept. The message says what is wrong in plain words (it goes to the dedupe and filter reports)."""
 
 
+# Letters with no accent to strip, folded by hand before the ASCII step so they are not lost (two different Polish or German words must not merge).
+_FOLD = str.maketrans({"ß": "ss", "ẞ": "ss", "ł": "l", "Ł": "l", "ø": "o", "Ø": "o", "æ": "ae", "Æ": "ae", "œ": "oe", "Œ": "oe", "ı": "i", "đ": "d", "Đ": "d", "ð": "d", "Ð": "d", "þ": "th", "Þ": "th"})
+
+
 def normalize(text: str) -> str:
     """Lowercase, fold accents, drop punctuation, collapse space: what two spellings of the same line have in common."""
-    folded = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").lower()
+    folded = unicodedata.normalize("NFKD", text.translate(_FOLD)).encode("ascii", "ignore").decode("ascii").lower()
     return _SPACE.sub(" ", _PUNCT.sub(" ", folded)).strip()
+
+
+def _id_text(text: str) -> str:
+    """What goes into the id: the ASCII fold, or the NFKC text when the fold lost letters (Cyrillic, Greek and other alphabets), so different lines keep different ids."""
+    folded = unicodedata.normalize("NFKD", text.translate(_FOLD))
+    if any(ch.isalpha() and ord(ch) > 127 for ch in folded):
+        return _SPACE.sub(" ", _PUNCT.sub(" ", unicodedata.normalize("NFKC", text).lower())).strip()
+    return normalize(text)
 
 
 @dataclass(frozen=True)
@@ -45,7 +57,7 @@ class Record:
 
     @property
     def id(self) -> bytes:
-        digest = hashlib.sha256("\x1f".join((self.kind, self.language, normalize(self.text), normalize(self.answer))).encode("utf-8")).digest()
+        digest = hashlib.sha256("\x1f".join((self.kind, self.language, _id_text(self.text), _id_text(self.answer))).encode("utf-8")).digest()
         return digest[:8]
 
     @property

@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import struct
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -85,6 +86,16 @@ def _reply(raw: Any) -> dict:
 
 
 class AssetTransport:
+    # The unit holds one install session, so every writer to one unit (a pantry shelf, the installed-set reconciler) takes this lock first.
+    _unit_locks: dict[str, threading.RLock] = {}
+    _unit_locks_guard = threading.Lock()
+
+    @classmethod
+    def lock_for(cls, unit: str) -> threading.RLock:
+        """The one install lock of a unit. Re-entrant, so a caller that holds it may call ``install`` itself."""
+        with cls._unit_locks_guard:
+            return cls._unit_locks.setdefault(unit, threading.RLock())
+
     def __init__(self, call: Callable[[str, str, dict], Any], *, clock: Callable[[], float] = time.time) -> None:
         self._call, self._clock = call, clock
 
@@ -95,6 +106,10 @@ class AssetTransport:
         """Send one item. Never raises: a refusal or a lost link comes back as a result with a plain message, and the unit's half-install is aborted."""
         if len(header) != HEADER_LEN:
             return InstallResult(False, "The item header is not 128 bytes. Rebuild the item.")
+        with self.lock_for(unit):
+            return self._install_locked(unit, header, body, slot, sig)
+
+    def _install_locked(self, unit: str, header: bytes, body: bytes, slot: int, sig: bytes) -> InstallResult:
         try:
             start = self._tool(unit, "self.assets.install", {"slot": slot, "header_b64": base64.b64encode(header).decode(), "sig_b64": base64.b64encode(sig).decode() if sig else ""})
             if start.get("ok") is not True:
@@ -142,7 +157,8 @@ class AssetTransport:
     def install_pantry_shelf(self, unit: str, kind: str, language: str, body: bytes, record_count: int | None = None) -> InstallResult:
         """A pantry shelf: the same name takes the same slot with a higher version (the unit refuses a lower one); a new name takes the first free slot."""
         name = f"pantry-{kind}-{language}"
-        existing = next((i for i in self.items(unit) if i["kind"] == "pantry" and i["name"] == name), None)
-        version = max(int(self._clock()), (existing["version"] + 1) if existing else 1)
-        header = build_header(kind="pantry", body=body, name=name, version=version, code=language, ram_bytes=16 * (record_count or 0))
-        return self.install(unit, header, body, slot=int(existing["slot"]) if existing and existing["slot"] is not None else -1)
+        with self.lock_for(unit):  # the slot and version are read and used under one lock
+            existing = next((i for i in self.items(unit) if i["kind"] == "pantry" and i["name"] == name), None)
+            version = max(int(self._clock()), (existing["version"] + 1) if existing else 1)
+            header = build_header(kind="pantry", body=body, name=name, version=version, code=language, ram_bytes=16 * (record_count or 0))
+            return self.install(unit, header, body, slot=int(existing["slot"]) if existing and existing["slot"] is not None else -1)

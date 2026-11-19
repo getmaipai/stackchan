@@ -47,7 +47,7 @@ diff --git a/firmware/main/hal/maipai_pantry.cc b/firmware/main/hal/maipai_pantr
 new file mode 100644
 --- /dev/null
 +++ b/firmware/main/hal/maipai_pantry.cc
-@@ -0,0 +1,288 @@
+@@ -0,0 +1,290 @@
 +/*
 + * SPDX-License-Identifier: MIT
 + *
@@ -304,13 +304,13 @@ new file mode 100644
 +                });
 +    mcp.AddTool("self.pantry.deny",
 +                "Never tell these records again: ids is a comma separated list of record ids (at least the first 4 bytes as 8 hex characters, up to 16). "
-+                "Answers {ok, denied}.",
++                "Answers {ok, denied, new}: denied counts the ids the unit now refuses, new the ones it did not refuse before (only those write flash).",
 +                PropertyList({Property("ids", kPropertyTypeString, std::string(""))}),
 +                [](const PropertyList& properties) -> ReturnValue {
 +                    const std::string ids = properties["ids"].value<std::string>();
 +                    std::lock_guard<std::mutex> lock(s_mu);
 +                    if (!heard_locked()) return std::string("{\"ok\":false,\"code\":\"memory\",\"error\":\"The unit is low on memory. Restart it and try again.\"}");
-+                    int done = 0;
++                    int done = 0, done_new = 0;   // done: ids the unit now holds as denied; done_new: the ones that were not denied before
 +                    size_t pos = 0;
 +                    while (pos < ids.size()) {
 +                        size_t comma = ids.find(',', pos);
@@ -325,13 +325,15 @@ new file mode 100644
 +                            ok = sscanf(one.c_str() + 2 * i, "%2x", &v) == 1;
 +                            id[i] = static_cast<uint8_t>(v);
 +                        }
-+                        if (ok && mph_deny(s_heard, id)) done++;
++                        const int got = ok ? mph_deny(s_heard, id) : 0;   // 0 no room, 1 already denied, 2 a new deny
++                        if (got) done++;
++                        if (got == 2) done_new++;
 +                    }
-+                    if (done > 0) {
-+                        s_unsaved += static_cast<uint32_t>(done);
++                    if (done_new > 0) {   // an id told again changes nothing and writes no flash
++                        s_unsaved += static_cast<uint32_t>(done_new);
 +                        flush_locked();   // a deny is the owner's word: written at once
 +                    }
-+                    return std::string("{\"ok\":true,\"denied\":") + std::to_string(done) + "}";
++                    return std::string("{\"ok\":true,\"denied\":") + std::to_string(done) + ",\"new\":" + std::to_string(done_new) + "}";
 +                });
 +}
 +
