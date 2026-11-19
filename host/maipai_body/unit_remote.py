@@ -22,6 +22,7 @@ from maipai_body.bodies.stackchan.profile import (
 )
 from maipai_body.bodies.stackchan.sounds import EARCONS
 from maipai_body.hal.errors import BodyLost
+from maipai_body import remote_trust
 from maipai_body.i18n import normalize
 from maipai_body.unit_extras import ExtrasError, _reply, say
 
@@ -397,7 +398,7 @@ class UnitRemote:
         with self._lock:
             self._finders[unit_id] = stop
         marker = getattr(self._ctx, "marker", None)  # the loop belongs to this action: it carries the same cue
-        threading.Thread(target=self._find_loop, args=(unit_id, stop, lang, marker), daemon=True, name="find-my-robot").start()
+        threading.Thread(target=remote_trust.carry_scope(self._find_loop), args=(unit_id, stop, lang, marker), daemon=True, name="find-my-robot").start()
         return {"ok": True, "finding": True}
 
     def _find_loop(self, unit_id: str, stop: threading.Event, lang: str | None, marker: Any = None) -> None:
