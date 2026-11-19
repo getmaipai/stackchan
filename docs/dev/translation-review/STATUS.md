@@ -9,10 +9,10 @@ Made by `python3 scripts/translation-pack.py` (export and import); do not edit b
 | German | `de.csv` | 1034 | 0 | 922 | 112 | nobody yet | machine draft |
 | Portuguese | `pt.csv` | 1034 | 0 | 922 | 112 | nobody yet | machine draft |
 | Italian | `it.csv` | 1034 | 0 | 922 | 112 | nobody yet | machine draft |
-| Dutch | `nl.csv` | 1034 | 0 | 989 | 45 | nobody yet | machine draft, tier 1 |
-| Polish | `pl.csv` | 1034 | 0 | 989 | 45 | nobody yet | machine draft, tier 1 |
-| Turkish | `tr.csv` | 1034 | 0 | 989 | 45 | nobody yet | machine draft, tier 1 |
-| Swedish | `sv.csv` | 1034 | 0 | 989 | 45 | nobody yet | machine draft, tier 1 |
-| Danish | `da.csv` | 1034 | 0 | 989 | 45 | nobody yet | machine draft, tier 1 |
-| Norwegian (Bokmal) | `nb.csv` | 1034 | 0 | 989 | 45 | nobody yet | machine draft, tier 1 |
-| Czech | `cs.csv` | 1034 | 0 | 989 | 45 | nobody yet | machine draft, tier 1 |
+| Dutch | `nl.csv` | 1034 | 0 | 1034 | 0 | nobody yet | machine draft, tier 1 |
+| Polish | `pl.csv` | 1034 | 0 | 1034 | 0 | nobody yet | machine draft, tier 1 |
+| Turkish | `tr.csv` | 1034 | 0 | 1034 | 0 | nobody yet | machine draft, tier 1 |
+| Swedish | `sv.csv` | 1034 | 0 | 1034 | 0 | nobody yet | machine draft, tier 1 |
+| Danish | `da.csv` | 1034 | 0 | 1034 | 0 | nobody yet | machine draft, tier 1 |
+| Norwegian (Bokmal) | `nb.csv` | 1034 | 0 | 1034 | 0 | nobody yet | machine draft, tier 1 |
+| Czech | `cs.csv` | 1034 | 0 | 1034 | 0 | nobody yet | machine draft, tier 1 |
