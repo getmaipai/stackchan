@@ -217,6 +217,7 @@ def test_first_run_flow_by_taps_ends_with_the_answers():
         u.raw("frun wifi")  # the Wi-Fi cover reports done
         u.advance(300)
         for tap in (
+            (160, 180),  # route B, Custom (patch UX19): the three ways open
             (160, 70),
             (160, 220),
             (160, 190),

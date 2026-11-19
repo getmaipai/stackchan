@@ -80,6 +80,7 @@ SCREENS: dict[str, list] = {
     "first-run-1": [("raw", "frun step 0 0 -1"), ("advance", 400)],
     "first-run-2": [("raw", "frun step 1 0 -1"), ("advance", 400)],
     "first-run-4": [("raw", "frun step 3 0 -1"), ("advance", 400)],
+    "first-run-4c": [("raw", "frun step 3 0 9"), ("advance", 400)],
     "first-run-5": [("raw", "frun step 4 0 -1"), ("advance", 400)],
     "first-run-6": [("raw", "frun step 5 0 -1"), ("advance", 400)],
     "first-run-next": [("raw", "frun step 7 0 -1"), ("advance", 400)],
@@ -290,6 +291,8 @@ for _li, _lang in enumerate(LANGS):
     for _st in (0, 1, 3, 4, 5):
         SCREENS.setdefault(f"first-run-{_st + 1}-{_lang}", [("raw", f"frun step {_st} {_li} -1"), ("advance", 400)])
     SCREENS.setdefault(f"first-run-next-{_lang}", [("raw", f"frun step 7 {_li} -1"), ("advance", 400)])   # the last screen after All set! (patch UX12)
+    SCREENS.setdefault(f"brain-removed-{_lang}", [("raw", f"bnotice {_li}"), ("advance", 400)])   # the Hosted link removed notice (patch UX20)
+    SCREENS.setdefault(f"first-run-4c-{_lang}", [("raw", f"frun step 3 {_li} 9"), ("advance", 400)])   # the Custom page of the brain step: the three ways (patch UX19; preview value 9)
 for _name, _steps in (("sheet", [("raw", "pshow sheet"), ("advance", 500)]), ("apps-wall", [("raw", "pshow sheet"), ("advance", 400), ("raw", "pclick 270 215"), ("advance", 300), ("raw", "pclick 56 156"), ("advance", 700)]),
                       ("settings-general", [("raw", "pshow settings"), ("advance", 500)]), ("settings-info", [("raw", "pshow settings"), ("advance", 400), ("raw", "pscrollby 40 150 64"), ("advance", 100), ("raw", "pclick 40 190"), ("advance", 500)]),
                       ("page-timers", [("raw", "pshow timers"), ("advance", 600)]), ("page-actions", [("raw", "pshow actions"), ("advance", 600)])):
@@ -384,6 +387,8 @@ _ORDER = set((ROOT / "firmware" / "patches" / "ORDER").read_text().split()) if (
 REQUIRES = [
     (r"^(screen-page-timers-one|screen-page-timers-more|screen-alarms-app)$", "UX13f-timers-and-alarms-at-finger-size.patch"),
     (r"dicepoker", "UX18-dice-poker.patch"),
+    (r"^first-run-4c", "UX19-brain-two-equal-routes.patch"),
+    (r"^brain-removed", "UX20-hosted-link-removed-notice.patch"),
     (r"^game-over-(colormemory|whack|doit|snake|2048)-", "UX15c-game-over-neutral-end-after-sf82.patch"),
     (r"^mumble-", "UX16-offline-mumble-core.patch"),
     (r"^game-(riddle|joke|trivia|twenty)-|^game-over-(trivia|twenty)-", "UX17-question-and-answer-game-screens.patch"),

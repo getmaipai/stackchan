@@ -352,3 +352,5 @@ UX13d-first-run-at-finger-size.patch
 UX18-dice-poker.patch
 UX13g-lock-keypad-at-finger-size.patch
 UX15c-game-over-neutral-end-after-sf82.patch
+UX19-brain-two-equal-routes.patch
+UX20-hosted-link-removed-notice.patch
