@@ -1,6 +1,6 @@
 # The shared game-over screen
 
-Owner idea of 2026-11-18, one standard for every game. When a game ends, the unit shows the same large screen: a face for the result, the result in words, the score, the best score (marked new best when it beat the old one) and two finger-size buttons, Play again and Quit. A game supplies only the result and the score text. Won and Lost are only for games with a real winner; a game that only counts a score ends on a neutral **Game over** or, when it is timed, **Time's up** (owner decision 31). Patch: `firmware/patches/UX15-shared-game-over-screen.patch` (two header-only files, `maipai_game_over_core.h` for the layout, texts and cues, `maipai_game_over.h` for the LVGL drawing). The renderer draws it with the unit's own code; the pictures are `host/tests/golden/screens/game-over-*.png`.
+Owner idea of 2026-11-18, one standard for every game. When a game ends, the unit shows the same large screen: a face for the result, the result in words, the score, the best score (marked new best when it beat the old one) and two finger-size buttons, Play again and Quit. A game supplies only the result and the score text. Won and Lost are only for games with a real winner; a game that only counts a score ends on a neutral **Game over** or, when it is timed, **Time's up** (owner decision 33). Patch: `firmware/patches/UX15-shared-game-over-screen.patch` (two header-only files, `maipai_game_over_core.h` for the layout, texts and cues, `maipai_game_over.h` for the LVGL drawing). The renderer draws it with the unit's own code; the pictures are `host/tests/golden/screens/game-over-*.png`.
 
 ## The screen
 
@@ -38,7 +38,7 @@ mgo_beats_best(score, best, lower_is_better)                      // decides new
 
 Games with no end (Magic 8 Ball, Dice and Coin) do not show the screen. A rock paper scissors round inside a match does not either; the match end does.
 
-Answered (owner decision 31): a score-only game never says "You won!" or "You lost"; it says Game over or Time's up with the score and the new-best mark. The result word is one table entry per game.
+Answered (owner decision 33): a score-only game never says "You won!" or "You lost"; it says Game over or Time's up with the score and the new-best mark. The result word is one table entry per game.
 
 ## What the unit does
 

@@ -254,6 +254,7 @@ class XiaozhiDeviceClient:
 
     def send_avatar_frame(self, frame: bytes) -> object:
         self.server.refuse_on_loop("send_avatar_frame", self.timeout)
+        token = ACTIVE_UNIT.set(self.device_id) if getattr(self, "device_id", None) else None  # a client bound to one unit never fans a face out to all
         try:
             return asyncio.run_coroutine_threadsafe(
                 self.server.send_expression_frame(frame), self.server._loop
@@ -262,6 +263,9 @@ class XiaozhiDeviceClient:
             raise BodyLost(
                 "StackChan camera stream command failed. Reconnect it and retry."
             ) from exc
+        finally:
+            if token is not None:
+                ACTIVE_UNIT.reset(token)
 
     def cancel_pending(self) -> None:
         self.server.cancel_device_calls("self.robot.set_head_angles")
@@ -439,6 +443,11 @@ class XiaozhiServer:
             is_idle=lambda: not self._speaking and self._turns_running == 0,
             is_connected=lambda: bool(self._sessions),
         )
+        # Every unit after the first has its own restart guard facts and wake self-test (docs/plan/per-unit-behavior.md, step 5): the first unit keeps
+        # `self.heal` and `self.wake_tester`. `primary_unit` is set by the app; until then every unit is the first one.
+        self.primary_unit: Callable[[], str | None] = lambda: None
+        self.unit_hold_listeners: list[Callable[[str, bool], object]] = []
+        self._unit_heals: dict[str, tuple[SelfHealState, WakeSelfTest]] = {}
         self._heal_task: asyncio.Task[None] | None = None
         self.selftest_checks: Callable[[], list[dict[str, str]]] | None = None
         self.selftest_runner: Callable[[list[str] | None], list[dict[str, object]]] | None = None
@@ -1026,6 +1035,22 @@ class XiaozhiServer:
             )
         return None
 
+    def heal_for(self, device_id: str | None) -> tuple[SelfHealState, WakeSelfTest]:
+        """The restart guard facts and the wake self-test of one unit: the first unit's are `self.heal` and `self.wake_tester`."""
+        primary = self.primary_unit()
+        if device_id is None or primary is None or device_id == primary:
+            return self.heal, self.wake_tester
+        pair = self._unit_heals.get(device_id)
+        if pair is None:
+            state = SelfHealState(on_hold=lambda hold, d=device_id: [fn(d, hold) for fn in self.unit_hold_listeners])
+            tester = WakeSelfTest(
+                state,
+                is_idle=lambda d=device_id: d not in self._speaking and self._turns_running == 0,
+                is_connected=lambda d=device_id: d in self._sessions,
+            )
+            pair = self._unit_heals[device_id] = (state, tester)
+        return pair
+
     async def _heal_loop(self) -> None:
         """Run the wake engine self-test schedule: its commands go to the unit as system frames."""
         while True:
@@ -1035,6 +1060,14 @@ class XiaozhiServer:
                     if command == "reboot" and self.heal.hold:
                         continue  # the unit holds: three self-restarts this hour already
                     await self.send_system(command)
+                for device_id, (state, tester) in list(self._unit_heals.items()):
+                    if device_id not in self._sessions:
+                        del self._unit_heals[device_id]  # a unit that left starts fresh when it comes back
+                        continue
+                    for command in tester.tick():
+                        if command == "reboot" and state.hold:
+                            continue  # this unit holds: three self-restarts this hour already
+                        await self.send_system(command, device_id=device_id)
             except asyncio.CancelledError:
                 raise
             except ConnectionError:

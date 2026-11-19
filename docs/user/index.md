@@ -26,6 +26,7 @@ For people who own a robot. Each page answers one question. Not sure where to be
 - [Home Assistant (optional package)](home-assistant.md)
 - [Connect the robot to your own tools](home-tools.md)
 - [Install, update and remove the host](install-the-host.md)
+- [Jokes and games content (optional package)](jokes-and-games-content.md)
 - [Switch the language](languages.md)
 - [Lights and sounds](lights-and-sounds.md)
 - [Install the small stack](local-stack.md)

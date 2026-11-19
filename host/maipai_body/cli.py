@@ -31,7 +31,8 @@ def main() -> int:
     commands.add_parser("pair", help="show a one-use pairing code")
     commands.add_parser("status", help="say what is running and what is not, per robot and per part")
     service = commands.add_parser("service", help="install the host as a service that starts at boot or login and restarts itself")
-    service.add_argument("action", choices=["install", "status", "start", "stop", "logs", "uninstall", "update"])
+    service.add_argument("action", choices=["install", "status", "start", "stop", "logs", "uninstall", "update", "handover"])
+    service.add_argument("--wait-pid", dest="wait_pid", type=int, default=0, help="for handover: the pid of the host that is handing over")
     service.add_argument("--from", dest="source", default=None, help="for update: where to install the new version from (a pip address or a folder)")
     units = commands.add_parser("units", help="list known units with their name and online state")
     units.add_argument(
@@ -218,6 +219,10 @@ def main() -> int:
         return 0
     if args.command == "service":
         from maipai_body.service_cmd import Service
+        if args.action == "handover":
+            from maipai_body.service_handover import run_helper
+
+            return run_helper(args.wait_pid)
         if args.action == "update":
             from maipai_body.host_update import run_update
 

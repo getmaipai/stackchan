@@ -89,11 +89,21 @@ def render_page(doc: dict[str, Any]) -> bytes:
     parts = "".join(li(p["message"], p["state"]) for p in doc["parts"]) or "<li>No parts are watched yet.</li>"
     units = "".join(li(u["message"] + ((" " + u["away_message"]) if u.get("away_message") else ""), "ok" if u["connected"] else "off") + "".join(li("  " + p["message"], p["state"]) for p in u["parts"]) for u in doc["units"]) or "<li>No robot is paired yet.</li>"
     advice = "".join(li(a) for a in doc["advice"])
+    keep = ""
+    if (doc.get("service") or {}).get("can_install"):
+        keep = (
+            "<h2>Keep the host running</h2><p>Make this host start when you log in and restart itself if it stops. This writes one service file in your own folder, needs no "
+            "administrator rights, and restarts the host once (this page stops for about a minute).</p>"
+            '<p><button id="keep" style="min-height:48px;padding:0 1.2rem;font:inherit;font-weight:600">Confirm: keep the host running</button></p><p id="keepmsg" role="status"></p>'
+            "<script>document.getElementById('keep').onclick=async()=>{const m=document.getElementById('keepmsg');"
+            "try{const r=await fetch('/api/stackchan/service/keep-running',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});"
+            "const d=await r.json();m.textContent=d.message||d.error||''}catch(e){m.textContent='The host is restarting. Open this page again in a minute.'}};</script>"
+        )
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Health</title>
 <style>:root{{--bg:#fff;--fg:#17202a;--good:#1e7a46;--bad:#b3261e;--warn:#9a6700}}@media (prefers-color-scheme:dark){{:root{{--bg:#101418;--fg:#eaeef2;--good:#5fd08b;--bad:#ff8a80;--warn:#f0c36a}}}}
 body{{margin:0;background:var(--bg);color:var(--fg);font:18px/1.5 system-ui,sans-serif}}main{{max-width:44rem;margin:0 auto;padding:1rem 16px 3rem}}li.ok{{color:var(--good)}}li.failed{{color:var(--bad)}}li.restarting{{color:var(--warn)}}</style>
-<meta http-equiv="refresh" content="10"></head><body><main><h1>Health</h1><p role="status"><b>{html.escape(doc['summary'])}</b></p>
-<h2>Parts</h2><ul>{parts}</ul><h2>Robots</h2><ul>{units}</ul>{('<h2>What to do</h2><ul>' + advice + '</ul>') if advice else ''}</main></body></html>"""
+{"" if keep else '<meta http-equiv="refresh" content="10">'}</head><body><main><h1>Health</h1><p role="status"><b>{html.escape(doc['summary'])}</b></p>
+<h2>Parts</h2><ul>{parts}</ul><h2>Robots</h2><ul>{units}</ul>{('<h2>What to do</h2><ul>' + advice + '</ul>') if advice else ''}{keep}</main></body></html>"""
     from maipai_body.dashboard_shell import apply
 
     return apply(page, "health").encode("utf-8")

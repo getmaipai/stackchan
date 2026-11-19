@@ -4,7 +4,7 @@ The first new game from `docs/plan/more-games.md` (rank 2, after Higher or Lower
 
 ## How it plays
 
-Five dice. Each round the player rolls all five, may hold any dice by tapping them, and re-rolls the rest, twice at most. Keep banks the hand's points. Five rounds; the score is the total. It has no opponent and no winner, so it is a score-only game and ends on **Game over** with the total and the new-best mark (decision 31, `docs/design/game-over-screen.md`).
+Five dice. Each round the player rolls all five, may hold any dice by tapping them, and re-rolls the rest, twice at most. Keep banks the hand's points. Five rounds; the score is the total. It has no opponent and no winner, so it is a score-only game and ends on **Game over** with the total and the new-best mark (decision 33, `docs/design/game-over-screen.md`).
 
 | Hand | Points |
 |---|---:|

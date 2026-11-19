@@ -1,6 +1,6 @@
 # More games: a ranked list (playground track)
 
-Status: plan, nothing built. Companion to `docs/plan/more-games-engine.md` (the firmware track's engine capacity and tool shapes). This file ranks new games by value for the cost, says what each needs, estimates its size, and says what it sounds like from the tone table. Every game ends on the shared game-over screen (`docs/design/game-over-screen.md`); a game with no real winner ends on Game over or Time's up (decision 31). A game needs its screen to meet the finger-size standard (`docs/design/screen-style.md`) and its memory row before it ships.
+Status: plan, nothing built. Companion to `docs/plan/more-games-engine.md` (the firmware track's engine capacity and tool shapes). This file ranks new games by value for the cost, says what each needs, estimates its size, and says what it sounds like from the tone table. Every game ends on the shared game-over screen (`docs/design/game-over-screen.md`); a game with no real winner ends on Game over or Time's up (decision 33). A game needs its screen to meet the finger-size standard (`docs/design/screen-style.md`) and its memory row before it ships.
 
 ## What exists, so the estimates have a base
 

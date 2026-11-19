@@ -1,4 +1,4 @@
-# Intent: Dice Poker (the first of the new games of docs/plan/more-games.md, ranked 2; spec docs/design/dice-poker.md). Five dice, a roll and two re-rolls of the dice you do not hold, a hand rank (pair to five of a kind), five rounds; it is a score-only game and ends on Game over with the total (owner decision 31). Two new header-only files: the pure rules, hand ranking and touch targets (maipai_dicepoker_core.h, tested on all 7776 hands) and the LVGL screen (maipai_dicepoker.h) that the host renderer draws. Five 52 px dice 8 px apart, Roll again and Keep as 148 by 56 buttons. This patch adds the rules, the screen and their tests only: registering the game in the unit's games list, the touch routing, the sounds (rattle, thud, fanfare from the existing table) and its best score are the firmware track's. Display only: no safety, lock, cue, limiter or head-motion code.
+# Intent: Dice Poker (the first of the new games of docs/plan/more-games.md, ranked 2; spec docs/design/dice-poker.md). Five dice, a roll and two re-rolls of the dice you do not hold, a hand rank (pair to five of a kind), five rounds; it is a score-only game and ends on Game over with the total (owner decision 33). Two new header-only files: the pure rules, hand ranking and touch targets (maipai_dicepoker_core.h, tested on all 7776 hands) and the LVGL screen (maipai_dicepoker.h) that the host renderer draws. Five 52 px dice 8 px apart, Roll again and Keep as 148 by 56 buttons. This patch adds the rules, the screen and their tests only: registering the game in the unit's games list, the touch routing, the sounds (rattle, thud, fanfare from the existing table) and its best score are the firmware track's. Display only: no safety, lock, cue, limiter or head-motion code.
 # Placement: unit
 # Upstream: firmware/main/hal/maipai_dicepoker_core.h, maipai_dicepoker.h (ours)
 # Check after a flash: (after the wiring) Dice Poker rolls five dice, a tap on a die holds it, Roll again re-rolls the rest twice at most, Keep banks the hand's points, and after round five the shared game over screen shows the total.
@@ -13,7 +13,7 @@ new file mode 100644
 + * SPDX-License-Identifier: MIT
 + *
 + * Dice Poker (patch UX18; spec docs/design/dice-poker.md): five dice, a roll and two re-rolls of the dice you do not hold, a hand rank, five rounds. A score-only game: it ends on
-+ * Game over with the total (owner decision 31). Pure C99, no ESP and no LVGL call, no heap. The rules and the layout of the touch targets live here so a host test checks them.
++ * Game over with the total (owner decision 33). Pure C99, no ESP and no LVGL call, no heap. The rules and the layout of the touch targets live here so a host test checks them.
 + */
 +#ifndef MAIPAI_DICEPOKER_CORE_H
 +#define MAIPAI_DICEPOKER_CORE_H

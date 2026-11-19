@@ -12,6 +12,8 @@ What it does:
 - **Linux and Raspberry Pi:** starts the host when the computer starts and starts it again if it stops. If it says it needs one more step for starting before anyone logs in, it prints the exact line for an administrator.
 - **Windows:** sets up a task that starts at login. This is written but not tested yet.
 
+No terminal? Open the status page on the host computer (`/health`) and press **Keep the host running** when it is shown. It does the same thing, once, and the page stops for about a minute while the host restarts as a service. If the service does not come up healthy, the host is started the old way and the page says why on your next visit.
+
 It runs the same program you would start by hand. Your settings, pairings and notes are not touched.
 
 ## Look after it

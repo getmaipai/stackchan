@@ -1,4 +1,4 @@
-# Intent: A game that only counts a score never says "You won!" or "You lost" (owner decision 31, 2026-11-18). The shared game-over screen gets two neutral results: MGO_OVER ("Game over", Fin del juego) and MGO_TIMEUP ("Time's up", Se acabo el tiempo, for a timed game), each with a calm sand-colored level face, the score line and the new-best mark as before. Won, Lost and Draw stay for games with a real winner. A neutral end plays the draw clip. Display only: no safety, lock, cue, limiter or head-motion code.
+# Intent: A game that only counts a score never says "You won!" or "You lost" (owner decision 33, 2026-11-18). The shared game-over screen gets two neutral results: MGO_OVER ("Game over", Fin del juego) and MGO_TIMEUP ("Time's up", Se acabo el tiempo, for a timed game), each with a calm sand-colored level face, the score line and the new-best mark as before. Won, Lost and Draw stay for games with a real winner. A neutral end plays the draw clip. Display only: no safety, lock, cue, limiter or head-motion code.
 # Placement: unit
 # Upstream: firmware/main/hal/maipai_game_over_core.h, maipai_game_over.h (ours, patches UX15 and SF82). The old UX15b change redone on the SF82 header so it applies after it.
 # Check after a flash: Whack-a-Mole, Color Memory, Do It, Snake and a stuck 2048 end on Game over or Time's up with their score; Four in a Row, Match, Hangman, Mine Finder, Tic-Tac-Toe and Rock Paper Scissors still say won, lost or draw.
@@ -12,7 +12,7 @@ diff --git a/firmware/main/hal/maipai_game_over_core.h b/firmware/main/hal/maipa
  #include <stdint.h>
  
 -enum { MGO_WON = 1, MGO_LOST = 2, MGO_DRAW = 3 };
-+/* Won and Lost are only for games with a real winner (owner decision 31). A game that only counts a score ends on MGO_OVER (Game over) or, when it is timed, MGO_TIMEUP (Time's up). */
++/* Won and Lost are only for games with a real winner (owner decision 33). A game that only counts a score ends on MGO_OVER (Game over) or, when it is timed, MGO_TIMEUP (Time's up). */
 +enum { MGO_WON = 1, MGO_LOST = 2, MGO_DRAW = 3, MGO_OVER = 4, MGO_TIMEUP = 5 };
  enum { MGO_BTN_NONE = 0, MGO_BTN_AGAIN = 1, MGO_BTN_QUIT = 2 };
  /* The sound for the moment the screen shows (the unit maps these to its clips: win MGS_C_FANFARE, lose MGS_C_GRID_LOSE, draw MGS_C_GRID_DRAW, new best MGS_C_TING after the win or loss sound). */

@@ -92,6 +92,16 @@ class WakeWordMakerConfig(StrictModel):
     folder: str | None = None  # default: the wakeword folder beside the pairing file
 
 
+class PantryConfig(StrictModel):
+    """Jokes, riddles, trivia and stories the host generates with your own model and keeps for the robot (maipai_packages/pantry)."""
+
+    enabled: bool = False
+    languages: list[str] = Field(default_factory=lambda: ["en"])
+    daily_cap: int = 200  # model calls a day the pantry may use
+    adult_humor: bool = False  # off: every record is for kids
+    folder: str | None = None  # default: the pantry folder beside the pairing file
+
+
 class PackagesConfig(StrictModel):
     """Optional local packages. Every one is off by default and costs nothing while off."""
 
@@ -99,6 +109,7 @@ class PackagesConfig(StrictModel):
     home_assistant: HomeAssistantConfig = Field(default_factory=HomeAssistantConfig)
     coding_companion: CodingCompanionConfig = Field(default_factory=CodingCompanionConfig)
     wake_word_maker: WakeWordMakerConfig = Field(default_factory=WakeWordMakerConfig)
+    pantry: PantryConfig = Field(default_factory=PantryConfig)
 
 
 class SettingsPageConfig(StrictModel):

@@ -54,6 +54,16 @@ EN = {
     "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.",
     "Delete scores": "Delete scores",
     "Someone": "Someone",
+    "Jokes and games content": "Jokes and games content",
+    "Never again": "Never again",
+    "Refill now": "Refill now",
+    "Delete": "Delete",
+    "Search": "Search",
+    "Kind": "Kind",
+    "Language": "Language",
+    "Used today": "Used today",
+    "Nothing here yet. Press Refill now and your model will write some.": "Nothing here yet. Press Refill now and your model will write some.",
+    "Asking your model. This can take a minute.": "Asking your model. This can take a minute.",
 }
 
 ES = {
@@ -107,6 +117,16 @@ ES = {
     "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "Las puntuaciones se guardan con un nombre solo cuando MaiPai Home o la frase de las notas dice quién juega; si no, van bajo Alguien. Se quedan en este ordenador.",
     "Delete scores": "Borrar puntuaciones",
     "Someone": "Alguien",
+    "Jokes and games content": "Chistes y contenido de juegos",
+    "Never again": "Nunca más",
+    "Refill now": "Rellenar ahora",
+    "Delete": "Borrar",
+    "Search": "Buscar",
+    "Kind": "Tipo",
+    "Language": "Idioma",
+    "Used today": "Usado hoy",
+    "Nothing here yet. Press Refill now and your model will write some.": "Aún no hay nada. Pulsa Rellenar ahora y tu modelo escribirá algunos.",
+    "Asking your model. This can take a minute.": "Preguntando a tu modelo. Puede tardar un minuto.",
 }
 
 FR = {
@@ -160,6 +180,16 @@ FR = {
     "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "Les scores sont classés sous un nom seulement quand MaiPai Home ou la phrase secrète des notes dit qui joue ; sinon ils vont sous Quelqu’un. Ils restent sur cet ordinateur.",
     "Delete scores": "Supprimer les scores",
     "Someone": "Quelqu’un",
+    "Jokes and games content": "Blagues et contenu des jeux",
+    "Never again": "Plus jamais",
+    "Refill now": "Remplir maintenant",
+    "Delete": "Supprimer",
+    "Search": "Chercher",
+    "Kind": "Genre",
+    "Language": "Langue",
+    "Used today": "Utilisé aujourd’hui",
+    "Nothing here yet. Press Refill now and your model will write some.": "Rien pour l’instant. Appuyez sur Remplir maintenant et votre modèle en écrira.",
+    "Asking your model. This can take a minute.": "Le modèle travaille. Cela peut prendre une minute.",
 }
 
 DE = {
@@ -213,6 +243,16 @@ DE = {
     "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "Die Werte werden nur unter einem Namen abgelegt, wenn MaiPai Home oder die Notizen-Passphrase sagt, wer spielt; sonst unter Jemand. Sie bleiben auf diesem Computer.",
     "Delete scores": "Werte löschen",
     "Someone": "Jemand",
+    "Jokes and games content": "Witze und Spielinhalte",
+    "Never again": "Nie wieder",
+    "Refill now": "Jetzt auffüllen",
+    "Delete": "Löschen",
+    "Search": "Suchen",
+    "Kind": "Art",
+    "Language": "Sprache",
+    "Used today": "Heute genutzt",
+    "Nothing here yet. Press Refill now and your model will write some.": "Noch nichts da. Drücken Sie Jetzt auffüllen und Ihr Modell schreibt welche.",
+    "Asking your model. This can take a minute.": "Ihr Modell wird gefragt. Das kann eine Minute dauern.",
 }
 
 PT = {
@@ -266,6 +306,16 @@ PT = {
     "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "As pontuações ficam sob um nome só quando o MaiPai Home ou a frase das notas diz quem joga; senão ficam em Alguém. Ficam neste computador.",
     "Delete scores": "Apagar pontuações",
     "Someone": "Alguém",
+    "Jokes and games content": "Piadas e conteúdo dos jogos",
+    "Never again": "Nunca mais",
+    "Refill now": "Reabastecer agora",
+    "Delete": "Apagar",
+    "Search": "Buscar",
+    "Kind": "Tipo",
+    "Language": "Idioma",
+    "Used today": "Usado hoje",
+    "Nothing here yet. Press Refill now and your model will write some.": "Ainda não há nada. Toque em Reabastecer agora e seu modelo escreverá alguns.",
+    "Asking your model. This can take a minute.": "Perguntando ao seu modelo. Pode levar um minuto.",
 }
 
 IT = {
@@ -319,6 +369,16 @@ IT = {
     "Scores are filed under a name only when MaiPai Home or the notes passphrase says who is playing; otherwise they go under Someone. They stay on this computer.": "I punteggi vanno sotto un nome solo quando MaiPai Home o la frase delle note dice chi gioca; altrimenti vanno sotto Qualcuno. Restano su questo computer.",
     "Delete scores": "Elimina punteggi",
     "Someone": "Qualcuno",
+    "Jokes and games content": "Barzellette e contenuti dei giochi",
+    "Never again": "Mai più",
+    "Refill now": "Riempi ora",
+    "Delete": "Elimina",
+    "Search": "Cerca",
+    "Kind": "Tipo",
+    "Language": "Lingua",
+    "Used today": "Usato oggi",
+    "Nothing here yet. Press Refill now and your model will write some.": "Ancora niente. Premi Riempi ora e il tuo modello ne scriverà.",
+    "Asking your model. This can take a minute.": "Sto interrogando il tuo modello. Può volerci un minuto.",
 }
 
 CATALOGS: dict[str, dict[str, str]] = {"en": EN, "es": ES, "fr": FR, "de": DE, "pt": PT, "it": IT}

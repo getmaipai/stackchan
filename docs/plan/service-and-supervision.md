@@ -92,7 +92,7 @@ Built and tested: `stackchan service install|status|start|stop|logs|uninstall` f
 
 Built since: the host update that installs beside, switches and rolls back (`stackchan service update`); the process-level chaos scenarios in the e2e rig (host kill at 2 and 10 units, cut connection mid-turn, internal workers with `MAIPAI_CHAOS`, launchd kill -9); per-unit behavior objects for touch, reactions, orientation and rest (docs/plan/per-unit-behavior.md; music dance, self-heal hold, light and alarm services are with the cloud session); a heartbeat for the voice and avatar servers (one worker, `voice server`; reported on the status page, not restarted, because the servers cannot be swapped inside a running host).
 
-Still open: the first-run page button for the service install (a button that changes system files from a web page needs its own decision); a heartbeat for the local model server (way 3); pushing a degraded part to the robot's screen; a real launchd or systemd swap of `stackchan service update` (a bench step).
+Still open: the first-run page button for the service install (decision 28, built with fakes; the real swap is a bench step); pushing a degraded part to the robot's screen (firmware: a banner line the host names); a real launchd or systemd swap of `stackchan service update` (a bench step). Built since: the local model server (way 3) is a watched worker (`local model`: restarted if it dies, reported if it keeps failing, `kill=local model` for the chaos hook).
 
 ## Tests from the playground track (2026-11-18)
 

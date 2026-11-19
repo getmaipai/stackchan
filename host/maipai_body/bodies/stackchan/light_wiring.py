@@ -184,6 +184,7 @@ def start_stackchan_light(
     *,
     device_connected: Callable[[], bool] = lambda: True,
     on_battery: Callable[[bool], object] | None = None,
+    poll_delay_s: float = 0.0,
 ) -> StackChanLightService:
     """Build the ring indicator and service, start both loops, return the service.
 
@@ -224,9 +225,14 @@ def start_stackchan_light(
         name="stackchan-light-service",
         daemon=True,
     ).start()
+    def run_poller() -> None:
+        # Units after the first start their polls at different moments, so a fleet's battery reads do not all hit the units at once.
+        if poll_delay_s > 0 and stop_event.wait(poll_delay_s):
+            return
+        poller.run(stop_event)
+
     threading.Thread(
-        target=poller.run,
-        args=(stop_event,),
+        target=run_poller,
         name="stackchan-light-poll",
         daemon=True,
     ).start()
