@@ -68,7 +68,7 @@ def test_turn_hook_plays_a_riddle_turn_when_the_model_is_out_of_reach(tmp_path):
 
 
 def test_jokes_one_per_turn_never_twice_and_run_out_politely(tmp_path):
-    talk, _ = make(tmp_path, [Record("joke", "en", "kid", "Why did the egg laugh? It was a yolk.", ""), Record("joke", "en", "kid", "What do you call a bear with no teeth? A gummy bear.", "")])
+    talk, _ = make(tmp_path, [Record("joke", "en", "kid", "Why did the egg laugh?|It was a yolk.", ""), Record("joke", "en", "kid", "What do you call a bear with no teeth?|A gummy bear.", "")])
     first = talk.line("a", "jokes", "en", "go")[0]
     second = talk.line("a", "jokes", "en", "another")[0]
     assert first != second and "?" in first and "?" in second

@@ -4964,7 +4964,7 @@ def _start_pantry(backend, voice=None) -> None:
     if game_bridge is not None:
         game_bridge.talk_fallback = PantryTalk(backend.pantry.library, adult_humor=lambda: bool(cfg.adult_humor))
     # Every five minutes, for each connected unit: take its heard list, send denials, and refill what the rule says (docs/design/content-pantry.md section 5).
-    from maipai_packages.pantry.sync import UnitState, run_unit
+    from maipai_packages.pantry.sync import read_unit_state, run_unit
     from maipai_packages.pantry.unit_link import ToolUnitLink
 
     from maipai_body.asset_transport import AssetTransport
@@ -4987,7 +4987,7 @@ def _start_pantry(backend, voice=None) -> None:
             for unit in list(voice._sessions):
                 try:
                     idle = voice._turns_running == 0 and unit not in voice._speaking
-                    run_unit(backend.pantry.library, link, unit, UnitState(idle=idle), window=_pantry_window(voice), nightly_done=done_tonight)
+                    run_unit(backend.pantry.library, link, unit, read_unit_state(call_unit, unit, idle=idle), window=_pantry_window(voice), nightly_done=done_tonight)
                 except Exception:
                     logger.debug("pantry sync of one unit failed", exc_info=True)
 

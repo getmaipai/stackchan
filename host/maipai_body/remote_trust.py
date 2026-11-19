@@ -19,7 +19,7 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import secrets
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
 SESSION_TOOL = "self.remote.session"
@@ -65,6 +65,12 @@ def controller_scope() -> Iterator[None]:
         yield
     finally:
         _controller.reset(token)
+
+
+def carry_scope(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """``fn`` wrapped to run in a copy of the caller's context: hand it to a thread, a timer or an executor, and a controller's scope goes with it."""
+    context = contextvars.copy_context()
+    return lambda *args, **kwargs: context.run(fn, *args, **kwargs)
 
 
 def in_controller_scope() -> bool:
