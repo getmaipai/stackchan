@@ -26,6 +26,10 @@ PICTURES = {
     "games": "screen-games-wall.png",
     "settings-general": "screen-settings-general.png",
     "update": "cover-update-62.png",
+    "offline-line": "offline-line-cannot-reach-home-en.png",
+    "four-in-a-row": "game-c4-playing.png",
+    "game-over": "game-over-c4-win.png",
+    "question-game": "game-trivia-ask.png",
 }
 
 

@@ -26,6 +26,7 @@ The playground is a virtual StackChan. It draws the robot's real screens, moves 
 - [Standards and the audit](dev-standards-and-audit.md): the screen standard in millimeters.
 - [Test suites and rigs](dev-tests-and-rigs.md): the fast and full suites, the end-to-end, fleet, chaos and fuzz rigs.
 - [Assets, memory and sounds](dev-assets-and-memory.md): the installed set, the memory model, the game sounds.
+- [How to measure a game](../dev/measure-a-game.md): the numbers and pass rules every game is gated on.
 
 **Other sections:** [User guide](../user/index.md) · [Developers](../dev/index.md)
 

@@ -49,6 +49,7 @@ For people who build, fix or extend it. Users should read the [user guide](../us
 - [Host and brains](host-and-brains.md)
 - [Host choices audit (owner decision 20, 2026-11-18)](host-choices-audit.md)
 - [Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)](internal-ram-tasks.md)
+- [How to measure a game](measure-a-game.md)
 - [Memory budget of the optional features (owner decision 11, 2026-11-18)](memory-budget.md)
 - [Cost of a switched-off feature in the plain image](off-cost.md)
 - [How MaiPai for StackChan fits together](overview.md)

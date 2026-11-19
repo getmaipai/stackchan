@@ -15,6 +15,10 @@ Each picture is a golden frame of the unit's own screen code (320 by 240). `pyth
 | `vu-games.png` | `games-and-pet.md` | `![The Games wall: a colored tile per game with its best score.](../images/vu-games.png)` |
 | `vu-settings-general.png` | `settings.md` | `![The on-robot settings, General page.](../images/vu-settings-general.png)` |
 | `vu-update.png` | `updates.md` | `![The update screen at 62 percent.](../images/vu-update.png)` |
+| `vu-offline-line.png` | `playground/scenarios-and-recording.md` | `![The robot says "I can't reach Home. Still trying." as a subtitle, with its mouth open](../images/vu-offline-line.png)` |
+| `vu-four-in-a-row.png` | `playground/games-and-sounds.md` | `![Four in a Row in play: yellow and red discs in a blue board](../images/vu-four-in-a-row.png)` |
+| `vu-game-over.png` | `playground/games-and-sounds.md` | `![The end of a game: a smiling face, "You won!", the result and the new-best mark, and two buttons](../images/vu-game-over.png)` |
+| `vu-question-game.png` | `playground/games-and-sounds.md` | `![A trivia question with four answers](../images/vu-question-game.png)` |
 
 Captions above were checked against the frames for the control sheet and the timers page; check the rest by opening the picture.
 
