@@ -39,7 +39,7 @@ from maipai_body.bodies.stackchan.music_dance import (
 )
 from maipai_body.bodies.stackchan.music_identify import MusicIdentify, MusicIdentifyHooks
 from maipai_body.bodies.stackchan.song_title import TitleKeeper, TitleSituation
-from maipai_body.hal.errors import NotSupported
+from maipai_body.hal.errors import BodyLost, NotSupported
 
 logger = logging.getLogger("maipai_body.bodies.stackchan.music_dance_wiring")
 
@@ -118,10 +118,12 @@ class MusicFeatureSwitch:
                 self._unsupported = True
                 logger.info("StackChan firmware has no music feature switch; music dance stays off")
                 return
-            except Exception:
+            except Exception as error:
                 self._failed_at = now
                 self._sent = None
-                logger.warning("StackChan music features switch failed; will retry", exc_info=True)
+                # A unit that is not connected (or just dropped) is expected while units join and leave: one plain line, retried later. Anything else keeps its traceback.
+                lost = isinstance(error, (BodyLost, ConnectionError)) or isinstance(getattr(error, "__cause__", None), ConnectionError)
+                logger.warning("StackChan music features switch failed (%s); will retry", error if lost else type(error).__name__, exc_info=not lost)
                 return
             self._sent = want
             logger.info("StackChan music features %s", "on" if want else "off")

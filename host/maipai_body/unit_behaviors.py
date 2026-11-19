@@ -94,6 +94,9 @@ class UnitBehaviors:
         try:
             with self._scope(device_id):
                 behavior.unit_connected()  # it boots awake: the rest clock must not count its time off
+                switch = getattr(behavior, "music_switch", None)
+                if switch is not None:
+                    switch.on_session(device_id)  # tell this unit whether to send its music numbers
                 orientation = getattr(behavior, "orientation", None)
                 if orientation is not None:
                     orientation.reassert()
@@ -127,6 +130,11 @@ class UnitBehaviors:
         stop = getattr(slot.behavior, "unit_stop", None)
         if stop is not None:
             stop.set()
+        for undo in getattr(slot.behavior, "on_release", []):
+            try:
+                undo()
+            except Exception:
+                LOG.debug("a unit release step failed", exc_info=True)
 
     def run(self, stop_event: threading.Event) -> None:
         while not stop_event.wait(TICK_S):

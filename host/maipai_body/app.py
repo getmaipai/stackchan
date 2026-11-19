@@ -1926,6 +1926,7 @@ class StackChanBehavior:
             ("reaction", lambda: self.reaction_tick and self.reaction_tick()),
             ("orientation", lambda: self.orientation_tick and self.orientation_tick()),
             ("keep_awake", lambda: self.keep_awake_tick and self.keep_awake_tick()),
+            ("music", lambda: getattr(self, "music_tick", None) and self.music_tick()),
             ("rest", lambda: self.rest_step(now)),
             ("watchdog", lambda: self.face_watchdog(now)),
         ):
@@ -2663,6 +2664,39 @@ def _wire_hub_services(voice, behavior, avatar, faces, light, night, power, soun
         extra.privacy_light = unit_light
         extra.unit_light = unit_light
         extra.pose_held = lambda: orientation.pose != "upright" or _unit_not_upright(extra)
+
+        # Dance to music for this unit (docs/plan/per-unit-behavior.md, step 5): its own feature switch, its own music controller and its own dance runner
+        # (decision 16). The household's "Dance to music" setting is shared; the unit's own mute silences only this unit. Song naming stays with the first unit.
+        from maipai_body.bodies.stackchan.motion_limit import MotionLimit
+
+        extra.dance_settings = behavior.dance_settings
+        extra.motion_limit = MotionLimit(client._call)
+        unit_switch = MusicFeatureSwitch(
+            client._call,
+            auto=lambda: behavior.dance_settings.auto,
+            silenced=lambda: bool(behavior.privacy_units.state_for(device_id).muted),
+        )
+
+        def _extra_move_head(yaw_deg: int, pitch_deg: int, speed: int) -> None:
+            pose = HeadPose(yaw=math.radians(yaw_deg), pitch=math.radians(pitch_deg))
+            if not extra._with_lease(lambda: extra.robot.head.set(pose=pose, speed=speed)):
+                raise RuntimeError("another part of the robot is using the head")
+
+        unit_music = wire_music_dance(
+            behavior=extra,
+            runner=behavior.dance_runner_for(device_id),
+            move_head=_extra_move_head,
+            center_pitch=CENTER_PITCH,
+            speed=SPEED,
+            switch=unit_switch,
+            start_ticker=False,  # the unit's loop ticks it (extra_unit_tick)
+        )
+        extra.music_switch = unit_switch
+        extra.music_sync = unit_switch.sync
+        extra.music_tick = lambda: (unit_switch.sync(), unit_music.ladder_expire(time.monotonic()), unit_music.tick(time.monotonic()))
+        unit_listener = unit_switch.apply_settings
+        behavior.settings_listeners.append(unit_listener)
+        extra.on_release = [lambda: behavior.settings_listeners.remove(unit_listener) if unit_listener in behavior.settings_listeners else None]
         return extra
 
     behavior.unit_behaviors = UnitBehaviors(

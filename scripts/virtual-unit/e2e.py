@@ -598,7 +598,7 @@ async def play_a_game(rig: Rig, check) -> None:
 
 
 SCENARIOS = {"spoken_turn": spoken_turn, "mood_and_overlay": mood_and_overlay, "long_sentence": long_sentence, "host_restart": host_restart, "timer_by_voice": timer_by_voice, "pair_code": pair_code, "second_unit": second_unit, "readme_steps": readme_steps, "brain_modes": brain_modes, "play_a_game": play_a_game, **EXTRA, **EXTRA_HOSTILE, **EXTRA_FLEET}
-NEEDS_SETTINGS_PAGE = {"key_exchange", "hostile_settings", "brain_modes", "chaos_host_kill_2", "chaos_host_kill_10", "chaos_internal_workers", "service_kill9"}
+NEEDS_SETTINGS_PAGE = {"fleet_music", "key_exchange", "hostile_settings", "brain_modes", "chaos_host_kill_2", "chaos_host_kill_10", "chaos_internal_workers", "service_kill9"}
 NEEDS_SERVICE = {"service_kill9"}   # the host runs as a launchd service under a temporary label (e2e_fleet.py)
 SCENARIO_TIMEOUT_S = {"play_a_game": 420, "fleet_25": 600, "fleet_10": 420, "chaos_host_kill_10": 600, "chaos_packets": 300, "service_kill9": 300, "soak": 4 * 3600, "hostile_unauthenticated": 600, "hostile_paired_peer": 900, "hostile_settings": 600}  # the soak is long on purpose; the others stop after three minutes
 

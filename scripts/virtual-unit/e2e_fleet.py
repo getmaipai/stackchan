@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -244,6 +245,9 @@ async def _fleet(rig, check, n: int, group: int | None = None) -> None:
     """N connected units; `group` of them ask at once (all of them when None), round after round until every unit has asked once."""
     units = await make_fleet(rig, n)
     await calibrate(rig, units)
+    # A unit that reconnects while 25 units join at once is a rig artifact: its client gives up after 0.5 s of silence (FleetFirmware idle_timeout) when the host is busy
+    # with the others' hellos. The check below counts reconnects from here, so it judges the turns, not the start-up (found by catching the flake: docs/dev/e2e-virtual-unit.md).
+    joined = {u.index: u.fw.connection_count for u in units}
     leak = rig.calibration_leak
     check("while only unit 0 asked, the other units heard no speech and saw no voice event", all(a == 0 and t == 0 for a, t, _ in leak.values()), str(leak))
     rig.lag_max = 0.0
@@ -263,7 +267,9 @@ async def _fleet(rig, check, n: int, group: int | None = None) -> None:
     counts = sorted(len(u.fw.audio_downlink) for u in units)
     check("each unit got the speech of its own reply and no more (the same number of audio frames each)", counts[0] > 0 and counts[-1] <= counts[len(counts) // 2] * 1.3 and counts[0] >= counts[len(counts) // 2] * 0.7, str(counts))
     check("the units kept their own names", len({u.name for u in units}) == n, str([u.name for u in units][:6]))
-    check("no unit lost its connection during the turns", all(u.fw.connection_count == 1 for u in units), str([(u.index, u.fw.connection_count, u.fw.close_reasons[:1]) for u in units if u.fw.connection_count != 1]))
+    check("no unit lost its connection during the turns", all(u.fw.connection_count == joined[u.index] for u in units), str([(u.index, u.fw.connection_count, u.fw.close_reasons[:1]) for u in units if u.fw.connection_count != joined[u.index]]))
+    if any(c > 1 for c in joined.values()):
+        print(f"  info fleet: {sum(1 for c in joined.values() if c > 1)} unit(s) reconnected once while the fleet joined (the rig's 0.5 s client idle timeout), not during the turns")
     check("the host logged no error", not [e for e in errors(rig) if "Traceback" in e or " ERROR " in e], "; ".join(errors(rig))[:300])
     print(f"  info fleet_{n}: {n} units, {group or n} asking at once, {time.time() - began:.0f} s in all, slowest turn {max(took):.0f} s")
     await close_fleet(rig)
@@ -421,6 +427,37 @@ async def fleet_light(rig, check) -> None:
     check("a hold on unit 2 lit unit 2's ring with the fault look", await wait_for(lambda: ring_calls(units[2]) > after[2], 20.0), str({u.index: ring_calls(u) for u in units}))
     await asyncio.sleep(2.0)
     check("no other unit showed it", ring_calls(units[0]) == after[0] and ring_calls(units[1]) == after[1], str({u.index: ring_calls(u) for u in units}))
+    await close_fleet(rig)
+
+
+async def fleet_music(rig, check) -> None:
+    """Dance to music is per unit (docs/plan/per-unit-behavior.md, step 5): with the household switch on, four seconds of music numbers from unit 1 make unit 1 dance
+    (the host asks it for the steps of the dance ladder, `self.music.stage`) and unit 0 and unit 2 do nothing; then unit 2 hears music and unit 2 nods."""
+    units = await make_fleet(rig, 3)
+    await calibrate(rig, units)
+    body = json.dumps({"dance_to_music": True}).encode()
+    request = urllib.request.Request(f"http://127.0.0.1:{rig.settings_port}/api/stackchan/unit/{urllib.parse.quote(units[0].device_id, safe='')}/device", data=body, headers={"Content-Type": "application/json"})
+    reply = await asyncio.to_thread(lambda: urllib.request.urlopen(request, timeout=10).status)
+    check("the household switch Dance to music was turned on", reply == 200, str(reply))
+
+    def bobs(u) -> int:
+        return len([1 for n_, _a in u.fw.tool_calls if n_ == "self.music.stage"])   # the dance ladder asks the unit for each step
+
+    async def hear(u, seconds: int = 7) -> None:
+        for _ in range(seconds):
+            with u.fw.vu_lock:
+                u.vu.call("self.robot.get_events", {})
+                u.vu.state["motion"]["events"].append({"kind": "music_feat", "at_ms": u.vu.now_ms, "lv": 2400, "b0": 40, "b1": 35, "b2": 18, "b3": 7, "bpm": 120, "tc": 80, "fl": 12, "zc": 15, "zs": 80, "mo": 15, "ps": 3, "on": 0})
+            await asyncio.sleep(1.0)
+
+    await asyncio.sleep(3.0)   # each unit is told to send its music numbers
+    base = {u.index: bobs(u) for u in units}
+    await hear(units[1])
+    check("unit 1 danced to the music", await wait_for(lambda: bobs(units[1]) > base[1], 15.0), str({u.index: bobs(u) for u in units}))
+    check("units 0 and 2 did nothing", bobs(units[0]) == base[0] and bobs(units[2]) == base[2], str({u.index: bobs(u) for u in units}))
+    await hear(units[2])
+    check("unit 2 danced to its own music", await wait_for(lambda: bobs(units[2]) > base[2], 15.0), str({u.index: bobs(u) for u in units}))
+    check("unit 0 still did nothing", bobs(units[0]) == base[0], str({u.index: bobs(u) for u in units}))
     await close_fleet(rig)
 
 
@@ -736,7 +773,7 @@ def make_service_rig(base):
 
 
 EXTRA_FLEET = {
-    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch, "fleet_orientation": fleet_orientation, "fleet_light": fleet_light,
+    "fleet_2": fleet_2, "fleet_10": fleet_10, "fleet_25": fleet_25, "capacity_probe": capacity_probe, "fleet_slow_unit": fleet_slow_unit, "fleet_unit_state": fleet_unit_state, "fleet_touch": fleet_touch, "fleet_orientation": fleet_orientation, "fleet_light": fleet_light, "fleet_music": fleet_music,
     "chaos_cut_connection": chaos_cut_connection, "chaos_packets": chaos_packets, "chaos_worker_down": chaos_worker_down, "chaos_internal_workers": chaos_internal_workers,
     "chaos_host_kill_2": _host_kill_2, "chaos_host_kill_10": _host_kill_10, "service_kill9": service_kill9,
 }
