@@ -36,7 +36,7 @@ def _b64(b: bytes) -> str:
 
 def test_the_kind_table_is_one_file_and_the_header_is_128_bytes():
     kinds = json.loads((ROOT / "schema" / "asset-kinds.json").read_text())
-    assert [k["kind"] for k in kinds["kinds"]] == ["language", "font", "style", "look", "game", "sound", "phrase"]
+    assert [k["kind"] for k in kinds["kinds"]] == ["language", "font", "style", "look", "game", "sound", "phrase", "pantry", "heard"]
     assert kinds["pool"]["sectors"] == 382 and A.HEADER.size == 128
     h, sig, body = A.make_asset("style", "face-01", b"{}")
     assert len(h) == 128 and len(sig) == 64 and h[:8] == A.MAGIC
