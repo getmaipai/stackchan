@@ -40,7 +40,21 @@ def render(char: dict, out: Path) -> dict[str, Path]:
     face = char["face"]
     fg, bg = rgb(face.get("color", "none")), background(face.get("background", "none"))
     style = face["style"]
-    cmds = [f"style {style}" if style in fm.BASE_STYLES else f"recipe {ROOT / 'firmware' / 'styles' / (style + '.rcp')}", f"{fm.RENDER_COLOR_CMD} {fg[0]} {fg[1]} {fg[2]} {bg[0]} {bg[1]} {bg[2]}"]
+    recipe = ROOT / "firmware" / "styles" / (style + ".rcp")
+    if style not in fm.BASE_STYLES and (face.get("iris") or face.get("tongue")):   # the host sets bytes 14 and 15 of a copy of the style recipe: iris, and tongue in the high four bits
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("face_recipe", ROOT / "scripts" / "face-recipe.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        raw = bytearray(recipe.read_bytes())
+        if face.get("iris"):
+            raw[14] = list(mod.PAL).index(face["iris"]) + 1
+        if face.get("tongue"):
+            raw[15] = (raw[15] & 0x0F) | ((list(mod.PAL).index(face["tongue"]) + 1) << 4)
+        recipe = out / f"{char['id']}-copy.rcp"
+        recipe.write_bytes(bytes(raw))
+    cmds = [f"style {style}" if style in fm.BASE_STYLES else f"recipe {recipe}", f"{fm.RENDER_COLOR_CMD} {fg[0]} {fg[1]} {fg[2]} {bg[0]} {bg[1]} {bg[2]}"]
     files = {}
     for mood in MOODS:
         files[mood] = out / f"{char['id']}-{mood}.png"

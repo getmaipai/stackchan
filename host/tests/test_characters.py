@@ -95,6 +95,29 @@ def test_failing_cases_give_a_message(label):
     assert all(p.endswith(".") and "\u2014" not in p for p in problems)
 
 
+def test_cartoon_with_iris_and_tongue_validates():
+    data = atlas()
+    data["face"].update(style="cartoon", iris="teal", tongue="coral")
+    assert cc.validate(data) == []
+
+
+def test_unknown_iris_name_fails_with_a_message():
+    data = atlas()
+    data["face"].update(style="cartoon", iris="purple")
+    problems = cc.validate(data)
+    assert problems and any("iris" in p for p in problems), problems
+    assert all(p.endswith(".") and "\u2014" not in p for p in problems)
+
+
+def test_the_old_six_still_validate_unchanged():
+    files = sorted(CHAR_DIR.glob("*.json"))
+    assert len(files) == 6
+    for path in files:
+        data = json.loads(path.read_text())
+        assert "iris" not in data["face"] and "tongue" not in data["face"]
+        assert cc.validate(data) == [], path.name
+
+
 def test_1100_byte_file(tmp_path):
     data = atlas()
     data["persona"] = "p" * 480

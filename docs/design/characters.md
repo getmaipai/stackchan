@@ -18,7 +18,8 @@ Not the same as a character pack (`docs/design/character-pack-format.md`), which
 | `based_on` | The id this one was copied from, when it is a copy |
 | `lang` | `en`, `es`, `fr`, `de`, `pt` or `it` |
 | `persona` | Plain text for the model, 480 characters at most |
-| `face` | `style` (one of the 13 style names), `color` and `background` (`none`, a palette name or `#rrggbb`, the face settings as they are) |
+| `face` | `style` (one of the 14 style names), `color` and `background` (`none`, a palette name or `#rrggbb`, the face settings as they are) |
+| `face.iris`, `face.tongue` | Optional. An iris or tongue color for styles that draw one (Cartoon), one of 15 color names (white, ice, cream, brown, hazel, green, teal, blue, violet, pink, red, coral, amber, gray, ink). The host makes a copy of the style recipe with those bytes set and installs it as an owner asset; the unit takes no new setting |
 | `voice` | `speed` 0.75 to 1.5, `pitch` -12 to 12 semitones (`speech/pitch.py`), `ids.local` and `ids.home` voice ids by route; a missing id means that route's default |
 | `wake` | Optional wake phrase. It needs a trained wake model, so no default character has one |
 
@@ -30,7 +31,7 @@ The face style is named, never embedded. A base style (Big eyes, Stock, Minimal)
 |---|---|---|---|
 | Who owns the list | The host (`robot.toml` folder of files) | Home; same file shape | The host, face part only |
 | Persona text | Sent to the model as the system prompt (`[llm] persona`) | Home's brain uses it | Hidden: the vendor's persona is the vendor's |
-| Face, color, background | Host sends them to the unit with the face settings | Home names them; the robot shows them | Applies, same as own LLM |
+| Face, color, background | Host sends them to the unit with the face settings | Home names them; the robot shows them | Applies, same as own LLM; iris and tongue apply like color |
 | Speed and pitch | Host applies them to the voice | Home applies them | Hidden |
 | Voice id | `ids.local` on the person's own speech engine | `ids.home`: stock or cloned voices, which Home owns and the host never stores | Hidden |
 | Language | Sets the language setting | Same | Sets the unit's screen language only |

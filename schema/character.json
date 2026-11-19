@@ -20,9 +20,11 @@
    "additionalProperties": false,
    "required": ["style"],
    "properties": {
-    "style": {"enum": ["big_eyes", "stock", "minimal", "classic", "eyes_only", "round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes", "hose", "neon"]},
+    "style": {"enum": ["big_eyes", "stock", "minimal", "classic", "eyes_only", "round", "cat", "robot", "sleepy", "retro_pixel", "heart_eyes", "hose", "neon", "cartoon"]},
     "color": {"type": "string", "pattern": "^(none|mint|sky|amber|rose|lilac|lime|coral|#[0-9a-fA-F]{6})$", "description": "The face color setting."},
-    "background": {"type": "string", "pattern": "^(none|mint|sky|amber|rose|lilac|lime|coral|#[0-9a-fA-F]{6})$", "description": "The screen color behind the face."}
+    "background": {"type": "string", "pattern": "^(none|mint|sky|amber|rose|lilac|lime|coral|#[0-9a-fA-F]{6})$", "description": "The screen color behind the face."},
+    "iris": {"enum": ["white", "ice", "cream", "brown", "hazel", "green", "teal", "blue", "violet", "pink", "red", "coral", "amber", "gray", "ink"], "description": "The iris color, for styles that draw one (Cartoon). Missing: the style's own."},
+    "tongue": {"enum": ["white", "ice", "cream", "brown", "hazel", "green", "teal", "blue", "violet", "pink", "red", "coral", "amber", "gray", "ink"], "description": "The tongue color, for styles that draw one (Cartoon). Missing: the style's own."}
    }
   },
   "voice": {

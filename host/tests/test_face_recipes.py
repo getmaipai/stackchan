@@ -34,8 +34,10 @@ def _tree_header(tmp_path: Path) -> tuple[Path, Path] | None:
         hunk = "diff --git " + text.split("diff --git ")[1].split("\ndiff --git ", 1)[0] + "\n"
         done = subprocess.run(["patch", "-p1", "-s", "-f"], input=hunk, cwd=tmp_path / "tree", capture_output=True, text=True)
         assert done.returncode == 0, done.stdout + done.stderr
-        moods = ROOT / "firmware" / "patches" / "UXF02-extended-moods.patch"
-        if moods.exists():   # the five more moods build on the recipes patch
+        for later in ("UXF02-extended-moods.patch", "UXF03-cartoon-eyes.patch"):   # the later look core hunks build on the recipes patch, in order
+            moods = ROOT / "firmware" / "patches" / later
+            if not moods.exists():
+                continue
             text = moods.read_text()
             hunk = "diff --git " + text.split("diff --git ")[1].split("\ndiff --git ", 1)[0] + "\n"
             done = subprocess.run(["patch", "-p1", "-s", "-f"], input=hunk, cwd=tmp_path / "tree", capture_output=True, text=True)
@@ -55,6 +57,17 @@ def test_the_recipes_are_the_owners_list():
         spec = json.loads(p.read_text())
         assert spec["name"] == p.stem and spec["title"] and spec["about"]
         assert p.with_suffix(".rcp").stat().st_size == 44 <= 256   # the style asset kind holds 256 bytes
+
+
+def test_cartoon_recipe_color_bytes_and_old_recipes_unchanged():
+    pal = ["white", "ice", "cream", "brown", "hazel", "green", "teal", "blue", "violet", "pink", "red", "coral", "amber", "gray", "ink"]
+    data = (STYLES / "cartoon.rcp").read_bytes()
+    assert len(data) == 44 and data[5] == 5
+    assert data[14] == 0   # iris absent: the style's default
+    assert data[15] == ((pal.index("pink") + 1) << 4) | (pal.index("white") + 1) == 0xA1
+    for p in STYLES.glob("*.rcp"):
+        if p.stem != "cartoon":
+            assert p.read_bytes()[14:16] == b"\0\0", p.name
 
 
 @pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler on this machine")
@@ -92,3 +105,22 @@ def test_the_moods_patch_has_its_header_lines_and_names_the_five():
     for name in ("ML_JOY", "ML_EXCITED", "ML_SHOCKED", "ML_CURIOUS", "ML_WORRIED"):
         assert name in text
     assert chr(8212) not in text
+
+
+def test_the_color_table_of_the_cartoon_patch_matches_the_recipe_script():
+    path = ROOT / "firmware" / "patches" / "UXF03-cartoon-eyes.patch"
+    if not path.exists():
+        pytest.skip("the cartoon eyes patch is not in firmware/patches yet")
+    import importlib.util
+    import re
+
+    spec = importlib.util.spec_from_file_location("face_recipe", ROOT / "scripts" / "face-recipe.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    line = next(l for l in path.read_text().splitlines() if "ML_PAL_NAMES[ML_PAL_COUNT]" in l)
+    names = re.findall(r'"([a-z]+)"', line)
+    assert names[0] == "default" and names[1:] == list(mod.PAL)   # one list: the firmware table and the script agree
+    head = path.read_text().split("diff --git", 1)[0]
+    for key in ("# Intent:", "# Placement: unit", "# Upstream:", "# Check after a flash:", "# Kconfig:", "# Memory cost:"):
+        assert key in head, key
+    assert chr(8212) not in path.read_text()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real renders of every face style: every mood, four face colors, three backgrounds, drawn by the unit's own face code in the host renderer.
+"""Real renders of every face style: every mood, four face colors, four backgrounds, drawn by the unit's own face code in the host renderer.
 Usage: host/.venv/bin/python scripts/virtual-unit/face_matrix.py [--styles a,b] [--sheet PATH.html] [--png-dir DIR] [--images]
   --sheet    one self-contained HTML contact sheet (every style, every mood, every color and background; PNGs inline)
   --png-dir  also keep the PNG tiles there (STYLE/COLOR-BACKGROUND/MOOD.png)
@@ -62,7 +62,7 @@ def sheet(styles, rendered: dict, path: Path) -> None:
              "h1{font-size:24px}h2{font-size:19px;margin:30px 0 4px;border-top:1px solid #333;padding-top:14px}h3{font-size:14px;margin:14px 0 4px;color:#b8bcc8;font-weight:600}"
              ".row{display:flex;flex-wrap:wrap;gap:6px}figure{margin:0}figure img{width:160px;height:120px;display:block;border-radius:6px;image-rendering:auto}"
              "figcaption{font-size:12px;color:#9aa0ae;text-align:center}details{margin:6px 0}summary{cursor:pointer;color:#b8bcc8}nav a{color:#8fb4ff;margin-right:12px}</style>",
-             "<h1>Face styles: every mood, four colors, three backgrounds</h1>",
+             "<h1>Face styles: every mood, four colors, four backgrounds</h1>",
              "<p>Each picture is drawn by the unit's own face code in the host renderer (320 by 240, shown at half size). A face color is the face color setting; a background is the screen color behind the face (a named color at 26 percent brightness, or none for black).</p><nav>"]
     parts += [f"<a href='#{s}'>{s}</a>" for s in styles]
     parts.append("</nav>")

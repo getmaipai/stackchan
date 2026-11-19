@@ -17,13 +17,13 @@ The page shows a live preview that uses the same drawing code as the robot.
 
 ![Thirteen face styles at rest, four to a row, in the order listed below.](../images/face-styles.png)
 
-*Every face style at rest, drawn by the robot's own face code: Big eyes, Stock, Minimal, Classic, then Eyes only, Round, Cat, Robot, Sleepy, Pixel, Heart eyes, Rubber hose and Neon anime.*
+*Every face style at rest, drawn by the robot's own face code: Big eyes, Stock, Minimal, Classic, then Eyes only, Round, Cat, Robot, Sleepy, Pixel, Heart eyes, Rubber hose, Neon anime and Cartoon.*
 
 ## More faces (Planned)
 
-The robot comes with Big eyes, Stock and Minimal. More are planned as small downloads (each is 44 bytes) from the catalog: Classic, Eyes only, Round, Cat, Robot, Sleepy, Pixel, Heart eyes, Rubber hose and Neon anime. A style you have not installed uses no memory. Install one on the settings page, then pick it in the Look tab. Remove it and the robot goes back to the style you had before.
+The robot comes with Big eyes, Stock and Minimal. More are planned as small downloads (each is 44 bytes) from the catalog: Classic, Eyes only, Round, Cat, Robot, Sleepy, Pixel, Heart eyes, Rubber hose, Neon anime and Cartoon. A style you have not installed uses no memory. Install one on the settings page, then pick it in the Look tab. Remove it and the robot goes back to the style you had before.
 
-Rubber hose is a 1930s cartoon look: tall eyes with a wedge cut from the dark middle, a wide grin, round cheeks and a small tuft. Neon anime has big glowing ring eyes with a bright middle and small sparkles.
+Rubber hose is a 1930s cartoon look: tall eyes with a wedge cut from the dark middle, a wide grin, round cheeks and a small tuft. Neon anime has big glowing ring eyes with a bright middle and small sparkles. Cartoon has big glossy white eyes with a colored middle and an open smile with a tongue; it looks best on a dark blue background.
 
 Every style works with every face color and every background color, and in every mood.
 

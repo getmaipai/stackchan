@@ -64,3 +64,4 @@ docs-site/vendor/* :: *
 
 # The face style patch builder matches the reference tree's own comment text (UXF01).
 scripts/face-kit/make_patch.py :: resting centre
+scripts/face-kit/make_patch_gloss.py :: The colour the face is drawn

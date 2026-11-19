@@ -19,6 +19,7 @@ Measured 2026-11-19 on the host renderer in dirty-area mode (`scripts/virtual-un
 | Heart eyes | 0 / 0 | 0 / 0 | 0 | 0 | 0.0 | fits, with two parts left out (below) |
 | Rubber hose | 3709 / 23750 | 3709 / 23750 | 28886 | 30076 | 22.0 | fits, close to Big eyes |
 | Neon anime | 2964 / 20806 | 2964 / 20806 | 28122 | 31970 | 23.4 | fits, close to Big eyes |
+| Cartoon | 3227 / 16902 | 3251 / 16902 | 22816 | 24354 | 17.9 | fits, lighter than Big eyes |
 
 Memory: no style costs anything until installed; see `docs/design/face-styles.md`. A style change is one full redraw (56 to 65 ms) for every style alike.
 
@@ -34,6 +35,14 @@ Memory: no style costs anything until installed; see `docs/design/face-styles.md
 ## Not proven
 
 Run on a unit: the frame cost (K is the bench's constant), the internal RAM of the writable row and of a decorated style, installing a style through `self.assets.install`, and the first draw after a style change. The firmware track wires the install and applies the recipe; the patch only adds the reader, the row and the drawing.
+
+## Cartoon: what was left out
+
+- **Arched brows.** Brows are straight bars (a curved one needs two segments per brow and a redraw of both on every gaze move); tilt and lift carry the mood.
+- **A glossy gradient or a blurred highlight.** A gradient fill costs 9 ms and a blur 14 to 22 ms a box (`UNIT_BOX_US`); the eye has one flat white oval and one small flat highlight.
+- **Eyes drawn from the picture path.** The picture path knows two colors, so a cartoon eye is drawn from its shape list; it still measures lighter than Big eyes.
+- **A tongue that moves with the voice.** The tongue shows whenever the smile is open (happy, joy, excited, speaking); it does not wag.
+- **The navy background as part of the style.** A style has no background of its own; the character file names it (`#0f1b3d`).
 
 ## Face ideas from the audits
 

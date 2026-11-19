@@ -10,10 +10,12 @@ A face style is 44 bytes of numbers. The unit reads them into one writable style
 |---|---|
 | 0 to 3 | `MPS1` |
 | 4 | Version, 1 |
-| 5 | Eye design: standard, pie, neon, slit, heart |
+| 5 | Eye design: standard, pie, neon, slit, heart, gloss |
 | 6 | Decoration: none, cat, robot, blush, hose, neon |
 | 7 | Lid floor, 0 to 70 percent (a sleepy style never opens fully) |
 | 8 to 13 | Mouth kind, roundness, pupil, brows, drift, brow thickness |
+| 14 | Iris color: 0 the style's default, 1 to 15 a color of the table below |
+| 15 | Tongue color (high four bits) and eye-white color (low four bits), same table |
 | 16 to 27 | Name, up to 12 letters, digits or underscores |
 | 28 to 43 | Eight numbers: eye size, eye spacing, eye height, mouth place, mouth width, mouth thickness, eye width, eye height |
 
@@ -21,11 +23,14 @@ The reader (`ml_recipe_parse` in `maipai_look_core.h`) checks every number again
 
 Sources are `firmware/styles/NAME.json`. `python3 scripts/face-recipe.py build` writes `NAME.rcp`; `check` (part of `scripts/check.sh`) fails when they differ.
 
-## The ten recipes
+The 15 colors for bytes 14 and 15, in order: white, ice, cream, brown, hazel, green, teal, blue, violet, pink, red, coral, amber, gray, ink. The recipe stays 44 bytes: the two bytes were spare and older recipes hold zeros there, which mean the style's default.
 
-Classic and Eyes only were base rows before; they are recipes now. Round, Cat, Robot, Sleepy, Pixel and Heart eyes come back from the set-aside list. Rubber hose and Neon anime are new, with original shapes only.
+## The eleven recipes
+
+Classic and Eyes only were base rows before; they are recipes now. Round, Cat, Robot, Sleepy, Pixel and Heart eyes come back from the set-aside list. Rubber hose, Neon anime and Cartoon are new, with original shapes only.
 
 - **Rubber hose:** a tall oval eye with a big dark middle and a wedge cut out of it, a wide grin, two round cheeks and a three-hair tuft.
+- **Cartoon:** a big glossy white eye with a colored iris, a dark pupil and a small highlight that rests looking up and to the side and follows the gaze; soft brows at rest; an open smile that shows a pink tongue (patch `UXF03-cartoon-eyes.patch`). The face color tints the brows, mouth and iris (the iris is brown while the face color is white); iris, tongue and eye white have their own color fields. It looks best on a dark navy background (the character file sets one). A happy eye closes to an arch, a sleepy lid covers the top, surprise is a small round mouth.
 - **Neon anime:** a hollow ring eye with a soft glow, a bright iris that follows the gaze, a dark middle and a spark; four small sparkles at the sides. Big eyes stays the filled-eye anime look.
 
 ## How it draws
@@ -42,6 +47,7 @@ Patch `UXF02-extended-moods.patch` adds joy, excited, shocked, curious and worri
 |---|---|
 | No recipe installed | Nothing new. The writable row is built the first time a style asks for it (about 70 bytes of internal RAM). |
 | One installed | 44 bytes in an asset slot (flash; 8 slots at most). |
+| Cartoon colors | Three colors, 6 bytes of internal RAM |
 | Active, with decorations | One object, about 160 bytes of internal RAM, deleted when the style changes. |
 | Flash for the reader and the eye designs | About 2 KB. |
 

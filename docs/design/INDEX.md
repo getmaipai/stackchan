@@ -52,7 +52,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/brain-routes.md` (30): The brain routes on the unit (owner decision 34)
 - `docs/design/brain-seam.md` (16): Brain seam call map
 - `docs/design/character-pack-format.md` (17): Illustrated character packs
-- `docs/design/characters.md` (69): Characters
+- `docs/design/characters.md` (70): Characters
 - `docs/design/clock-styles.md` (66): Clock styles, the tap and the sleep sign
 - `docs/design/config.md` (24): Host configuration
 - `docs/design/consolidation-2026-11-16.md` (79): One consolidated image, 2026-11-16
@@ -67,7 +67,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/fable-memory-review-2026-11-16.md` (174): Memory and risk review of the merged firmware, 2026-11-16
 - `docs/design/face-detect-esp-dl-2026-11-17.md` (241): Face detection on the unit with ESP-DL: can the head track a face alone? (2026-11-17)
 - `docs/design/face-seek-2026-11-17.md` (343): Turning toward people: core, wiring, lease, setting and detector evaluation (2026-11-17)
-- `docs/design/face-styles.md` (54): Face styles as recipes
+- `docs/design/face-styles.md` (60): Face styles as recipes
 - `docs/design/faces-core-2026-11-16.md` (21): Faces core, 2026-11-16 (patches X01 and X02)
 - `docs/design/faces-gate-2026-11-16.md` (61): Faces wired in and busy gate, 2026-11-16
 - `docs/design/faces-status-2026-11-16.md` (42): Faces and always-on behaviors, status 2026-11-16
@@ -185,8 +185,6 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
-- `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.html` (84): no header
 - `docs/dev/feature-ledger.html` (84): no header
 - `docs/dev/feature-ledger.md` (1179): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
@@ -438,7 +436,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/downgrade-protection.md` (7): Downgrade protection for signed updates (note for the firmware track, 2026-11-18)
 - `docs/plan/estop-request.md` (7): Request to the firmware track: an emergency stop (estop)
 - `docs/plan/face-parts.md` (76): Face parts and the asset bank (plan)
-- `docs/plan/face-styles-verdict.md` (57): Face styles: what fits and what does not
+- `docs/plan/face-styles-verdict.md` (66): Face styles: what fits and what does not
 - `docs/plan/first-release-notes-draft.md` (52): First release notes draft (2026-11-18)
 - `docs/plan/first-run-brain-choice.md` (25): The brain choice at first run: what the robot sends and what the host does (2026-11-18)
 - `docs/plan/firstrun-wiring.md` (11): First-run flow: what the firmware track wires (2026-11-18)
@@ -1027,6 +1025,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/Y04-find-and-game-screen-cues.patch` (85): two on-screen cues. (1) Find-my-robot: every find chirp (Y02) shows a happy face and the words "Here I am!" fo
 - `firmware/patches/Z01-boot-event-names-the-crash.patch` (121): The boot event names the crash. It now carries reason_name (poweron, software, panic, int_wdt, task_wdt, wdt, 
 - `firmware/sdkconfig.core.defaults` (21): Measured from pristine base: app binary -47,056 B, DIRAM -132 B.
+- `firmware/styles/cartoon.json` (23): no header
+- `firmware/styles/cartoon.rcp` (0): no header
 - `firmware/styles/cat.json` (21): no header
 - `firmware/styles/cat.rcp` (1): no header
 - `firmware/styles/classic.json` (19): no header
@@ -2439,7 +2439,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/update-header-vectors.json` (104): no header
 - `host/tests/fixtures/update-signature-vectors.json` (79): no header
 - `host/tests/golden/face-known.json` (1): no header
-- `host/tests/golden/face_styles_digests.json` (158): no header
+- `host/tests/golden/face_styles_digests.json` (226): no header
 - `host/tests/golden/golden-order.sha1` (1): no header
 - `host/tests/golden/pack_games_digests.json` (509): no header
 - `host/tests/golden/tolerance.json` (110): no header
@@ -2490,7 +2490,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_camera_sweep_table.py` (35): The camera sweep table builder (scripts/camera-sweep-table.py)."""
 - `host/tests/test_channel_client.py` (221): Reconnect replays the same event id; the handler remains exactly once.
 - `host/tests/test_character_pack.py` (249): The dimensions are rejected from the PNG header before pixel decoding.
-- `host/tests/test_characters.py` (149): The character files and their checker (scripts/character-check.py, schema/character.json, docs/design/characte
+- `host/tests/test_characters.py` (172): The character files and their checker (scripts/character-check.py, schema/character.json, docs/design/characte
 - `host/tests/test_check_no_keys.py` (27): The key scanner refuses real-looking keys and lets the marked test fakes through."""
 - `host/tests/test_cli_check_forget.py` (60): no header
 - `host/tests/test_cli_run_and_example.py` (27): The documented install path: `stackchan run` starts the host; the first-run config template ships."""
@@ -2526,7 +2526,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_expression_suppression.py` (83): The suppression table (dev.md section 5's "Suppressed or reinterpreted when" column)."""
 - `host/tests/test_eyes_client.py` (267): The Reachy Eyes serial client, clean-room (docs/dev/eyes-wire-protocol.md).
 - `host/tests/test_face_preview_parity.py` (127): ruff: noqa: E501
-- `host/tests/test_face_recipes.py` (94): Patch UXF01 (docs/design/face-styles.md): face styles as 44-byte recipes. The JSON sources and the .rcp files 
+- `host/tests/test_face_recipes.py` (126): Patch UXF01 (docs/design/face-styles.md): face styles as 44-byte recipes. The JSON sources and the .rcp files 
 - `host/tests/test_face_styles_golden.py` (59): Golden renders of every face style (docs/plan/face-styles-verdict.md): a digest of the thirteen mood pictures 
 - `host/tests/test_face_wrap_soak.py` (53): ruff: noqa: E501
 - `host/tests/test_face_zone_layout.py` (48): ruff: noqa: E501
@@ -2982,7 +2982,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/.gitkeep` (0): no header
 - `schema/asset-kinds.json` (84): no header
 - `schema/base-tools.json` (11): no header
-- `schema/character.json` (47): no header
+- `schema/character.json` (49): no header
 - `schema/licenses.json` (14): no header
 - `schema/memory-budget.json` (909): no header
 - `schema/power-model.json` (34): no header
@@ -3024,8 +3024,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/exposure-test.py` (304): the exposure suite. One run measures what the host contacts, what it exposes and what protects it, and prints 
 - `scripts/exposure-test.sh` (5): run the exposure suite (see scripts/exposure-test.py). Usage: bash scripts/exposure-test.sh [--write]
 - `scripts/face-kit/make_patch.py` (336): Builds firmware/patches/UXF01-face-style-recipes.patch from the reference tree: copies the three files it chan
+- `scripts/face-kit/make_patch_gloss.py` (162): Builds firmware/patches/UXF03-cartoon-eyes.patch: a glossy-eye design (a white eye with a colored iris, a dark
 - `scripts/face-kit/make_patch_moods.py` (82): Builds firmware/patches/UXF02-extended-moods.patch: five more mood faces (joy, excited, shocked, curious, worr
-- `scripts/face-recipe.py` (69): Face recipes: the style assets (kind style, docs/plan/face-parts.md). firmware/styles/NAME.json holds the numb
+- `scripts/face-recipe.py` (80): Face recipes: the style assets (kind style, docs/plan/face-parts.md). firmware/styles/NAME.json holds the numb
 - `scripts/feature-ledger.py` (513): The feature ledger: every feature and improvement as one row, in two lists (an everyday user's and a maker's),
 - `scripts/funding-check.py` (98): fail when the README or the docs point to a funding page that .github/FUNDING.yml does not list.
 - `scripts/fuzz-cores.sh` (30): fuzz the unit's own parsers (firmware *_core.h headers) on this computer with the address and undefined behavi
@@ -3129,7 +3130,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/sounds-demo.py` (87): A page to listen to the robot's sounds: the game sounds (the unit's own tone clips and the sketches) and the o
 - `scripts/spec-dir.sh` (4): no header
 - `scripts/spec-drift-check.sh` (32): the vendored spec (host/spec-vendor/spec) is a snapshot, never edited by hand. Fails when a vendored file diff
-- `scripts/spelling-allow.txt` (66): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
+- `scripts/spelling-allow.txt` (67): Allow-list for scripts/spelling-check.py. Format: <path glob> :: <regex>  (skip matching lines)  or  <path glo
 - `scripts/spelling-check.py` (98): fail on British spellings in text files (owner rule 2026-11-16: American spelling everywhere).
 - `scripts/stackchan-egress-proof.sh` (66): no header
 - `scripts/stackchan-no-third-party.sh` (119): Hostnames only: the image legitimately carries board and class names such as M5StackCoreS3Board.
@@ -3144,7 +3145,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/brain_route.py` (44): The brain route of the virtual unit (owner decision 34): hosted (route A, the vendor's servers) or custom (rou
 - `scripts/virtual-unit/build-face.sh` (21): build the face renderer from a firmware tree plus the face patches written after that tree was built, without 
 - `scripts/virtual-unit/build-screens.sh` (40): build the host renderer that also draws the banner row, subtitles, swipe pages, control sheet and Apps (patche
-- `scripts/virtual-unit/character_sheet.py` (80): The six default characters, each in its own face style, color and background, in six moods: docs/images/charac
+- `scripts/virtual-unit/character_sheet.py` (94): The six default characters, each in its own face style, color and background, in six moods: docs/images/charac
 - `scripts/virtual-unit/contact_sheets.py` (79): One contact sheet PNG per language from the golden screens (docs/dev/screens/sheet-<lang>.png) plus an index w
 - `scripts/virtual-unit/cover_gen.py` (39): Cut the real cover-screen code (Wi-Fi connecting, Wi-Fi setup, waiting for Home to approve) out of the firmwar
 - `scripts/virtual-unit/cover_render.cc` (136): Host renderer for the full-screen link covers: Wi-Fi connecting, Wi-Fi setup needed, connecting to Home, waiti
@@ -3159,10 +3160,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/e2e_hostile.py` (341): A hostile peer on the local network, against the real host (clean venv) with a virtual unit paired and working
 - `scripts/virtual-unit/ed25519_pure.py` (103): Ed25519 (RFC 8032) in plain Python, for the places the `cryptography` package is not there (the browser build 
 - `scripts/virtual-unit/face_consistency.py` (101): Face consistency across the five styles and the emotions: white faces, a mouth wide enough to read, no hairlin
-- `scripts/virtual-unit/face_matrix.py` (191): Real renders of every face style: every mood, four face colors, three backgrounds, drawn by the unit's own fac
+- `scripts/virtual-unit/face_matrix.py` (191): Real renders of every face style: every mood, four face colors, four backgrounds, drawn by the unit's own face
 - `scripts/virtual-unit/face_style_cost.py` (79): Frame cost of every face style against the display budget (docs/dev/display-capabilities.md, docs/plan/face-st
 - `scripts/virtual-unit/face_style_sheets.py` (69): One contact sheet per face style (docs/dev/ledger-assets/faces-<style>.png): every mood drawn by the robot's o
-- `scripts/virtual-unit/face_styles.py` (22): The face styles, colors, backgrounds and moods the contact sheets and the budget table use: one list, here.
+- `scripts/virtual-unit/face_styles.py` (24): The face styles, colors, backgrounds and moods the contact sheets and the budget table use: one list, here.
 - `scripts/virtual-unit/fake_host.py` (135): A fake host for the playground's Live mode: the routes of docs/plan/playground-live.md (under /api/playground,
 - `scripts/virtual-unit/frame_cost.py` (77): Frame cost per screen type from the host renderer (lane P baseline). Usage: frame_cost.py [--write]   prints a
 - `scripts/virtual-unit/game_over_look_sheet.py` (37): The two pictures of docs/design/game-over-look.md, made from the goldens (needs ffmpeg): before and after (tod
