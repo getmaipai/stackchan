@@ -37,6 +37,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/architecture-layers.md` (341): Architecture layers: kernel, modules, assets, host (design, 2026-11-18)
 - `docs/design/architecture.md` (95): Architecture
 - `docs/design/banner-row-2026-11-16.md` (65): Fixed zones, the banner row and the subtitle strip (patches N01 to N04)
+- `docs/design/battleship-lite.md` (17): Battleship-lite
 - `docs/design/boundary-debt.txt` (40): no header
 - `docs/design/brain-routes.md` (30): The brain routes on the unit (owner decision 34)
 - `docs/design/brain-seam.md` (16): Brain seam call map
@@ -72,6 +73,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/firmware-spike-2026-11-15.md` (16): Firmware spike on unit, 2026-11-15
 - `docs/design/firmware-v1-cut.md` (245): Firmware v1 cut
 - `docs/design/first-run-flow.md` (55): First run on the robot (plan step 7)
+- `docs/design/flyer.md` (19): Flappy-style flyer
 - `docs/design/game-engine-note.md` (43): Game engine note (Train 3 item 15, design only, 2026-11-16)
 - `docs/design/game-over-screen.md` (58): The shared game-over screen
 - `docs/design/games-2026-11-16.md` (147): Games: the engine and three games in the core firmware, 2026-11-16
@@ -108,6 +110,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/patch-map.md` (257): Firmware patch map
 - `docs/design/performance-and-latency.md` (68): Performance and latency
 - `docs/design/picture-faces-2026-11-16.md` (160): Fluid faces and picture faces, 2026-11-16
+- `docs/design/pong.md` (19): Pong
 - `docs/design/portal-status-2026-11-16.md` (46): Wi-Fi portal, status 2026-11-16
 - `docs/design/power-model.md` (23): The power model of the virtual unit
 - `docs/design/qa-game-screens.md` (51): Screens for the question and answer games
@@ -2738,7 +2741,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
 - `scripts/fw-face-render/games_render.cc` (252): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
-- `scripts/fw-face-render/grid_render.cc` (447): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
+- `scripts/fw-face-render/grid_render.cc` (617): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
 - `scripts/fw-face-render/hooks_banner.cc` (335): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
 - `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
