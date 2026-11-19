@@ -1,19 +1,19 @@
 # M5Stack cloud and Xiaozhi service: research paper
 
-Working paper for the owner. Not legal advice. Retrieved 2026-11-18 from public pages only. No traffic captured, no keys extracted, no server contacted.
+Working paper for the owner. Not legal advice. First pass 2026-11-18, second pass the same day. Public pages and public repositories only. No traffic captured, no keys extracted, no server of theirs contacted beyond normal page fetches of public documentation.
 
 ## Summary (10 lines)
 
-1. The StackChan firmware, its server and the Xiaozhi firmware under it are MIT. Relicensing into AGPL is allowed if the notices stay.
-2. The stock robot talks to the Xiaozhi cloud. The Xiaozhi README says personal users register an account and get a Qwen real-time model for free.
-3. The device side is public: an OTA endpoint, an activation code, a WebSocket. The OTA address is a setting, so a server swap needs no reverse engineering.
-4. I could not read M5Stack's docs, Xiaozhi's terms or its privacy policy (network policy blocked them). Terms on third-party clients and modified firmware are UNKNOWN.
-5. Self-hostable servers exist: two MIT, one modified Apache with multi-tenant and logo limits.
-6. Free OpenAI-style LLM tiers exist (Groq, OpenRouter, Gemini). Limits change often.
-7. Superseded by decision 34 (owner, 2026-11-18): the Brain choice offers two equal routes, A hosted by M5Stack/Xiaozhi and B custom, as the stock firmware does. The old recommendation (nothing by default, own key first, official cloud last) is withdrawn. Route A stays planned until a test build proves their server accepts our firmware; if it does not, route A is hidden and the docs say why.
-8. Each route shows one plain line about where voice goes (A leaves your home to their servers; B stays where you point it). The offline fallback stays. The research below is unchanged.
-9. `docs/plan/trademark-and-affiliation.md` is not on main. Sections 4 and 5 use the README and NOTICE wording instead. Please point me at the file.
-10. Seven open questions for the owner or M5Stack are in section 5.
+1. The StackChan firmware, its server and the Xiaozhi firmware under it are MIT. Relicensing into AGPL is allowed if the notices stay (section 1).
+2. M5Stack's StackChan page says the factory AI Agent is powered by XiaoZhi and is bound through the StackChan World app, not through xiaozhi.me. The two are not interoperable (section 2).
+3. The Xiaozhi README says personal users register and get a free Qwen real-time model. It states no limits (section 2).
+4. The device side is public and short: one OTA POST, an activation code, a WebSocket with Opus audio and MCP tool calls (section 3).
+5. The StackChan server folder is not a voice server. It handles accounts, binding, the avatar relay and calls into the Xiaozhi platform (section 3).
+6. Third-party-client terms, free limits, voice-data retention, region limits and automated access are UNKNOWN. No public page answered them (section 2).
+7. Four self-hostable servers exist: three MIT, one modified Apache (section 4).
+8. Decision 34 (owner, 2026-11-18) sets two equal Brain routes. Route A, hosted by M5Stack/Xiaozhi, stays planned until the cloud-brain test build proves their server accepts our firmware. If it does not, A is hidden and the docs say why (section 5).
+9. Each route shows one plain line about where voice goes. The offline fallback stays. Leaving hosted erases what the unit keeps and cannot erase what their servers keep (section 6).
+10. Open questions that only the test build, the owner or a lawyer can settle are in section 7.
 
 ## 1. Licenses
 
@@ -34,35 +34,76 @@ Relicensing into AGPL-3.0: MIT code can sit inside an AGPL work. The MIT text st
 
 Branding limit from the stack: the StackChan name and M5Stack marks are not licensed by MIT. This project already says it is not made or endorsed by M5Stack ([NOTICE](../../NOTICE), [README](../../README.md)).
 
-## 2. The hosted service
+## 2. What we could read (2026-11-18)
 
-### What the stock robot connects to
+All pages below were fetched on 2026-11-18 as ordinary public pages.
 
-- Xiaozhi README: "The firmware connects to the official xiaozhi.me server by default. Personal users can register an account to use the Qwen real-time model for free." ([README](https://raw.githubusercontent.com/78/xiaozhi-esp32/main/README.md), 2026-11-18)
-- M5Stack's StackChan repo README lists an "AI Agent" in the factory firmware and says a mobile app does video and remote avatar control ([README](https://raw.githubusercontent.com/m5stack/StackChan/main/README.md), 2026-11-18).
-- Search results quote M5Stack's docs saying the AI Agent is bound and configured through the StackChan World app (iOS, Android). I could not open docs.m5stack.com, so this is second hand. Page to confirm: [docs.m5stack.com/en/StackChan](https://docs.m5stack.com/en/StackChan).
-- Whether the stock StackChan build points at xiaozhi.me or an M5Stack-run copy: UNKNOWN from public text I could read. The patch file in the StackChan repo is the place to look.
-
-### Protocol, as documented upstream
-
-- OTA and activation: [docs/ota.md](https://raw.githubusercontent.com/78/xiaozhi-esp32/main/docs/ota.md). A device POSTs its identity (`Device-Id` MAC, `Client-Id` UUID) to an OTA URL. The reply carries connection settings, an optional firmware URL and an optional activation object. The URL comes from a saved `wifi.ota_url` setting, else a build default.
-- Voice session: [docs/websocket.md](https://raw.githubusercontent.com/78/xiaozhi-esp32/main/docs/websocket.md). WebSocket with a hello message, Opus audio, and MCP tool calls.
-- Binding: the device shows a code, the owner types it into a console, the device polls until bound. Third-party guides say the code has six digits and sign-up uses a phone number ([Seeed wiki](https://wiki.seeedstudio.com/respeaker_xvf_3800_xiaozhi/), [UNIHIKER](https://www.unihiker.com/wiki/K10/Playground/XiaozhiAI/), via search, 2026-11-18). Public description only. I did not run it.
-
-### Free or paid, limits, terms
-
-| Question | Answer |
+| Source | What it gave us |
 |---|---|
-| Free for personal users | Yes for the Qwen real-time model, per the Xiaozhi README line above |
-| Paid tiers | UNKNOWN. Another vendor sells a one-time license fee in its hardware ([Ai-Thinker docs](https://docs.ai-thinker.com/en/aipi-palchatv1/instructions_v2.x_commercial.html), via search), which shows paid variants exist elsewhere |
-| Public rate limits | UNKNOWN. None found |
-| Terms of service | UNKNOWN. Not retrieved: xiaozhi.me and docs.xiaozhi.me were blocked by this session's network policy |
-| Privacy policy | UNKNOWN. Same reason. Voice goes to a third-party hosted service (location UNKNOWN), so treat it as off-device audio |
-| Third-party clients and modified firmware | UNKNOWN. Neither the README nor ota.md says clients must be official. The README does list community servers, so self-hosting is welcome. That says nothing about using their hosted service from other firmware |
+| [xiaozhi.me](https://xiaozhi.me) | A JavaScript shell. The fetch returned the page title only. No terms, no limits |
+| Terms and privacy pages on xiaozhi.me | Same: JavaScript shells, title only. Nothing readable |
+| [docs.xiaozhi.me/en/](https://docs.xiaozhi.me/en/) | Guides only: connect and bind, flashing, hardware, console settings, MCP, protocol references, troubleshooting. The index has no terms or privacy page. I did not read the "Accounts & binding" and "Device codes / ownership" guides |
+| [xiaozhi-esp32 README](https://raw.githubusercontent.com/78/xiaozhi-esp32/main/README.md) | "The firmware connects to the official xiaozhi.me server by default. Personal users can register an account to use the Qwen real-time model for free." No limits stated. It lists four open-source servers "for server deployment on personal computers" and points to `docs/ota.md` for "OTA Configuration, Activation, and Firmware Updates" |
+| [docs.m5stack.com/en/StackChan](https://docs.m5stack.com/en/StackChan) | "The AI Agent feature in the factory firmware is powered by XiaoZhi. StackChan also supports other XiaoZhi-based firmware. The factory firmware is configured through the StackChan World app, while other firmware versions are typically configured through xiaozhi.me. These two systems are not interoperable." Unpair first when you switch, and the reverse. The factory firmware binds through an M5Stack account in the StackChan World app. Unbinding clears AI Agent settings and deletes conversation history |
+| [M5Stack store terms](https://shop.m5stack.com/policies/terms-of-service) | Covers the web store (orders, prices, returns, site use). It does not mention the robot's AI service |
+| M5Stack store privacy, shipping and refund pages | Linked from the same footer. Store scope. I read only the terms page, so the other three are not checked |
 
-The MIT license covers the firmware code. It does not grant access to a hosted service. Access is governed by the service terms, which I have not read.
+What the pages say about our question, in plain words: the hosted AI service is run through Xiaozhi's platform, M5Stack's own robot reaches it by a different binding path than a third-party firmware, and no public page sets rules for third-party firmware using the hosted service.
 
-## 3. Community alternatives
+### Unknown
+
+| Question | State |
+|---|---|
+| Terms for third-party clients and modified firmware | UNKNOWN. No readable terms page found |
+| Free limits (minutes, tokens, devices per account) | UNKNOWN. The README says free and names no limit |
+| Voice-data retention, location and use | UNKNOWN. No readable privacy page for the voice service. Treat voice as off-device audio |
+| Region limits and sign-up requirements | UNKNOWN. Third-party guides say sign-up uses a phone number (via search, not a primary read) |
+| Automated access (a script or a second firmware activating on its own) | UNKNOWN |
+| Whether the stock StackChan build points at xiaozhi.me or an M5Stack-run copy | UNKNOWN. The docs say the factory binding runs through the StackChan World app and an M5Stack account |
+| Paid tiers | UNKNOWN |
+
+The MIT license covers the firmware code. It does not grant access to a hosted service. Access is governed by service terms we could not read.
+
+## 3. How the device side works (read from public docs)
+
+### Activation and OTA
+
+Source: [xiaozhi-esp32 docs/ota.md](https://raw.githubusercontent.com/78/xiaozhi-esp32/main/docs/ota.md), retrieved 2026-11-18.
+
+- The OTA endpoint "supplies connection settings, activation information and an optional firmware URL". Binaries download separately.
+- Two POST endpoints: the OTA base URL (query) and the same URL plus `activate`. The prefix depends on the deployment. The device uses a saved `wifi.ota_url`, else the build default `CONFIG_OTA_URL`.
+- The query request carries headers `Device-Id` (the MAC), `Client-Id` (a UUID the firmware keeps), `User-Agent` (`BOARD_NAME/version`), `Accept-Language`, `Activation-Version` (1, or 2 when a serial number exists) and `Serial-Number` when present.
+- The query body (layout version 2) carries chip, flash and partition facts, the running firmware name, version and ELF hash, display size, board facts including the Wi-Fi name, signal strength and local IP address, and a map of protocol features (MCP, AEC and others). This is what leaves the unit at every check.
+- The reply carries up to five parts: `mqtt` or `websocket` connection settings (the WebSocket part is a URL and a token), `server_time`, `firmware` (a version and an optional URL), and an optional `activation` object (a code, a message and a challenge). A bound device normally gets no `activation` part. The device saves the settings and reuses them.
+- Activation: the device shows or speaks the code. The owner enters it in the service console. The device posts to `activate` and gets 202 while waiting and 200 once bound, then queries OTA again. Version 1 sends an empty body. Version 2 sends the serial number and an HMAC-SHA256 of the challenge made with a hardware key in the chip.
+- Retries: ten failed checks at most, starting at ten seconds and doubling. Each round allows ten activation attempts.
+- Firmware updates: a version and a URL in the reply. The doc says no checksum or signature field exists that current firmware reads.
+
+### Websocket
+
+Source: [xiaozhi-esp32 docs/websocket.md](https://raw.githubusercontent.com/78/xiaozhi-esp32/main/docs/websocket.md), retrieved 2026-11-18.
+
+- Handshake headers: `Authorization` (usually `Bearer <token>`), `Protocol-Version`, `Device-Id`, `Client-Id`.
+- The device sends a JSON `hello` with version, features (MCP, AEC and others), transport and audio parameters (Opus, 16 kHz, mono, 60 ms frames). The server answers with its own `hello` and a `session_id` within 10 seconds, or the device reports a failed connection.
+- Then two kinds of frames flow. Binary frames are Opus audio in both directions (three framing variants). Text frames are JSON, chosen by `type`.
+- Device to server: `listen` (start, stop, wake word detected, with a mode), `abort`, and `mcp` replies.
+- Server to device: `stt` (what you said), `llm` (an emotion), `tts` (start, stop, sentence text), `mcp` tool calls, `system` (reboot), `alert`, and an optional `custom`.
+- Our reading: the voice itself, the transcript and the tool calls all pass through the service. Audio leaves the home for as long as the unit listens.
+
+### The StackChan server folder
+
+Source: [m5stack/StackChan server README](https://github.com/m5stack/StackChan/tree/main/server), retrieved 2026-11-18. MIT.
+
+- A single Go service for the app, the devices and an admin console, with MySQL.
+- Accounts: the app's register and login calls are forwarded to "a remote M5Stack-compatible user system". The server then issues its own tokens.
+- Devices: create, bind, unbind, rename, friends, posts, dances, panorama pictures, an app list and file uploads. Device calls carry an RSA-encrypted token made of the MAC, a nonce and the time. The server rejects tokens more than 10 seconds off. The keys are configuration values, not in the repo.
+- A WebSocket at `/stackChan/ws` relays Opus audio, JPEG frames, avatar and motion control, call state and camera or audio switches between the app and the device. This is the avatar and remote view path, not the voice assistant.
+- A Xiaozhi module: the server exchanges a secret key for a developer token, hands a token and a license token to devices, and on unbind it restores the default agent settings and unbinds the device on Xiaozhi's side. This is how the factory binding reaches Xiaozhi.
+- It does not contain the voice pipeline (speech to text, model, speech to speech). That stays on Xiaozhi's side.
+
+What this means for us: a third-party firmware that follows the public OTA and WebSocket docs binds the xiaozhi.me way (a code typed in their console). The StackChan World path needs an M5Stack account, an RSA scheme with keys we do not hold and a Xiaozhi developer secret. We do not have those and do not need them for route A.
+
+## 4. Community alternatives
 
 ### Self-hostable servers for the same protocol
 
@@ -75,7 +116,7 @@ The Xiaozhi README names four ([README](https://raw.githubusercontent.com/78/xia
 | [hackers365/xiaozhi-esp32-server-golang](https://raw.githubusercontent.com/hackers365/xiaozhi-esp32-server-golang/main/LICENSE) | Go | MIT | Maturity unknown |
 | [AnimeAIChat/xiaozhi-server-go](https://raw.githubusercontent.com/AnimeAIChat/xiaozhi-server-go/main/LICENSE) | Go | Modified Apache-2.0: no multi-tenant use without written permission, frontend logo must stay | Not a plain open license. Avoid as a base |
 
-Stars, release dates and issue health were not retrievable (GitHub pages blocked). Maturity is UNKNOWN beyond "named by the upstream README". The M5Stack repo also ships its own MIT server folder, which is the closest match for the StackChan build.
+Stars, release dates and issue health were not read. Maturity is UNKNOWN beyond "named by the upstream README". The M5Stack repo also ships an MIT server folder, but it is the account, binding and avatar service, not a voice server (section 3).
 
 ### Free hosted LLM and TTS with a common API
 
@@ -91,49 +132,71 @@ These need the user's own key. Limits are from third-party summaries that disagr
 
 Hosted free TTS with an OpenAI-style endpoint: none found in this pass. UNKNOWN. Retrieved 2026-11-18.
 
-## 4. Risks and options for MaiPai
+## 5. How we decide
 
-Rules from this repo: private and local by default, opt-in, labeled, fallback to offline ([README](../../README.md), [open decision 2](OPEN-DECISIONS.md)). Independence wording: not affiliated with, endorsed by or sponsored by any platform it connects to; the maker's marks are not our branding (AGENTS.md, owner rule 2026-11-18). The trademark policy file named in the task is missing from main, so I could not check it line by line.
+Decision 34 (`docs/design/decisions.md`, owner, 2026-11-18) says the Brain choice has two equal routes:
 
-| Option | Effort | Privacy impact | Legal risk | What our statements require |
-|---|---|---|---|---|
-| A. Opt-in Cloud brain via the official activation | Medium: OTA client, activation screen, WebSocket brain adapter, labels, fallback | High. Audio and text leave the home for a third party under unread terms | Unknown to medium. Terms on third-party firmware unread. Could look like an endorsed integration | Ask first. Label "service run by a third party, not by this project". No marks as branding. Off by default, no memory cost when off |
-| B. Community server route | Low: one URL setting, docs. We ship no server | Depends on the server the user picks. Home-run server stays local | Low. MIT servers. Avoid the modified-Apache one in docs as a recommendation | Say we do not run or vouch for any server. Keep credits accurate |
-| C. Bring your own key | Low to medium: already the own-LLM path, add provider presets and a label | Medium. Data goes to the provider the user picks, under that provider's terms | Low. User holds the account and the terms | Visible mark on cloud addresses, plain http warning (open decision 2) |
-| D. Do nothing | None | Best | None | Nothing new. Loses "stock robot parity without a hub" for people who want the free cloud |
+- **A: Hosted by M5Stack/Xiaozhi.** Their servers answer.
+- **B: Custom.** Your own key, a community server address, your own host or MaiPai Home, or a model on your computer.
 
-## 5. Recommendation and open questions
+Neither route is hidden behind the other.
 
-Recommendation: D for the official service until M5Stack answers. Ship C now, since the own-LLM path exists. Add B as a documented URL setting, with the four servers listed neutrally and licenses stated. Revisit A only with written permission or readable terms that allow it.
+Rule for A: it stays **planned** until the cloud-brain test build (`docs/plan/cloud-brain-firmware-test.md`, on the firmware branches, not yet in this checkout) proves their server accepts our firmware. The proof is small and public: the unit reaches the OTA address, gets an activation code, the owner binds it in his own xiaozhi.me account, the unit connects and a spoken question gets an answer. The test never sends anything beyond the stock check described in section 3 and runs only with the owner's yes.
 
-Questions only the owner or M5Stack can answer:
+| Test result | What we do |
+|---|---|
+| Binds, connects and answers | Route A becomes a normal, labeled choice. The docs say whose servers it is and keep the terms question open as UNKNOWN until a readable page exists |
+| Refused at the OTA, the activation or the websocket hello | Route A is hidden. The docs say why in the words of the refusal and what we saw |
+| TLS or clock failure | A build problem on our side, not a refusal. Fix and retry (the first run on 2026-11-18 showed both; fixes are in the test doc, section 9) |
+| Works but later stops | Route A is marked "may stop working" on the page, and the offline fallback and route B carry on |
 
-1. Owner: is a third-party cloud acceptable at all under the "private and local" promise, even labeled and opt-in?
-2. Owner: where is the trademark policy file? It is not on main.
-3. M5Stack: do the service terms allow third-party or modified firmware to use the hosted service?
-4. M5Stack: is the stock StackChan service run by M5Stack or by Xiaozhi's operator, and whose privacy policy applies?
-5. M5Stack: are there rate limits, fees or an end date for free use?
-6. M5Stack: is the activation flow open to other firmware, and may we describe it in our docs?
-7. Lawyer: MIT and Apache-2.0 into AGPL, and the notice list for the combined release.
+What does not change either way: route B works without any of this. The offline fallback stays. No MaiPai code ships a server address for route A that is not shown to the person using it.
 
-### Draft courtesy email (not sent)
+## 6. Settings design: the Brain page (one page)
 
-Subject: Question about third-party firmware and your hosted StackChan service
+Placement: the Brain page of the host settings and the robot's first-run step share these words. Planned work, not built. Strings go through the translation pack.
 
-Hello,
+**Page title:** "Where should my brain live?"
 
-I maintain MaiPai for StackChan, an independent open-source firmware and host program for the StackChan robot. It is AGPL-3.0, built on your MIT-licensed firmware, and it is not affiliated with or endorsed by M5Stack. It runs locally by default.
+**Two routes, shown side by side, same size:**
 
-Some owners ask for the free hosted AI and voice service. Before we offer anything, I would like to ask:
+| | Label | One line under it (the privacy line) | Status shown |
+|---|---|---|---|
+| A | **Hosted by M5Stack/Xiaozhi** | "Your voice leaves your home and goes to their servers. Their terms apply." | A "Planned" tag and a disabled Save until the test build passes. Hidden with a plain reason if it fails |
+| B | **Custom** | "Your voice stays where you point it." | Ready. Sub-choices: MaiPai Home, my own servers, a small stack on this computer, a community server address |
 
-1. May third-party firmware connect to the hosted service if the owner turns it on?
-2. If yes, is there a terms page, a rate limit or an approved way to activate a device?
-3. Who runs the service and which privacy policy applies to voice data?
+Under both, in plain type: "This project is not affiliated with or endorsed by M5Stack or the original StackChan creators." (the short line from `docs/legal/affiliation.json`).
 
-If the answer is no, we will not connect to it. I will not contact the service until I hear from you. Thank you for the open-source release.
+**Route A detail (when it is enabled):**
+- A first screen shows the code and says: "Enter this code in your own account on the service's site. We never see your password."
+- A strip on the robot's screen says that a hosted brain is on.
+- Mute and full quiet still stop the microphone. Vision off still holds.
+- The camera address from the service is ignored unless it is the paired host's.
 
-Name and contact: (owner fills in)
+**Offline fallback (both routes):** with no link, the robot keeps its face, clock, games and local cues, and shows the plain "Offline" label after 45 seconds. It never goes silent without saying so.
 
-## Retrieval gaps
+**Leaving hosted (the button "Switch to Custom"):** sources: `docs/plan/cloud-brain-firmware-test.md`, section 8 (the firmware path is in the tree on the firmware branches, not in this checkout).
 
-Blocked by this session's network policy: docs.m5stack.com, xiaozhi.me, docs.xiaozhi.me, xiaozhi.dev, github.com pages and api.github.com. Raw file pages on raw.githubusercontent.com worked. Everything marked "via search" is a search summary of a third-party page, not a primary read.
+| It removes | It leaves alone |
+|---|---|
+| The hosted link's address and token, activation state and any cached offer (every `cl_` namespace on the unit) | The host pairing, the privacy settings, the chip's key blocks (nothing is burned or read out) |
+| The running check, activation loop and connect (stopped at once) | Face, clock, games, pantry |
+| The saved route (set to Custom, so it does not activate again) | |
+
+It also shows a one-screen notice (what was removed, where the voice goes now, one OK), pushes a `brain_route` event so the dashboard shows the change, and restarts.
+
+**What leaving cannot remove:** the robot's binding in their account and any voice history their servers already hold. The page says so in plain words: "To stop your account keeping this robot, remove it in the service's own console. Ask the service about stored voice data. We can only stop sending and erase what the robot keeps."
+
+**Not on this page:** any promise about limits, price or how long route A lasts. Those are UNKNOWN (section 2).
+
+## 7. Open questions
+
+1. Owner: where does the label "Hosted by M5Stack/Xiaozhi" stay accurate if the test build binds through xiaozhi.me, which is Xiaozhi's account and not M5Stack's? The M5Stack docs describe two binding systems. Proposed wording for now: keep "M5Stack/Xiaozhi" (decision 34) and name the account site in the code screen.
+2. Test build: does their server accept our hello, which carries extra feature fields? The first connect shows it.
+3. Test build: does this unit's chip hold a hardware key for activation version 2? One boot log line shows it.
+4. Public pages: terms for third-party firmware, free limits, voice retention, region limits and automated access are UNKNOWN. Recheck when a readable page appears.
+5. Lawyer: MIT and Apache-2.0 into AGPL, and the notice list for the combined release.
+
+## Retrieval notes
+
+Fetched as plain page requests on 2026-11-18: the xiaozhi-esp32 README, `docs/ota.md` and `docs/websocket.md` (raw files), the StackChan server folder on GitHub, docs.m5stack.com/en/StackChan, docs.xiaozhi.me/en/, xiaozhi.me, and the M5Stack store terms. xiaozhi.me and its terms pages returned only a title (JavaScript shells). Items marked "via search" in section 4 are search summaries of third-party pages, not primary reads. The raw `server/README.md` path returned 404, so the server section comes from the folder page on GitHub.
