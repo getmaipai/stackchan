@@ -31,9 +31,15 @@ def _tree_header(tmp_path: Path) -> tuple[Path, Path] | None:
     shutil.copy(src, work / "maipai_look_core.h")
     if "ML_STYLE_RECIPE" not in src.read_text():
         text = PATCH.read_text()
-        hunk = "diff --git " + text.split("diff --git ")[1]
+        hunk = "diff --git " + text.split("diff --git ")[1].split("\ndiff --git ", 1)[0] + "\n"
         done = subprocess.run(["patch", "-p1", "-s", "-f"], input=hunk, cwd=tmp_path / "tree", capture_output=True, text=True)
         assert done.returncode == 0, done.stdout + done.stderr
+        moods = ROOT / "firmware" / "patches" / "UXF02-extended-moods.patch"
+        if moods.exists():   # the five more moods build on the recipes patch
+            text = moods.read_text()
+            hunk = "diff --git " + text.split("diff --git ")[1].split("\ndiff --git ", 1)[0] + "\n"
+            done = subprocess.run(["patch", "-p1", "-s", "-f"], input=hunk, cwd=tmp_path / "tree", capture_output=True, text=True)
+            assert done.returncode == 0, done.stdout + done.stderr
     return work, src.parent
 
 
@@ -73,4 +79,16 @@ def test_the_patch_has_its_header_lines_and_no_dashes():
     head = text.split("diff --git", 1)[0]
     for key in ("# Intent:", "# Placement: unit", "# Upstream:", "# Check after a flash:", "# Kconfig:", "# Memory cost:"):
         assert key in head, key
+    assert chr(8212) not in text
+
+
+def test_the_moods_patch_has_its_header_lines_and_names_the_five():
+    path = ROOT / "firmware" / "patches" / "UXF02-extended-moods.patch"
+    if not path.exists():
+        pytest.skip("the extended moods patch is not in firmware/patches yet")
+    text = path.read_text()
+    for key in ("# Intent:", "# Placement: unit", "# Upstream:", "# Check after a flash:", "# Kconfig:", "# Memory cost:"):
+        assert key in text.split("diff --git", 1)[0], key
+    for name in ("ML_JOY", "ML_EXCITED", "ML_SHOCKED", "ML_CURIOUS", "ML_WORRIED"):
+        assert name in text
     assert chr(8212) not in text

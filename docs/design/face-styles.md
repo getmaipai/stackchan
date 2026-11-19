@@ -32,6 +32,10 @@ Classic and Eyes only were base rows before; they are recipes now. Round, Cat, R
 
 Eyes are drawn from a shape list, as for the base styles; the new eye designs add shapes to that list (a wedge, a ring, a slit, a heart). Decorations are a short fixed list drawn by one LVGL object that exists only while the style has any. Colors, backgrounds, moods, speech and the privacy marks work as for the base styles. A style change redraws the screen once (about 56 to 65 ms).
 
+## Five more moods
+
+Patch `UXF02-extended-moods.patch` adds joy, excited, shocked, curious and worried to the twelve moods (the owner-approved expressive set). Each is a table row and a pose, so every style draws it with the same shapes and no new memory. Nothing on the unit picks them yet; the host's face vocabulary names them.
+
 ## Memory
 
 | State | Cost |
