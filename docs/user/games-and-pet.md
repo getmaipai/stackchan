@@ -1,6 +1,6 @@
 # Play games and care for your pet
 
-The games and the pet mood run on the robot itself, so they work with your own LLM and with MaiPai Home. No finger, screen or sound has been checked on a robot yet.
+The robot plays the games itself, so they work with your own LLM and with MaiPai Home.
 
 
 ## Games
@@ -15,7 +15,7 @@ Every game is full height. Swipe down on the bar at the top to leave. Game sound
 
 *The Games wall on the robot: big colored tiles with a picture and a best score for each game.*
 
-The robot has seven games, all on the flashed robot. The talk games are built but not flashed yet, and not tested with a live model. No finger has been tested on the glass by a person. They run on the robot itself, so they work even when MaiPai Home is off.
+The robot has seven touch games. Talk games use your connected model, and the robot has screens and touch controls for them. The robot can also tell jokes, riddles and trivia from the optional content package when the model cannot answer. These features work with your own LLM or MaiPai Home.
 
 ![Color Memory on the robot: four colored tiles.](../images/unit-game-color-memory.png)
 
@@ -62,13 +62,11 @@ Colors always sit in a fixed place on the screen, so you can play without tellin
 
 To start one by voice, say "play tic tac toe", "play do it", "play rock paper scissors" or "play whack a mole".
 
-Every game is a small data file that one built-in game engine plays. A game from outside the robot's firmware must be signed with the update key, and an unsigned one is refused with a plain message. Loading outside games is not switched on yet.
+Every game is a small data file that one built-in game engine plays. Signed game packs can be added to the robot. An unsigned pack is refused.
 
 More games are built and on the way. See [New games: what works and what is coming](more-games.md).
 
 ## Talk games
-
-<span class="planned-tag">Built, not flashed</span> Not tested with a live model.
 
 These games are played by talking, and the robot's language model plays them. You need a model connected (your own, or MaiPai Home).
 

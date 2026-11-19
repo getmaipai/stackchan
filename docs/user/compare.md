@@ -23,21 +23,21 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Rules for children and teens <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Kids get answers that fit the rules you set. |
 | Animated face | ★★☆ | ★★★ | ★★★ | The official README lists lively, expressive animations. Ours lets you choose between five styles, any color or none, and captions, and it adds a clock face and night mode. |
 | Timers and alarms | TBD | ★★★ | ★★★ | A ring empties as time runs out, so you can read it across the room. |
-| Camera: snapshots, turning toward you, name list | TBD | ★☆☆ | ★★★ | Take a photo from the settings page and have it turn toward you. Both are built, opt-in and show a cue. Naming who it sees needs MaiPai Home. Frames stay on your host. Not yet checked on a robot. |
-| Camera: "what is this" <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hold something up and hear what it is. Your hub does the looking. |
+| Camera: snapshots, turning toward you, name list | TBD | ★★☆ | ☆☆☆ | Take a photo from the settings page or let the robot turn toward a face. Both show a camera cue. Naming people needs MaiPai Home and is coming. |
+| Camera: "what is this" <span class="home-tag">Needs MaiPai Home</span> <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Hold something up and hear what it is. This is coming with MaiPai Home. |
 | Name the song <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Ask "what song is this" and hear the title and artist. |
 | Announcements <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ★★★ | Hear household news out loud, like "dinner is ready". |
 | Mute, camera off, full quiet | TBD | ★★★ | ★★★ | Three switches on the face: tap the mouth to mute, the eyes to stop the camera, between the eyes for full quiet. They survive a restart, and the host warns you if the robot leaks. [Details](mute-and-camera-off.md) |
 | Spoken "stop" while it talks | TBD | ★★★ | ★★★ | It stops at once, with no model involved. |
 | Updates over Wi-Fi | TBD | ★★★ | ★★★ | No cable. An animated icon shows the progress. |
 | Games and a pet mood | TBD | ★★☆ | ★★☆ | Seven games on the robot (color memory, whack-a-mole, tic-tac-toe, Do It, rock paper scissors, a magic 8-ball, and dice with a coin) with best scores, and a pet mood that grows with care. Not yet tried by touch on a robot. |
-| Coding companion <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | A light for your build, where you can see it. Not built yet. |
+| Coding companion | TBD | ★★★ | ★★★ | An optional local package shows an agent's status on the robot. It does not send text to the agent. |
 | Local API, MQTT, metrics <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ☆☆☆ | Wire the robot into your own tools. These are MaiPai Home features and are not built in this repository yet. |
 | Dances to your music by itself | TBD | ★★★ | ★★★ | It finds the tempo, sways to it and shows a mood face. Off until you turn it on. Not yet heard on a robot. |
 | Choreograph your own dance | ★★★ | ☆☆☆ | ☆☆☆ | The factory phone app lets you set music, movements and light colors for a dance. We have six named dances and no dance editor. |
 | Six languages | TBD | ★★★ | ★★★ | English, Spanish, French, German, Portuguese and Italian, switched at run time with no reflash. Not yet reviewed by native speakers. |
 | Signed updates with rollback | TBD | ★★★ | ★★★ | Nothing installs unless you say so, and a bad update rolls back by itself. |
-| Watch the room <span class="home-tag">Needs MaiPai Home</span> | TBD | ☆☆☆ | ☆☆☆ | Photos, a low-resolution look and sound or motion alerts for a pet or a room. A convenience, not a safety device. The screen always shows when it looks or listens. Runs with MaiPai Home. |
+| Watch the room <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | Room snapshots and alerts are coming. This is not a safety device. |
 | No stealth: monitoring always shown on screen | TBD | ★★★ | ★★★ | Every listening, looking and watching mode shows on the robot's screen, and the cue cannot be turned off. |
 | Watch mode: motion and sound alerts <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | The robot notices motion and loud sounds and sends an alert with a snapshot. MaiPai Home would add what it saw and who. Not built yet. |
 | Security alarm: red and blue lights, siren <span class="planned-tag">Planned</span> | TBD | ☆☆☆ | ☆☆☆ | A warning or an alarm with swapping lights, a siren and an alert on the screen. Not built yet. |
@@ -45,7 +45,7 @@ TBD means the README is silent or we have not tested it. See the [official docs]
 | Remote beep, lights and talk | TBD | ★★☆ | ★★☆ | Make it beep, flash or speak from the settings page. Remote access is off until you turn it on, and the robot always shows when someone is using it. Not yet checked on a robot. |
 | Remote pan and tilt | ★★★ | ★★☆ | ★★☆ | The factory app moves the head with a joystick. Ours is on the settings page with head, nod, shake and center buttons. Not yet checked on a robot. |
 | Live camera view <span class="planned-tag">Planned</span> | ★★★ | ☆☆☆ | ☆☆☆ | The factory app has a monitoring camera mode with a joystick. Ours will be a low-resolution live view, with the pink lights and a LIVE dot always on while it runs. Not built yet. |
-| Control from your phone (app or web app) | ★★★ | ★★☆ | ★★☆ | The factory app does live video and remote avatar control. We have no phone app. Our web app, served by your host, opens in any phone browser and controls settings, faces, timers and snapshots. We have no remote avatar control. If you rely on those, stay on factory. |
+| Control from your phone (app or web app) | ★★★ | ★★☆ | ★★☆ | The host settings page works in a browser. Remote controls need the host and are off by default. Camera snapshots and live view are coming. |
 | Online app downloads | ★★★ | ☆☆☆ | ☆☆☆ | Removed on purpose. The on-device app system took about 548 KB of flash and 24 KB of the robot's scarce working memory, and we used that room for the voice agent and the features above. |
 | ESP-NOW remote controller | ★★★ | ☆☆☆ | ☆☆☆ | Not supported yet. If you rely on the remote, stay on factory. |
 | Bluetooth (phone setup and more) | ★★☆ | ☆☆☆ | ☆☆☆ | On the factory robot the phone app uses Bluetooth for its setup page. Ours is off today, and we are reviewing whether to bring it back for phone setup from a browser, a push-to-talk clicker and finding your robot. Until then you set up the robot with its own Wi-Fi setup page or over USB. |

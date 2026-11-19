@@ -36,4 +36,4 @@ Pick the kind **line** on the same card to see the short lines the robot says by
 
 ## Limits
 
-The robot's own shelf and the telling screens need a firmware update that is not built yet, so today the host keeps the library and the page works, and the robot does not tell from it. Records stay on your computer. Delete the `pantry` folder beside the pairing file to remove all of it.
+The robot has its own shelf and telling screens. The host sends the shelf to the robot, and the robot reports which records it has told. The host keeps the full library. Delete the `pantry` folder beside the pairing file to remove it.

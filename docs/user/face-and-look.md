@@ -21,15 +21,15 @@ The page shows a live preview that uses the same drawing code as the robot.
 
 ## Smoother eyes and mouth
 
-The eyes ease from place to place, blink smoothly and drift while the robot is idle, and the mouth follows how loud the robot speaks. Measured on a robot: 22 to 45 frames a second while the eyes move (best 49), and 4 to 11 while it speaks (best 21). It reaches 30 frames a second only while something keeps moving, and a fade between looks runs at about 20. Not yet seen on a robot screen.
+The eyes ease from place to place, blink smoothly and drift while the robot is idle. The mouth follows how loud the robot speaks.
 
 ## Extras on the face
 
-The robot can add a small drawn extra for 1 to 60 seconds (6 by default): dizzy, heart, anger, tears, sparkles, stars, zzz or notes. One shows at a time. None shows while it is muted, has the camera off, is in quiet mode or a timer is ringing. Not yet seen on a robot screen.
+The robot can add a small drawn extra for 1 to 60 seconds (6 by default): dizzy, heart, anger, tears, sparkles, stars, zzz or notes. One shows at a time. None shows while it is muted, has the camera off, is in quiet mode or a timer is ringing.
 
 ## Word reactions
 
-When you say a word such as "hello", "thanks", "love", "sorry" or "good night", the robot answers with a face, a quiet sound and an extra. 33 reactions come built in, in English, Spanish, French, German, Portuguese and Italian. Edit the list on the settings page, up to 40 rows. It reacts to a phrase at most once every 20 seconds. Not yet seen on a robot screen.
+When you say a word such as "hello", "thanks", "love", "sorry" or "good night", the robot answers with a face, a quiet sound and an extra. 33 reactions come built in, in English, Spanish, French, German, Portuguese and Italian. Edit the list on the settings page, up to 40 rows. It reacts to a phrase at most once every 20 seconds.
 
 ## Per person
 
@@ -45,7 +45,7 @@ On the settings page, pick a style and one of your own pictures for each look: n
 
 The robot keeps up to 14 pictures, 1,000,000 bytes after they are made smaller. If your pictures do not fit, the page says so in plain words before it sends anything: use fewer or simpler pictures. A look with no picture shows the neutral one. While the robot speaks it shows the speaking picture.
 
-Your pictures stay on your computer and go only to your robot, over your own network. Nothing is shipped with the product and nothing is uploaded anywhere else. The mute look, the camera-off look, quiet mode, the clock and a ringing timer always show instead of a picture. The robot keeps at most 3 pictures ready at a time. It keeps them in memory, so your host sends them again after a restart. Not yet seen on a robot screen. The page refuses a picture over 12 million pixels before it uses your host's memory. Shrink big photos first.
+Your pictures stay on your computer and go only to your robot, over your own network. Nothing is shipped with the product and nothing is uploaded anywhere else. The mute look, the camera-off look, quiet mode, the clock and a ringing timer always show instead of a picture. The robot keeps at most 3 pictures ready at a time. It keeps them in memory, so your host sends them again after a restart. The page refuses a picture over 12 million pixels before it uses your host's memory. Shrink big photos first.
 
 ## Face color
 
@@ -74,7 +74,7 @@ The control sheet has a **Status icons** switch, off by default. Off, the robot 
 
 ## Sleepy and sleeping
 
-Sleepy is a robot nodding off: heavy eyes, slow blinks, no Z. Sleeping is eyes shut, a snoring mouth, a little drool and a Z. Not yet seen by a person.
+Sleepy is a robot nodding off: heavy eyes, slow blinks, no Z. Sleeping is eyes shut, a snoring mouth, a little drool and a Z.
 
 ## Clock face
 

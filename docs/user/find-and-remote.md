@@ -1,6 +1,6 @@
 # Find the robot and control it remotely
 
-Remote controls are built and flashed and work without MaiPai Home: beep, flash, find my robot (it works even when muted), say something, pan and tilt, head pad, nod, shake, dance, start a game and take a photo, from the settings page on your host. They are off until you turn on remote access, and every action shows a violet cue on the robot that cannot be turned off. Live view and the web app screens below are planned. Last seen and where it is are not built. Not yet checked on a robot.
+The host settings page can beep, flash, find your robot, say something, move its head, set a head pose, dance, start a game and take a photo. Remote access is off until you turn it on. The robot shows a cue for each action. The live-view page and last-seen details are coming.
 
 
 
