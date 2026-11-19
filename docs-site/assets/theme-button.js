@@ -10,3 +10,13 @@
     try { localStorage.setItem('theme', next); } catch (e) { /* storage blocked: the choice lasts until the page closes */ }
   });
 })();
+// The page list on the left: open on a wide screen, folded on a phone so the page text is the first thing there. Without JavaScript it stays open.
+(function () {
+  var d = document.querySelector('details.tabsd');
+  if (!d || !window.matchMedia) return;
+  var mq = matchMedia('(max-width: 820px)');
+  function sync() { d.open = !mq.matches; }
+  sync();
+  if (mq.addEventListener) mq.addEventListener('change', sync);
+  d.addEventListener('toggle', function () { if (!mq.matches && !d.open) d.open = true; });
+})();

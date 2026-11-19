@@ -1,6 +1,6 @@
-:root{--bg:#f7f8fa;--fg:#1c2128;--mut:#58626e;--card:#fff;--line:#dde1e6;--acc:#1b63c4;--acc-fg:#fff;--code:#eef1f4;--warn:#8a4b00}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161b;--fg:#e4e8ec;--mut:#a0aab5;--card:#1a2027;--line:#2c343d;--acc:#6aa8ff;--acc-fg:#0a1420;--code:#232b34;--warn:#f0b429}}
-:root[data-theme="dark"]{--bg:#12161b;--fg:#e4e8ec;--mut:#a0aab5;--card:#1a2027;--line:#2c343d;--acc:#6aa8ff;--acc-fg:#0a1420;--code:#232b34;--warn:#f0b429}
+:root{color-scheme:light;--bg:#f7f8fa;--fg:#1c2128;--mut:#58626e;--card:#fff;--line:#dde1e6;--acc:#1b63c4;--acc-fg:#fff;--code:#eef1f4;--warn:#8a4b00}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12161b;--fg:#e4e8ec;--mut:#a0aab5;--card:#1a2027;--line:#2c343d;--acc:#6aa8ff;--acc-fg:#0a1420;--code:#232b34;--warn:#f0b429}}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#12161b;--fg:#e4e8ec;--mut:#a0aab5;--card:#1a2027;--line:#2c343d;--acc:#6aa8ff;--acc-fg:#0a1420;--code:#232b34;--warn:#f0b429}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;min-height:100vh}
@@ -80,16 +80,75 @@ iframe.ledger{width:100%;height:calc(100vh - 190px);min-height:520px;border:0;bo
 .vnote{font-size:.85rem;color:var(--mut);margin:.4em 0 0}
 button.on{background:var(--acc);color:var(--acc-fg);border-color:var(--acc)}
 @media (max-width:820px){.viewer{grid-template-columns:1fr}.stage{height:56vh}#legend{display:none}.hero h1{font-size:1.8rem}}
-@media print{.top,.foot,.skip,.themebtn{display:none}}
 /* sections: a left tab column and a right scrolling pane */
 body.has-split main{height:calc(100vh - 56px)}
-.split{display:grid;grid-template-columns:240px 1fr;height:100%}
+.split{display:grid;grid-template-columns:240px minmax(0,1fr);height:100%}
 .tabs{overflow-y:auto;border-right:1px solid var(--line);background:var(--card);padding:14px 10px}
 .tabs ul{list-style:none;margin:8px 0 0;padding:0}
 .tabs a{display:block;padding:6px 10px;border-radius:8px;color:var(--fg);text-decoration:none;font-size:.92rem}
 .tabs a:hover{background:var(--code)}
 .tabs a[aria-current="page"]{background:var(--acc);color:var(--acc-fg)}
 .pane{overflow-y:auto}
-@media (max-width:820px){body.has-split main{height:auto}.split{display:block;height:auto}.tabs{border-right:0;border-bottom:1px solid var(--line);max-height:40vh}.pane{overflow:visible}}
 nav.tabs{display:block;flex:none}
 nav.tabs a{display:block}
+.tabs summary{font-weight:700;list-style:none;cursor:default;pointer-events:none;padding:0 10px}
+.tabs summary::-webkit-details-marker{display:none}
+/* pictures with captions (a figure made from a picture and an italic line) */
+.prose figure.shot{margin:1.2em 0;padding:10px;text-align:center}
+.prose figure.shot img{width:auto;max-width:100%;margin:0 auto;border:0;background:none}
+.prose figure.shot figcaption{font-size:.9rem;margin-top:8px;text-align:left}
+.prose,.pagelist .s,figcaption{overflow-wrap:break-word}
+table img{max-width:96px}
+/* phone width (375 px and up): no sideways page scroll, 44 px tap targets, one row of site tabs, the page list folded */
+@media (max-width:820px){
+  body.has-split main{height:auto}
+  .split{display:block;height:auto}
+  .pane{overflow:visible}
+  .top{position:static}
+  .bar{padding:4px 12px;gap:0 8px}
+  .brand{display:inline-flex;align-items:center;min-height:44px;margin-right:auto}
+  .themebtn{min-height:44px;min-width:44px;padding:8px 14px}
+  .bar nav{order:3;flex:0 0 100%;flex-wrap:nowrap;overflow-x:auto;gap:4px;padding-bottom:4px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+  .bar nav a{flex:none;display:inline-flex;align-items:center;min-height:44px;padding:4px 14px;scroll-snap-align:start}
+  .tabs{border-right:0;border-bottom:1px solid var(--line);padding:6px 12px}
+  .tabs summary{display:flex;align-items:center;min-height:44px;cursor:pointer;pointer-events:auto;padding:0 10px;border-radius:8px}
+  .tabs summary::after{content:"Show pages";margin-left:auto;font-weight:400;color:var(--mut)}
+  .tabs details[open] summary::after{content:"Hide pages"}
+  .tabs details[open] ul{max-height:50vh;overflow-y:auto}
+  .tabs a,nav.tabs a{display:flex;align-items:center;min-height:44px;padding:6px 10px}
+  .toc a{display:inline-block;padding:11px 0;min-height:44px}
+  .toc ul{columns:1;list-style:none;padding-left:0}
+  .pagelist li{padding:0}
+  .pagelist a{display:inline-block;padding:11px 0 2px;min-height:44px}
+  .pagelist .s{padding-bottom:10px}
+  .tile{min-height:44px;padding:14px}
+  button,input,select,.row button,.row label,summary{min-height:44px}
+  .row label{padding:0 6px}
+  input[type=checkbox],input[type=radio]{min-height:0;width:24px;height:24px}
+  .panel input[type=range]{min-height:44px}
+  .wrap{padding:16px 14px 32px}
+  .prose h1,.hero h1{font-size:1.7rem}
+  .prose h2{font-size:1.35rem}
+  .prose li{margin:.35em 0}
+  .viewer{grid-template-columns:minmax(0,1fr);padding:0 12px 16px}
+  .stage{height:56vh}
+  #legend{display:none}
+  iframe.ledger{height:calc(100vh - 120px)}
+}
+/* print: black on white, one continuous flow (the page list, header, buttons and footer drop out) */
+@media print{
+  :root,:root[data-theme="dark"],:root:not([data-theme="light"]){color-scheme:light;--bg:#fff;--fg:#000;--mut:#333;--card:#fff;--line:#999;--acc:#000;--acc-fg:#fff;--code:#f2f2f2;--warn:#000}
+  .top,.skip,.themebtn,.tabs,.toc,#q,iframe.ledger{display:none}
+  body,body.has-split{display:block;min-height:0;font-size:11pt;background:#fff;color:#000}
+  body.has-split main,.split{display:block;height:auto}
+  .pane{overflow:visible}
+  .wrap,body.wide .wrap{max-width:none;padding:0}
+  a{color:#000}
+  .prose a[href]:not([href^="#"]){text-decoration:underline}
+  pre{white-space:pre-wrap;overflow:visible;border:1px solid var(--line)}
+  .tablewrap{overflow:visible}
+  h1,h2,h3{break-after:avoid}
+  figure,img,pre,tr,blockquote{break-inside:avoid}
+  .prose img{max-width:100%}
+  .hero{border:0}
+}
