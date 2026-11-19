@@ -15,8 +15,8 @@ from maipai_packages.pantry.record import SITUATIONS, Record, check
 
 SEED = Path(record_module.__file__).parent / "seed"
 COUNTS = {
-    "en": {"joke": 100, "riddle": 100, "trivia": 100, "line": 120},
-    **{lang: {"joke": 40, "riddle": 40, "trivia": 40, "line": 120} for lang in ("es", "fr", "de", "pt", "it")},
+    "en": {"joke": 100, "riddle": 100, "trivia": 100, "line": 120, "object": 106},
+    **{lang: {"joke": 40, "riddle": 40, "trivia": 40, "line": 120, "object": 106} for lang in ("es", "fr", "de", "pt", "it")},
 }
 FILES = sorted(SEED.glob("*.json"))
 MAX_LINE_CHARS = 36  # one subtitle strip row (docs/design/offline-lines-screens.md)

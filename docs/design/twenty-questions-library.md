@@ -41,10 +41,10 @@ Round one asks "Think of an animal or a thing and keep it secret. Say ready." Th
 1. Pick the unasked question whose yes share among the candidates is closest to one half. Ask it.
 2. Read the answer: yes, no or "I do not know" (skips the question, no change).
 3. Score each candidate by how many answers it disagrees with. Candidates with more than one disagreement drop out (one wrong answer is forgiven, because people answer the same question differently).
-4. When one candidate is left, or the questions run out, guess the best score: "Is it a cat?". The game allows 12 questions, then two guesses.
-5. A yes ends the game with the robot winning. A no after the second guess ends it with "I give up. What was it?". The answer is not stored.
+4. When one candidate is left, or the questions run out, guess the best score: "Is it a cat?". The game allows 12 questions, then up to three guesses.
+5. A yes ends the game with the robot winning. A no after the third guess ends it with "I give up. What was it?". The answer is not stored.
 
-The score for this game follows `model-games.md` section 6: the fewest questions used, kept to the best five. The shipped table needs at least 100 objects per language to feel fair. An object whose bits equal another's is dropped at load (the dedupe rule: same bits and same group), so every object can be told apart.
+The score for this game follows `model-games.md` section 6: the fewest questions used, kept to the best five. The shipped table needs at least 100 objects per language to feel fair. Twelve answers cannot tell every pair apart (a cat and a kitten answer alike), so up to three objects of one group may share all 12 bits, which is why the robot may guess three times. A fourth is rejected by the table test.
 
 ## Where it runs
 
@@ -53,7 +53,7 @@ The score for this game follows `model-games.md` section 6: the fewest questions
 
 ## Content
 
-One English table of at least 100 objects (about 60 animals and 40 things) with the 12 bits, checked so no two share all 12 bits, and name lists in Spanish, French, German, Portuguese and Italian. Every object is something a six year old knows. No people, no brands, no scary animals as the only choice of their group.
+One English table of at least 100 objects (about 60 animals and 40 things) with the 12 bits, checked so no more than three of a group share all 12 bits, and name lists in Spanish, French, German, Portuguese and Italian. Every object is something a six year old knows. No people, no brands, no scary animals as the only choice of their group.
 
 ## Checks to add with the code
 

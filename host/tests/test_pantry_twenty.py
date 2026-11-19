@@ -83,3 +83,14 @@ def test_too_small_a_library_says_so_and_through_the_talk_hook(tmp_path):
             ended = True
             break
     assert ended
+
+
+def test_the_shipped_english_table_is_solved_for_almost_every_target():
+    """The built-in objects, played honestly for each one: the robot names it within the question limit and two guesses."""
+    import json
+    from pathlib import Path
+
+    rows = json.loads((Path(__file__).resolve().parents[1] / "maipai_packages" / "pantry" / "seed" / "en-object.json").read_text(encoding="utf-8"))
+    objects = [Record.from_json(r) for r in rows]
+    won = sum(play(objects, target, seed=i)[0].startswith("I got it") for i, target in enumerate(objects))
+    assert won == len(objects), f"{won} of {len(objects)}"

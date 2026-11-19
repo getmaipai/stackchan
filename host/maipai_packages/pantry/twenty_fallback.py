@@ -44,6 +44,7 @@ UNKNOWN = {"maybe", "unsure", "dunno", "idk", "perhaps", "quizas", "peutetre", "
 UNKNOWN_PHRASES = ("not sure", "dont know", "do not know", "no se", "je ne sais pas", "ich weiss nicht", "nao sei", "non lo so", "no idea")
 MIN_OBJECTS = 10
 MAX_QUESTIONS = 12
+MAX_GUESSES = 3  # up to three objects can answer all 12 questions alike (the table is checked for that), so three guesses name any of them
 TOLERANCE = 1  # one answer that disagrees is forgiven: people answer the same question differently
 
 
@@ -137,7 +138,7 @@ class TwentyQuestions:
     def _guess(self, game: _Game, lang: str, second: bool = False) -> str:
         words = LINES.get(lang, LINES["en"])
         record = self._best(game, self._alive(game) or game.objects)
-        if record is None or (second and len(game.guessed) >= 2):
+        if record is None or (second and len(game.guessed) >= MAX_GUESSES):
             game.done = True
             return words["giveup"]
         game.guessed.append(record.id)

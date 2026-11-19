@@ -28,7 +28,7 @@ Open the settings page, **Games and fun**, and find **Jokes and games content**.
 
 ## Games without a model
 
-Say "play jokes", "tell me a riddle" or "let's play trivia". If your model stops answering in the middle of one of these games, the robot keeps playing from the library: it asks the next riddle or trivia question, checks your answer, keeps the score and never tells the same one twice. When the library runs out it says so and the game ends. Twenty questions, word chain, would you rather and bedtime stories need a model, so they stop with the usual "I cannot think right now" line.
+Say "play jokes", "tell me a riddle" or "let's play trivia". If your model stops answering in the middle of one of these games, the robot keeps playing from the library: it asks the next riddle or trivia question, checks your answer, keeps the score and never tells the same one twice. When the library runs out it says so and the game ends. Twenty questions also keeps playing from a built-in list of animals and things. Word chain, would you rather and bedtime stories need a model, so they stop with the usual "I cannot think right now" line.
 
 ## Limits
 

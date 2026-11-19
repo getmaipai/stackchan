@@ -1,0 +1,532 @@
+[
+ {
+  "group": "animal",
+  "bits": "100110100100",
+  "en": "a cat"
+ },
+ {
+  "group": "animal",
+  "bits": "100110101100",
+  "en": "a dog"
+ },
+ {
+  "group": "animal",
+  "bits": "100110000000",
+  "en": "a rabbit"
+ },
+ {
+  "group": "animal",
+  "bits": "100110100000",
+  "en": "a hamster"
+ },
+ {
+  "group": "animal",
+  "bits": "110000100000",
+  "en": "a goldfish"
+ },
+ {
+  "group": "animal",
+  "bits": "110001000000",
+  "en": "a fish"
+ },
+ {
+  "group": "animal",
+  "bits": "110000001100",
+  "en": "a dolphin"
+ },
+ {
+  "group": "animal",
+  "bits": "110000001000",
+  "en": "a whale"
+ },
+ {
+  "group": "animal",
+  "bits": "110000000000",
+  "en": "an octopus"
+ },
+ {
+  "group": "animal",
+  "bits": "110100100000",
+  "en": "a turtle"
+ },
+ {
+  "group": "animal",
+  "bits": "110100000100",
+  "en": "a frog"
+ },
+ {
+  "group": "animal",
+  "bits": "111011000100",
+  "en": "a duck"
+ },
+ {
+  "group": "animal",
+  "bits": "111010000000",
+  "en": "a swan"
+ },
+ {
+  "group": "animal",
+  "bits": "110010000000",
+  "en": "a penguin"
+ },
+ {
+  "group": "animal",
+  "bits": "110010001100",
+  "en": "a seal"
+ },
+ {
+  "group": "animal",
+  "bits": "100011000100",
+  "en": "a chicken"
+ },
+ {
+  "group": "animal",
+  "bits": "101010100100",
+  "en": "a parrot"
+ },
+ {
+  "group": "animal",
+  "bits": "101010000000",
+  "en": "an eagle"
+ },
+ {
+  "group": "animal",
+  "bits": "101010000100",
+  "en": "an owl"
+ },
+ {
+  "group": "animal",
+  "bits": "101000000000",
+  "en": "a butterfly"
+ },
+ {
+  "group": "animal",
+  "bits": "101000000100",
+  "en": "a bee"
+ },
+ {
+  "group": "animal",
+  "bits": "101000100100",
+  "en": "a fly"
+ },
+ {
+  "group": "animal",
+  "bits": "100110001100",
+  "en": "a horse"
+ },
+ {
+  "group": "animal",
+  "bits": "100111001100",
+  "en": "a cow"
+ },
+ {
+  "group": "animal",
+  "bits": "100101001100",
+  "en": "a pig"
+ },
+ {
+  "group": "animal",
+  "bits": "100111000100",
+  "en": "a sheep"
+ },
+ {
+  "group": "animal",
+  "bits": "100110000100",
+  "en": "a goat"
+ },
+ {
+  "group": "animal",
+  "bits": "100100001100",
+  "en": "an elephant"
+ },
+ {
+  "group": "animal",
+  "bits": "100110001000",
+  "en": "a giraffe"
+ },
+ {
+  "group": "animal",
+  "bits": "100010000100",
+  "en": "a monkey"
+ },
+ {
+  "group": "animal",
+  "bits": "100010001000",
+  "en": "a kangaroo"
+ },
+ {
+  "group": "animal",
+  "bits": "110100001100",
+  "en": "a hippo"
+ },
+ {
+  "group": "animal",
+  "bits": "100000000000",
+  "en": "a snail"
+ },
+ {
+  "group": "animal",
+  "bits": "100000100000",
+  "en": "an ant"
+ },
+ {
+  "group": "animal",
+  "bits": "110110000000",
+  "en": "an otter"
+ },
+ {
+  "group": "animal",
+  "bits": "111010000100",
+  "en": "a seagull"
+ },
+ {
+  "group": "animal",
+  "bits": "100100000000",
+  "en": "a lizard"
+ },
+ {
+  "group": "animal",
+  "bits": "100000000100",
+  "en": "a cricket"
+ },
+ {
+  "group": "animal",
+  "bits": "100100001000",
+  "en": "a rhino"
+ },
+ {
+  "group": "animal",
+  "bits": "100110001000",
+  "en": "a deer"
+ },
+ {
+  "group": "animal",
+  "bits": "100110001000",
+  "en": "a camel"
+ },
+ {
+  "group": "animal",
+  "bits": "100110100100",
+  "en": "a mouse"
+ },
+ {
+  "group": "animal",
+  "bits": "101010000100",
+  "en": "a pigeon"
+ },
+ {
+  "group": "animal",
+  "bits": "100010000100",
+  "en": "a rooster"
+ },
+ {
+  "group": "animal",
+  "bits": "100011000100",
+  "en": "a turkey"
+ },
+ {
+  "group": "animal",
+  "bits": "111011000100",
+  "en": "a goose"
+ },
+ {
+  "group": "animal",
+  "bits": "111010000000",
+  "en": "a flamingo"
+ },
+ {
+  "group": "animal",
+  "bits": "110001000000",
+  "en": "a crab"
+ },
+ {
+  "group": "animal",
+  "bits": "110000000000",
+  "en": "a starfish"
+ },
+ {
+  "group": "animal",
+  "bits": "101000100000",
+  "en": "a ladybug"
+ },
+ {
+  "group": "animal",
+  "bits": "100010000000",
+  "en": "a caterpillar"
+ },
+ {
+  "group": "animal",
+  "bits": "100110000000",
+  "en": "a hedgehog"
+ },
+ {
+  "group": "animal",
+  "bits": "101000000000",
+  "en": "a dragonfly"
+ },
+ {
+  "group": "animal",
+  "bits": "100110100100",
+  "en": "a kitten"
+ },
+ {
+  "group": "animal",
+  "bits": "100110000100",
+  "en": "a pony"
+ },
+ {
+  "group": "animal",
+  "bits": "110010000100",
+  "en": "a duckling"
+ },
+ {
+  "group": "animal",
+  "bits": "100010000100",
+  "en": "a baby chick"
+ },
+ {
+  "group": "animal",
+  "bits": "101010100100",
+  "en": "a canary"
+ },
+ {
+  "group": "animal",
+  "bits": "101010000100",
+  "en": "a peacock"
+ },
+ {
+  "group": "animal",
+  "bits": "110110000000",
+  "en": "a beaver"
+ },
+ {
+  "group": "animal",
+  "bits": "110001000000",
+  "en": "a tuna"
+ },
+ {
+  "group": "animal",
+  "bits": "110000100000",
+  "en": "a clownfish"
+ },
+ {
+  "group": "thing",
+  "bits": "000000100010",
+  "en": "a ball"
+ },
+ {
+  "group": "thing",
+  "bits": "000010100010",
+  "en": "a teddy bear"
+ },
+ {
+  "group": "thing",
+  "bits": "000000100010",
+  "en": "a doll"
+ },
+ {
+  "group": "thing",
+  "bits": "000000110010",
+  "en": "a toy car"
+ },
+ {
+  "group": "thing",
+  "bits": "001000000010",
+  "en": "a kite"
+ },
+ {
+  "group": "thing",
+  "bits": "001000100010",
+  "en": "a balloon"
+ },
+ {
+  "group": "thing",
+  "bits": "001000011100",
+  "en": "an airplane"
+ },
+ {
+  "group": "thing",
+  "bits": "001000001000",
+  "en": "a hot air balloon"
+ },
+ {
+  "group": "thing",
+  "bits": "010000011000",
+  "en": "a boat"
+ },
+ {
+  "group": "thing",
+  "bits": "000000011100",
+  "en": "a car"
+ },
+ {
+  "group": "thing",
+  "bits": "000000011000",
+  "en": "a bicycle"
+ },
+ {
+  "group": "thing",
+  "bits": "000100100000",
+  "en": "a chair"
+ },
+ {
+  "group": "thing",
+  "bits": "000100101000",
+  "en": "a table"
+ },
+ {
+  "group": "thing",
+  "bits": "000000101000",
+  "en": "a bed"
+ },
+ {
+  "group": "thing",
+  "bits": "000001100000",
+  "en": "an apple"
+ },
+ {
+  "group": "thing",
+  "bits": "000001000000",
+  "en": "a banana"
+ },
+ {
+  "group": "thing",
+  "bits": "000001000000",
+  "en": "a carrot"
+ },
+ {
+  "group": "thing",
+  "bits": "000001100000",
+  "en": "a cookie"
+ },
+ {
+  "group": "thing",
+  "bits": "000001100000",
+  "en": "a cake"
+ },
+ {
+  "group": "thing",
+  "bits": "000001100100",
+  "en": "some popcorn"
+ },
+ {
+  "group": "thing",
+  "bits": "100000001000",
+  "en": "a tree"
+ },
+ {
+  "group": "thing",
+  "bits": "100000100000",
+  "en": "a flower"
+ },
+ {
+  "group": "thing",
+  "bits": "000000100000",
+  "en": "a cup"
+ },
+ {
+  "group": "thing",
+  "bits": "000000110000",
+  "en": "a spoon"
+ },
+ {
+  "group": "thing",
+  "bits": "000000110001",
+  "en": "a key"
+ },
+ {
+  "group": "thing",
+  "bits": "000000110101",
+  "en": "a phone"
+ },
+ {
+  "group": "thing",
+  "bits": "000000110100",
+  "en": "a clock"
+ },
+ {
+  "group": "thing",
+  "bits": "000000111100",
+  "en": "a television"
+ },
+ {
+  "group": "thing",
+  "bits": "000000100001",
+  "en": "a book"
+ },
+ {
+  "group": "thing",
+  "bits": "000000000001",
+  "en": "a hat"
+ },
+ {
+  "group": "thing",
+  "bits": "000000010101",
+  "en": "a watch"
+ },
+ {
+  "group": "thing",
+  "bits": "000000100001",
+  "en": "a backpack"
+ },
+ {
+  "group": "thing",
+  "bits": "000000100110",
+  "en": "a drum"
+ },
+ {
+  "group": "thing",
+  "bits": "000000100101",
+  "en": "a guitar"
+ },
+ {
+  "group": "thing",
+  "bits": "000000101100",
+  "en": "a piano"
+ },
+ {
+  "group": "thing",
+  "bits": "000000010100",
+  "en": "a bell"
+ },
+ {
+  "group": "thing",
+  "bits": "000000000000",
+  "en": "a rock"
+ },
+ {
+  "group": "thing",
+  "bits": "000000001000",
+  "en": "a sun"
+ },
+ {
+  "group": "thing",
+  "bits": "000000101000",
+  "en": "a window"
+ },
+ {
+  "group": "thing",
+  "bits": "010000110000",
+  "en": "a bucket"
+ },
+ {
+  "group": "thing",
+  "bits": "000000000001",
+  "en": "a sock"
+ },
+ {
+  "group": "thing",
+  "bits": "000000000001",
+  "en": "a scarf"
+ },
+ {
+  "group": "thing",
+  "bits": "000000010001",
+  "en": "a ring"
+ },
+ {
+  "group": "thing",
+  "bits": "000001000000",
+  "en": "a lollipop"
+ }
+]
