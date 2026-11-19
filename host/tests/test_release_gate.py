@@ -104,3 +104,13 @@ def test_review_fix_the_pinned_key_check_wants_the_signing_key_in_the_list(tmp_p
     assert wrong.returncode == 1 and "not the key" in wrong.stderr
     junk = check(["not a pem"])
     assert junk.returncode == 1 and "damaged" in junk.stderr
+
+
+def test_a_test_release_does_not_need_a_pinned_key(tmp_path):
+    """A --test-key release is flashed with the test box, so the empty pinned list does not stop its gate."""
+    out, cmd = _pinned_tree(tmp_path, [])
+    i = cmd.index("--signing-key")
+    cmd = cmd[:i] + ["--test-key", "--with-gate"] + cmd[i + 2 :]
+    run = subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(ROOT / "host")})
+    assert "pinned-key" not in run.stderr
+    assert "release gate: passed" in run.stdout + run.stderr
