@@ -2172,7 +2172,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/filler_core_test.c` (220): Host test for "While it thinks" (patch TB03): the delay rule, the pick, the index reader, mu-law and the tone.
 - `host/tests/firmware/find_core_test.c` (27): Host test for the find-my-robot sound rule (patch Y02): the full sounds core with the find bypass. */
 - `host/tests/firmware/firstrun_core_test.c` (162): include <stdio.h>
-- `host/tests/firmware/flyer_core_test.c` (93): Host test of maipai_flyer_core.h (patch UX25, Flappy-style flyer): gravity, the hop, the pipes and their gaps,
+- `host/tests/firmware/flyer_core_test.c` (136): Host test of maipai_flyer_core.h (patch UX25, Flappy-style flyer): gravity, the hop, the pipes and their gaps,
 - `host/tests/firmware/fx_core_test.c` (347): Host test for the screen effects and the governor (patches TA02, TA05): scanline row math, split invariance, c
 - `host/tests/firmware/fx_cost.c` (94): Host cost model for the overlays and effects (patches TA02, TA03). Runs every overlay for 30 simulated seconds
 - `host/tests/firmware/game_over_core_test.c` (46): Host test of the shared game-over screen's core (patch UX15): the layout meets the screen standard, taps land 
