@@ -3370,8 +3370,6 @@ def _wire_firmware_update(voice, behavior, link, stop_event, situation_runner: C
     def verify_firmware_image() -> Callable[[bytes, bytes], bool] | None:
         """Checks an image against `[update] trusted_key`; None when no key is configured. A 120-byte package is the signed
         header: it also has to carry a build number higher than the last one this host served."""
-        from maipai_body.bodies.stackchan.firmware.flash_manifest import verify_detached
-        from maipai_body.bodies.stackchan.firmware.update_header import PACKAGE_LEN, verify_package
         from maipai_body.config import load_config
 
         try:
@@ -3380,20 +3378,7 @@ def _wire_firmware_update(voice, behavior, link, stop_event, situation_runner: C
             key = None
         if not key:
             return None
-        builds = _UpdateBuilds(_data_dir() / "update-builds.json")
-
-        def check(image: bytes, signature: bytes) -> bool:
-            if len(signature) != PACKAGE_LEN:
-                return verify_detached(image, signature, key)
-            installed = behavior.unit_facts.snapshot().get("fw_build")
-            known = builds.highest()
-            floor = max([n for n in (installed if isinstance(installed, int) else None, known) if n is not None], default=None)
-            verdict = verify_package(signature, image, key, installed_build=floor)
-            if verdict.ok:
-                builds.record(verdict.header["build_number"])
-            return verdict.ok
-
-        return check
+        return _update_check(key, _UpdateBuilds(_data_dir() / "update-builds.json"), lambda: behavior.unit_facts.snapshot().get("fw_build"))
 
     def firmware_situation() -> dict[str, Any]:
         try:
@@ -3429,7 +3414,8 @@ def _wire_firmware_update(voice, behavior, link, stop_event, situation_runner: C
         download=download_firmware,
         serve_once=voice.serve_firmware_once,
         download_signature=download_firmware_signature,
-        verify=verify_firmware_image(),
+        verify=(_verify := verify_firmware_image()),
+        on_installed=getattr(_verify, "accepted", None),
         call_tool=voice.robot.client._call,
         situation=firmware_situation,
         battery=voice.robot.client.get_battery_status,
@@ -5056,6 +5042,35 @@ def _lan_address() -> str:
         return "127.0.0.1"
     finally:
         probe.close()
+
+
+def _update_check(key, builds, installed_build):
+    """The image check of the host's update path. A 120-byte package carries a build number that has to be above the installed build and the
+    highest build this host has seen installed. The number is only noted as pending here; ``accepted`` (called when the unit reports the
+    install done) records it, so an install that failed can be tried again with the same build (review fix R2-23)."""
+    from maipai_body.bodies.stackchan.firmware.flash_manifest import verify_detached
+    from maipai_body.bodies.stackchan.firmware.update_header import PACKAGE_LEN, verify_package
+
+    pending: list[int | None] = [None]
+
+    def check(image: bytes, signature: bytes) -> bool:
+        if len(signature) != PACKAGE_LEN:
+            return verify_detached(image, signature, key)
+        installed = installed_build()
+        known = builds.highest()
+        floor = max([n for n in (installed if isinstance(installed, int) else None, known) if n is not None], default=None)
+        verdict = verify_package(signature, image, key, installed_build=floor)
+        if verdict.ok:
+            pending[0] = verdict.header["build_number"]
+        return verdict.ok
+
+    def accepted() -> None:
+        if pending[0] is not None:
+            builds.record(pending[0])
+            pending[0] = None
+
+    check.accepted = accepted  # type: ignore[attr-defined]
+    return check
 
 
 class _UpdateBuilds:
