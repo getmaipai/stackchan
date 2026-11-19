@@ -600,12 +600,14 @@ async def play_a_game(rig: Rig, check) -> None:
     check("the games vary", len(set(seen)) >= min(2, len(seen)), str(seen))
     before = len([c for c in rig.fw.tool_calls if c[0] == "self.game.start"])
     await rig.say("play memory", speech_s=0.8, tail_s=1.0, wait_stop=25.0)
-    for _ in range(40):  # a loaded machine answers late: wait for the start call instead of reading once
+    for _ in range(40):  # a loaded machine answers late: wait for memory to start instead of reading once
         starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
-        if len(starts) > before:
+        if "memory" in starts[before:]:
             break
         await asyncio.sleep(0.5)
-    check("'play memory' starts memory", len(starts) > before and starts[-1] == "memory", str(starts[-3:]))
+    await asyncio.sleep(0.5)  # a late answer to an earlier "play a game" may still land: look at everything started since this ask
+    starts = [c[1].get("name") for c in rig.fw.tool_calls if c[0] == "self.game.start"]
+    check("'play memory' starts memory", "memory" in starts[before:], str(starts[before:]))
     check("no model was asked for any of it", not any("play a game" in json.dumps(r["messages"]) for r in rig.models.llm_requests))
 
 
