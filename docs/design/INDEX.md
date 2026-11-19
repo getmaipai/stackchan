@@ -2210,7 +2210,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/fixtures/update-header-vectors.json` (104): no header
 - `host/tests/fixtures/update-signature-vectors.json` (79): no header
 - `host/tests/golden/face-known.json` (1): no header
-- `host/tests/golden/tolerance.json` (4): no header
+- `host/tests/golden/tolerance.json` (97): no header
 - `host/tests/kinematic_double.py` (106): A command-driven test double for the state feed.
 - `host/tests/ladder_fakes.py` (38): Shared fakes for the offline-ladder suites: an injected clock and a
 - `host/tests/motor_fakes.py` (88): A scripted motor bus for the MOTOR-RECOVER-01 suite: the daemon's motor mode,
@@ -2227,6 +2227,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_ambient_vision.py` (242): BOT-SC-VISION-01: silent ambient capture, opt-in policy, text note only."""
 - `host/tests/test_app.py` (608): The app's real boot path: hold neutral until paired, log state
 - `host/tests/test_app_link_ladder.py` (107): LINK-STATE-01 in the app: the page's state frame, the setting and the wiring."""
+- `host/tests/test_asset_licenses.py` (22): schema/licenses.json is the one definition of the asset store's license ids: unique, never 0 (the unit refuses
 - `host/tests/test_asset_transport.py` (97): The asset transport (firmware SF89 and SF90): the header bytes, the order of the calls, abort on any failure, 
 - `host/tests/test_assets.py` (97): Signed, ranged, cacheable asset delivery: the manifest is signed and checks out, ranges answer correctly, a un
 - `host/tests/test_assets_kinds_drift.py` (27): The asset store's kind table in the unit's core is the one in schema/asset-kinds.json (one definition, one pla
@@ -2241,7 +2242,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_bench_chat.py` (63): no header
 - `host/tests/test_bench_listen_setting.py` (26): MAIPAI_BENCH_MIN_LISTEN_S (developer only, unset by default) makes the host wait at least that long for speech
 - `host/tests/test_bench_measure.py` (84): no header
-- `host/tests/test_bench_train.py` (145): scripts/bench-train.py: the pure parts and a whole train run against a fake unit (no hardware)."""
+- `host/tests/test_bench_train.py` (156): scripts/bench-train.py: the pure parts and a whole train run against a fake unit (no hardware)."""
 - `host/tests/test_body_registry.py` (17): no header
 - `host/tests/test_brain_fake.py` (8): no header
 - `host/tests/test_brain_home.py` (43): no header
@@ -2719,11 +2720,13 @@ One line per file: path, lines, purpose (first comment or heading).
 - `schema/.gitkeep` (0): no header
 - `schema/asset-kinds.json` (84): no header
 - `schema/base-tools.json` (11): no header
+- `schema/licenses.json` (14): no header
 - `schema/memory-budget.json` (894): no header
 - `schema/power-model.json` (34): no header
 - `schema/tools.json` (739): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
-- `scripts/bench-train.py` (467): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
+- `scripts/bench-train.py` (473): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
+- `scripts/bench-trains/bench-proof.json` (249): no header
 - `scripts/bench-trains/leave-hosted.json` (60): no header
 - `scripts/bench-trains/plain-proof.json` (17): no header
 - `scripts/boundary-check.sh` (34): keep Home-grade feature code out of this repo (docs/design/repo-boundaries.md). Zero model tokens.

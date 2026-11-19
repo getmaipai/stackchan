@@ -1,0 +1,14 @@
+{
+ "version": 1,
+ "note": "The license id table of the asset store (u16 at offset 120 of the asset header, patch SF89). The firmware refuses an asset with id 0 (no license) and checks nothing else about the id; this file is the one definition the host, the dashboard and the drift check read. The author id (u16 at offset 122) is an index into the bundle manifest's author table, not a table here. Add rows at the end; never renumber.",
+ "owner_content_ids": [1],
+ "licenses": [
+  {"id": 1, "spdx": "LicenseRef-owner-own", "title": "The owner's own content", "text": "Made by or for the owner of this unit: the pantry shelves, picture faces and the unit's own heard list. Not redistributed."},
+  {"id": 2, "spdx": "MIT", "title": "MIT License"},
+  {"id": 3, "spdx": "CC0-1.0", "title": "Creative Commons Zero 1.0"},
+  {"id": 4, "spdx": "CC-BY-4.0", "title": "Creative Commons Attribution 4.0"},
+  {"id": 5, "spdx": "Apache-2.0", "title": "Apache License 2.0"},
+  {"id": 6, "spdx": "OFL-1.1", "title": "SIL Open Font License 1.1 (fonts)"},
+  {"id": 7, "spdx": "AGPL-3.0-only", "title": "GNU Affero General Public License 3.0"}
+ ]
+}
