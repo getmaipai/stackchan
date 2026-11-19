@@ -116,13 +116,34 @@ export function signingPayload(manifest) {
 
 const fromBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
-// The raw 32-byte Ed25519 key from a PEM public key (the last 32 bytes of its SubjectPublicKeyInfo).
+// The fixed start of an Ed25519 SubjectPublicKeyInfo; the 32 key bytes follow it (44 bytes in all).
+const ED25519_SPKI_PREFIX = [0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00];
+
+// The raw 32-byte Ed25519 key from a PEM public key. Any other kind of key is refused.
 export function rawKeyFromPem(pem) {
   const body = String(pem).replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
-  const der = fromBase64(body);
-  if (der.length < 32) throw new FlasherError("The release key is damaged. Download the release again.");
-  return der.slice(der.length - 32);
+  let der;
+  try { der = fromBase64(body); } catch { throw new FlasherError("The release key is damaged. Download the release again."); }
+  if (der.length !== ED25519_SPKI_PREFIX.length + 32 || !ED25519_SPKI_PREFIX.every((byte, i) => der[i] === byte)) {
+    throw new FlasherError("The release key is damaged. Download the release again.");
+  }
+  return der.slice(ED25519_SPKI_PREFIX.length);
 }
+
+// The test-release box is for people who built a release themselves: it shows on localhost or with ?test=1, never on a published page.
+export function testReleaseAllowed(url) {
+  return ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.searchParams.get("test") === "1";
+}
+
+// The robot must be an ESP32-S3: the images are built for it and do not boot on another chip. Call after the loader has connected.
+export function assertChip(loader) {
+  const name = loader && loader.chip && loader.chip.CHIP_NAME;
+  if (name !== "ESP32-S3") {
+    throw new FlasherError(`This board is ${name || "not a chip this page knows"}, not an ESP32-S3, so nothing was written. Connect a StackChan (ESP32-S3) and try again.`);
+  }
+}
+
+const NOT_VALID = "The release list's signature is not valid, so it will not be flashed. Download the release again.";
 
 export async function keyId(raw, subtle = globalThis.crypto.subtle) {
   return (await sha256Hex(raw, subtle)).slice(0, 16);
@@ -137,14 +158,16 @@ export async function verifyManifestSignature(manifest, trustedRawKeys, subtle =
   }
   for (const raw of trustedRawKeys) {
     if ((await keyId(raw, subtle)) !== signature.keyid) continue;
+    let sig;
+    try { sig = fromBase64(signature.sig); } catch { throw new FlasherError(NOT_VALID); }
     let ok = false;
     try {
       const key = await subtle.importKey("raw", raw, { name: "Ed25519" }, false, ["verify"]);
-      ok = await subtle.verify({ name: "Ed25519" }, key, fromBase64(signature.sig), signingPayload(manifest));
+      ok = await subtle.verify({ name: "Ed25519" }, key, sig, signingPayload(manifest));
     } catch {
       throw new FlasherError("This browser cannot check the release signature. Use a current Chrome or Edge.");
     }
-    if (!ok) throw new FlasherError("The release list's signature is not valid, so it will not be flashed. Download the release again.");
+    if (!ok) throw new FlasherError(NOT_VALID);
     return signature.keyid;
   }
   throw new FlasherError("This release is signed with a key this page does not trust, so it will not be flashed.");

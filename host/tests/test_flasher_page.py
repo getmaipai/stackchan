@@ -23,6 +23,14 @@ def test_the_page_has_no_outside_scripts_and_names_what_it_does():
     assert "./vendor/esptool-js-0.7.0.js" in js and "fetchAndVerify" in js
 
 
+def test_review_fix_the_page_hides_the_test_box_and_checks_the_chip_before_writing():
+    html = (ROOT / "flasher" / "index.html").read_text()
+    assert 'id="testrelease-row" hidden' in html  # shown only by the script, on localhost or ?test=1
+    js = (ROOT / "flasher" / "flasher.js").read_text()
+    assert "testBoxAllowed && $(\"testrelease\").checked" in js and "current.keyId" in js
+    assert js.index("assertChip(loader)") < js.index("loader.writeFlash")
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node is not installed")
 def test_the_page_verifies_the_signature_the_release_script_makes(tmp_path):
     """A real release folder (test key): the JavaScript check accepts its list with its own key and refuses it with a changed version."""

@@ -58,6 +58,8 @@ if [ "$GATE" = 1 ]; then
   if grep -h -E '^\[(NOT RUN|FAIL)\]' "$EVIDENCE/security-scan.txt" "$EVIDENCE/exposure.txt" > "$EVIDENCE/not-run.txt" && [ -s "$EVIDENCE/not-run.txt" ]; then
     echo "release gate: a scan step did not run or failed:" >&2; cat "$EVIDENCE/not-run.txt" >&2; echo "Install the missing tool or fix the finding, then run the release again." >&2; exit 1
   fi
+  # The web flasher trusts only the keys pinned in flasher/trusted-keys.json: an empty list, or one without this signing key, stops a real release.
+  "$PY" scripts/pinned-key-check.py flasher/trusted-keys.json "$KEY" || { echo "release gate: pinned-key FAILED. Nothing was built. Fix flasher/trusted-keys.json as said above, then run the release again." >&2; exit 1; }
   echo "release gate: passed"
 fi
 mkdir -p "$OUT"
