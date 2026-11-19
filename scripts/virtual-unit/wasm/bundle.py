@@ -9,7 +9,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-VU_FILES = ["vunit.py", "hw.py", "dance_core.py", "dance_sim.py", "scenarios.py", "assets_sim.py", "memory_model.py", "host_away.py", "posixtz.py", "view.py", "memory_walk.py",
+VU_FILES = ["vunit.py", "hw.py", "dance_core.py", "dance_sim.py", "scenarios.py", "assets_sim.py", "ed25519_pure.py", "memory_model.py", "host_away.py", "posixtz.py", "view.py", "memory_walk.py",
             "dance/ladder_sim.c", "dance/reconnect_sim.c", "physics/mjcf.py", "physics/imu.py", "physics/robots/stackchan.robot.json", "physics/THIRD-PARTY-physics-engine.json"]
 # Files the virtual unit gained later (the power model hw.py imports, the offline mumble tools/mumble_sim.py imports): packed when they exist, so this build works on a tree
 # without them and on one with them. A module the unit imports that is in neither list is a missing-file error in the page: add it here.

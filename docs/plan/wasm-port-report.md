@@ -104,6 +104,13 @@ Estimate for everything in the table that is in scope for a first public page (p
 - **Pyodide 0.27.7 is Python 3.12; the native playground runs 3.13.** No difference showed in 287 cases. Move Pyodide when a 3.13 release is pinned.
 - **Time passes only while a command runs in this container.** Long checks here must run in the foreground (`parity.js` takes about 3 minutes); a background copy appeared to hang for that reason. Not a property of the build.
 
-## Parity rerun on main's series (2026-11-18)
+## Parity rerun on the series of 2026-11-18, evening (333 of 334 equal)
 
-Built from the newest replayed tree (b66 plus the overlay patches this branch adds). 318 cases: 312 give the same result as the native run, all 159 tool calls, the dance, quiet-hours and memory cases included. Six frames differ from native: `dance-session-4-full`, `host-away-notice-fr`, `-de`, `-pt` (the browser build draws with the font package cloned from the font repository, the native one with the tree's own fonts), and `mumble-mouth-sync`, `host-away-two-messages` (filmstrips composed with `snapnow`; cause not found yet). Next: pin the font package to the tree's fonts, then look at the two filmstrips.
+Built from the newest replayed tree (b68 plus the overlay patches of this branch), with the tree's own font package. Now 333 of 334 cases give the same result as the native run: all 179 tool calls (the asset tools included), 137 of 138 frames. The six differences of the first rerun had four causes, all fixed in the build:
+
+1. Missing-glyph boxes: the browser build drew a box for a letter the font lacks (`LV_USE_FONT_PLACEHOLDER` defaulted to 1 there, to 0 in the firmware). The wasm build now sets it to 0. This was the French, German and Portuguese notices.
+2. Fused multiply-add: the native renderers on arm64 fused arithmetic that WebAssembly does not, which moved a few antialiased pixels of the full dance frame. The native renderers now build with `-ffp-contract=off`; the one golden that changed (`dance-session-4-full`) was redrawn.
+3. The unit's random source: the stub of `esp_random` was libc `rand()`, whose sequence differs between macOS and the browser's libc. It is now a fixed xorshift sequence.
+4. Signing in the asset simulator needed the `cryptography` package, which the core Pyodide has not. `assets_sim.py` falls back to `ed25519_pure.py` (checked against the package by `host/tests/test_assets_sim_ed25519.py`).
+
+Also: `snapnow` gets its folder in the browser's file system like `snap`. One frame still differs: the filmstrip `host-away-two-messages`. Replaying its renderer commands natively and in the browser gives six identical frames, so the cause is on the Python side of the rig (the `awaystep` steps), not in the drawing. Open.

@@ -471,7 +471,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/ux13-batches.md` (14): UX13: the screens at finger size, in batches (playground track)
 - `docs/plan/ux13c-control-sheet-brief.md` (20): UX13c brief: the control sheet at finger size (for a Codex lane, read by the playground track before it lands)
 - `docs/plan/view-requests.md` (93): Requests for the 3D view (scripts/virtual-unit/view3d.js, view.html, view.py)
-- `docs/plan/wasm-port-report.md` (109): WebAssembly port: the virtual robot in a browser, no server
+- `docs/plan/wasm-port-report.md` (116): WebAssembly port: the virtual robot in a browser, no server
 - `docs/plan/wasm-spike-report.md` (95): WebAssembly spike: the virtual robot in a browser, no server
 - `docs/playground/dances-and-lights.md` (15): Dances and the light show
 - `docs/playground/dev-architecture.md` (17): Architecture of the virtual unit
@@ -924,6 +924,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/UX17-question-and-answer-game-screens.patch` (285): The screens of the question-and-answer games (owner decisions 25 to 27, 2026-11-18; spec docs/design/qa-game-s
 - `firmware/patches/UX18-dice-poker.patch` (249): Dice Poker (the first of the new games of docs/plan/more-games.md, ranked 2; spec docs/design/dice-poker.md). 
 - `firmware/patches/UX19-brain-two-equal-routes.patch` (182): The brain step of the first run offers two equal routes (owner decision 34, 2026-11-18): A "Hosted by M5Stack/
+- `firmware/patches/UX19b-first-run-lines-that-fit.patch` (26): Two first-run lines no longer wrap into the text below or get cut off (owner request: text never overlaps anot
 - `firmware/patches/UX20-hosted-link-removed-notice.patch` (146): The notice "Hosted link removed" (owner decision 34): shown on the unit after it left the hosted brain (M5Stac
 - `firmware/patches/UX20b-notice-console-line.patch` (90): The "Hosted link removed" notice (UX20) gets the owner's plain line (decision 34): "To stop your account keepi
 - `firmware/patches/UX21-higher-or-lower.patch` (270): Higher or Lower (spec docs/design/higher-or-lower.md, rank 1 of docs/plan/more-games.md): a shuffled deck of 5
@@ -2752,7 +2753,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/scene_pages.py` (81): Writes the renderer scripts for the swipe pages and the control sheet (patches P10 to P12): every page and the
 - `scripts/fw-face-render/stub/esp_attr.h` (0): no header
 - `scripts/fw-face-render/stub/esp_heap_caps.h` (8): Host renderer stub: the pictures of the face (patch V23) live in PSRAM on the unit; here they are plain memory
-- `scripts/fw-face-render/stub/esp_random.h` (4): pragma once
+- `scripts/fw-face-render/stub/esp_random.h` (12): pragma once
 - `scripts/fw-face-render/stub/esp_timer.h` (5): Host renderer stub: a clock the harness sets, so a frame at "t = 1.2 s" is the same every run.
 - `scripts/fw-face-render/stub/hal.h` (2): Host renderer stub: maipai_more.cc includes the whole HAL header but uses nothing from it here.
 - `scripts/fw-facedet-req.py` (50): Writes firmware/maipai_facedet.compile_req.yml: the op list the face models need, so esp-dl compiles only thos
@@ -2821,7 +2822,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/test-fast.sh` (6): the host suite without the slow tests (the end to end on the virtual unit and the sanitizer fuzz, marked `slow
 - `scripts/test-sharded.py` (75): Run the host suite in N pytest processes at once, one group of test files each (no plugin needed). Files are d
 - `scripts/translation-pack.py` (336): The translator review pack: every user-facing string per language in a plain CSV a native speaker can read and
-- `scripts/virtual-unit/assets_sim.py` (282): The installed set in the virtual unit (owner decision 17; docs/plan/installed-set.md B1 to B5): slots per kind
+- `scripts/virtual-unit/assets_sim.py` (302): The installed set in the virtual unit (owner decision 17; docs/plan/installed-set.md B1 to B5): slots per kind
 - `scripts/virtual-unit/backends.py` (163): The playground's backends: the Simulation (a virtual unit on this computer) or one registered robot through it
 - `scripts/virtual-unit/bench_checks.py` (99): Virtual dry runs of the three bench checks (plan section 9), so the bench agent knows the steps and the expect
 - `scripts/virtual-unit/brain_route.py` (44): The brain route of the virtual unit (owner decision 34): hosted (route A, the vendor's servers) or custom (rou
@@ -2943,7 +2944,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/wasm/parity.js` (108): Parity check of the browser build, in headless Chromium (Playwright): starts the page from docs-site/playgroun
 - `scripts/virtual-unit/wasm/run_native.py` (45): run the parity cases (page/py/parity_cases.py) natively: the real ctypes libraries (the core wrappers compiled
 - `scripts/virtual-unit/wasm/shim_main.py` (71): turn one of the native renderer programs (a main() that reads command lines from stdin until the end) into a m
-- `scripts/virtual-unit/wasm/site-build.sh` (161): build the static playground (docs-site/playground/): the unit's screens renderer, the lock keypad and the link
+- `scripts/virtual-unit/wasm/site-build.sh` (163): build the static playground (docs-site/playground/): the unit's screens renderer, the lock keypad and the link
 - `scripts/wakeword/README.md` (17): Local wake word experiment
 - `scripts/wakeword/eval_kws.py` (72): Measure long-negative false accepts (one per wake event, 1.5 s refractory) and held-out positive recall."""
 - `scripts/wakeword/features.py` (77): Small, dependency-light audio helpers for local wake-word experiments."""
