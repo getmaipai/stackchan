@@ -1,0 +1,136 @@
+# Intent: The data-pack games that have an end (Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It) finish on the shared game-over screen (UX15) like the grid games, instead of closing at once: the face, the result (Tic-Tac-Toe from the board: won, lost or draw; the others: a score above zero is a win), the score line (Wins N for Tic-Tac-Toe, Score N for the others), the best line or the amber New best mark, and Play again (the same game fresh) and Quit (the games page). The pack's own sounds and celebration have already played and the score is already saved. A game that stops on its step budget, by the stop word or by a swipe from the grabber still closes at once. Rock Paper Scissors, the eight ball and the dice have no end and do not show the screen.
+# Placement: unit
+# Upstream: firmware/main/hal (ours)
+# Check after a flash: finish Tic-Tac-Toe: the screen shows with the right face and Wins and Best lines; Play again starts a fresh board, Quit shows the games page; Color Memory, Whack-a-Mole and Do It show the screen after a mistake or the time; the stop word still ends a game at once.
+# Kconfig: CONFIG_MAIPAI_GAMES (existing)
+# Memory cost: about 14 LVGL objects (about 2 KB internal, an estimate) while the screen shows, freed with the game; flash a few hundred bytes.
+
+diff --git a/firmware/main/hal/maipai_games.cc b/firmware/main/hal/maipai_games.cc
+--- a/firmware/main/hal/maipai_games.cc
++++ b/firmware/main/hal/maipai_games.cc
+@@ -14,6 +14,9 @@
+ #include "maipai_time_core.h"
+ #include "maipai_games_core.h"
+ #include "maipai_grid.h"  // patch SF63: the grid games (Four in a Row, Memory Match)
++#include "maipai_game_over.h"  // patch SF86: the shared game-over screen
++#include "maipai_pages.h"
++#include "maipai_pages_core.h"
+ #include "maipai_games_draw.h"
+ #include "maipai_games_input_core.h"
+ #include "maipai_gesture_core.h"
+@@ -124,6 +127,9 @@ struct Game {
+     uint32_t last_awake_ms;
+     uint32_t last_input_ms; /* patch SF02: the last touch or sensor input, for the idle limit */
+     uint32_t tones;
++    mgo::Screen over;      // patch SF86: the shared game-over screen (root null until it shows)
++    uint8_t over_shown;
++    uint32_t over_at;
+     char id[12];
+     char source[8];
+ };
+@@ -661,8 +667,57 @@ void on_disp_event(lv_event_t* e)
+ #endif
+ 
+ // Plays the tones the player queued, saves a committed score, redraws; ends the game when the player finished.
++// Patch SF86: the data-pack games that have an end (Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It) finish on the shared game-over screen (UX15, docs/design/game-over-screen.md) instead
++// of closing at once: the result by the pack's own rule (Tic-Tac-Toe: the board; the others: a score above zero is a win), the score line, the best line or New best, Play again and Quit.
++// The pack's own sounds and celebration have already played; the score is already saved (commit_score ran when the pack asked).
++bool has_end_screen(const Game* g)
++{
++    return strcmp(g->id, "memory") == 0 || strcmp(g->id, "whack") == 0 || strcmp(g->id, "tictactoe") == 0 || strcmp(g->id, "bopit") == 0;
++}
++
++void show_game_over(Game* g)
++{
++    const mg_run_t& r = g->run;
++    const int score = r.ctr[g->pack.score_ctr];
++    int result;
++    if (strcmp(g->id, "tictactoe") == 0) {
++        const int b = mg_board_result(r.board);
++        result = b == 1 ? MGO_WON : (b == 2 ? MGO_LOST : MGO_DRAW);
++    } else {
++        result = score > 0 ? MGO_WON : MGO_LOST;
++    }
++    int best = 0;
++    {
++        std::lock_guard<std::mutex> lock(s_mutex);
++        best = s_entries[g->entry].best[0];
++    }
++    const bool record = g->rank == 0;
++    char score_text[40], best_text[40] = "";
++    snprintf(score_text, sizeof(score_text), strcmp(g->id, "tictactoe") == 0 ? (g->es ? "Victorias %d" : "Wins %d") : (g->es ? "Puntos %d" : "Score %d"), score);
++    if (best > 0 && !record) snprintf(best_text, sizeof(best_text), g->es ? "Mejor %d" : "Best %d", best);
++    g->over = mgo::build(g->root, result, score_text, best_text, record, g->es);
++    g->over_shown = 1;
++    g->over_at = now_ms();
++    mgo::set_pop(g->over, 0);
++    g->last_input_ms = g->over_at;
++}
++
++// A tap on the game-over screen: Play again starts the same game fresh, Quit shows the games page.
++void game_over_tap(Game* g, int x, int y)
++{
++    const int b = mgo_hit(x, y);
++    if (b == MGO_BTN_NONE) return;
++    char id[12], src[8];
++    snprintf(id, sizeof(id), "%s", g->id);
++    snprintf(src, sizeof(src), "%s", g->source);
++    end_locked(b == MGO_BTN_AGAIN ? "again" : "quit");
++    if (b == MGO_BTN_AGAIN) (void)maipai_games_start_locked(id, src);
++    else (void)maipai_pages_show(MPG_P_GAMES);
++}
++
+ void after_event(Game* g)
+ {
++    if (g->over_shown) return;  // patch SF86: the game is over: only the buttons take input
+     mg_run_t& r = g->run;
+     bool color_event = false;
+     for (int i = 0; i < r.tone_n; i++) {
+@@ -708,7 +763,11 @@ void after_event(Game* g)
+ #endif
+     redraw(g, false);
+     if (r.finished) {
+-        end_locked(r.budget_hit ? "budget" : "finished");
++        if (!r.budget_hit && has_end_screen(g) && g->root != nullptr) {
++            show_game_over(g);  // patch SF86
++        } else {
++            end_locked(r.budget_hit ? "budget" : "finished");
++        }
+     }
+ }
+ 
+@@ -739,6 +798,12 @@ void tick_cb(lv_timer_t*)
+         g->last_awake_ms = now;
+         hal_bridge::power_keep_awake();  // a game keeps the screen on
+     }
++    if (g->over_shown) {  // patch SF86: the game-over screen: the face pops, nothing else runs; a minute with no tap ends the game
++        if (now - g->over_at <= MGO_POP_MS + 40u) mgo::set_pop(g->over, now - g->over_at);
++        if (now - g->over_at >= 60000u) end_locked("finished");
++        (void)s_input_bits.exchange(0);
++        return;
++    }
+     if (const uint32_t bits = s_input_bits.exchange(0)) {
+         g->last_input_ms = now;  // patch UI13: shakes, tilts and pets the sensors' tasks posted
+         for (int ev = MG_EV_SWIPE_L; ev < MG_EV_COUNT; ev++) {
+@@ -973,6 +1038,10 @@ void maipai_games_touch(int x, int y)
+ {
+     maipai_grid_touch(x, y);  // patch SF63: does nothing unless a grid game runs
+     Game* g = s_game;
++    if (g != nullptr && g->over_shown) {
++        game_over_tap(g, x, y);  // patch SF86
++        return;
++    }
+     if (g == nullptr || g->tap_on_release) {
+         return;  // a game that takes its taps when the finger lifts hears the release instead
+     }
+@@ -994,6 +1063,10 @@ void maipai_games_release(int x0, int y0, int x1, int y1, uint32_t held_ms)
+         end_locked("dragbar");  // patch GM02: a swipe down from the drag bar ends the game: sounds, best score, overlays and the screen are released
+         return;
+     }
++    if (g != nullptr && g->over_shown) {  // patch SF86: a game that takes taps on release gets its screen taps here
++        if (mgs_abs(x1 - x0) <= MGS_TAP_MAX_PX && mgs_abs(y1 - y0) <= MGS_TAP_MAX_PX && held_ms <= MGS_TAP_MAX_MS) game_over_tap(g, x0, y0);
++        return;
++    }
+     if (g == nullptr || !g->tap_on_release || mg_drag_press_dead(y0)) {
+         return;
+     }

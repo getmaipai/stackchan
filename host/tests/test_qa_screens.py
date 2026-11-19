@@ -10,6 +10,8 @@ import pytest
 HERE = Path(__file__).resolve().parent
 PATCHES = HERE.parents[1] / "firmware" / "patches"
 NAME = "UX17-question-and-answer-game-screens.patch"
+if not (PATCHES / NAME).exists():   # the patch waits on the branch ux/unproven-games for its bench proof (plain boot first); its tests join ORDER with it
+    pytest.skip(NAME + " is not in firmware/patches yet", allow_module_level=True)
 
 
 def _added(path: str) -> str:

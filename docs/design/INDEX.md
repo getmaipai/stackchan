@@ -46,9 +46,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/content-pantry.md` (151): Content pantry: jokes, riddles, trivia and stories the unit keeps (design, 2026-11-18)
 - `docs/design/core-extras-modules.md` (35): Host modules: core or extras
 - `docs/design/dance-ladder-2026-11-17.md` (53): Music dance ladder and the movement limiter, 2026-11-17
-- `docs/design/decisions.md` (114): Owner decisions and corrections
-- `docs/design/decisions.md` (114): Owner decisions and corrections
-- `docs/design/decisions.md` (114): Owner decisions and corrections
+- `docs/design/decisions.md` (115): Owner decisions and corrections
+- `docs/design/decisions.md` (115): Owner decisions and corrections
+- `docs/design/decisions.md` (115): Owner decisions and corrections
 - `docs/design/dice-poker.md` (32): Dice Poker
 - `docs/design/egress-audit.md` (39): Firmware egress audit
 - `docs/design/egress-proof-2026-11-15.md` (30): Egress proof attempt, 2026-11-15
@@ -76,6 +76,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/design/game-engine-note.md` (43): Game engine note (Train 3 item 15, design only, 2026-11-16)
 - `docs/design/game-over-screen.md` (58): The shared game-over screen
 - `docs/design/games-2026-11-16.md` (147): Games: the engine and three games in the core firmware, 2026-11-16
+- `docs/design/games-audit-baseline.json` (9): no header
 - `docs/design/games-audit-baseline.json` (9): no header
 - `docs/design/games-v2-2026-11-17.md` (122): Games v2 and a readable dim, 2026-11-17
 - `docs/design/handoff-roaming-tailnet-2026-11-17.md` (16): Handoff from the old bot firmware session: roaming, private network, updates (2026-11-17)
@@ -157,16 +158,16 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/dance-entry-points.md` (207): Dance entry points on the real unit, and what each one runs
 - `docs/dev/dashboard-screens/README.md` (5): Dashboard screens
 - `docs/dev/draft-names.md` (131): Draft names to confirm
-- `docs/dev/e2e-virtual-unit.md` (84): End to end on the virtual unit (the spoken-turn check without hardware)
+- `docs/dev/e2e-virtual-unit.md` (89): End to end on the virtual unit (the spoken-turn check without hardware)
 - `docs/dev/egress-table.md` (14): Generated egress table
 - `docs/dev/es7210-mic-gain-and-slots.md` (9): ES7210 microphone gain and TDM slots on the CoreS3 (measured 2026-11-18)
 - `docs/dev/experiment-iphone-llm-2026-11-15.md` (66): Experiment: run the language model on an iPhone
 - `docs/dev/feature-ledger.html` (84): no header
 - `docs/dev/feature-ledger.html` (84): no header
 - `docs/dev/feature-ledger.html` (84): no header
-- `docs/dev/feature-ledger.md` (1138): Feature ledger
-- `docs/dev/feature-ledger.md` (1138): Feature ledger
-- `docs/dev/feature-ledger.md` (1138): Feature ledger
+- `docs/dev/feature-ledger.md` (1139): Feature ledger
+- `docs/dev/feature-ledger.md` (1139): Feature ledger
+- `docs/dev/feature-ledger.md` (1139): Feature ledger
 - `docs/dev/four-users-review.md` (42): Four users review of the robot's screens (2026-11-18)
 - `docs/dev/frame-cost-baseline-2026-11-18.md` (29): Frame cost baseline from the virtual unit (2026-11-18)
 - `docs/dev/fuzzing-and-hostile-peer.md` (31): Fuzzing the unit's parsers, and a hostile peer against the host
@@ -242,7 +243,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/index.md` (107): MaiPai for StackChan: developer guide
 - `docs/dev/internal-ram-tasks.md` (53): Internal RAM: tasks with an internal stack, and what could move (static reading, 2026-11-18)
 - `docs/dev/memory-budget.md` (183): Memory budget of the optional features (owner decision 11, 2026-11-18)
-- `docs/dev/model-previews/joints.gif` (1486): Binary file docs/dev/model-previews/joints.gif matches
+- `docs/dev/model-previews/joints.gif` (1480): Binary file docs/dev/model-previews/joints.gif matches
 - `docs/dev/mumble/de.wav` (281): no header
 - `docs/dev/mumble/en.wav` (243): Binary file docs/dev/mumble/en.wav matches
 - `docs/dev/mumble/es.wav` (259): no header
@@ -261,7 +262,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/dev/screens-contact-sheets.md` (38): Screens contact sheets
 - `docs/dev/second-robot-adapter.md` (16): Adding a second robot behind the seam
 - `docs/dev/seek-cue-policy.md` (38): The face-turning seeker and the camera-on cue: why the cue is lit most of the time, and a quieter policy
-- `docs/dev/settings-justification.md` (48): Settings justification (owner decision 20)
+- `docs/dev/settings-justification.md` (53): Settings justification (owner decision 20)
 - `docs/dev/software-only-protection.md` (50): Protecting the lock code, tokens and link key with software only (owner decision 14: no eFuse, ever)
 - `docs/dev/stackchan-anywhere-network-2026-11-14.md` (207): StackChan anywhere network: the robot joins the tailnet itself, and keeps a list of Wi-Fi networks
 - `docs/dev/stackchan-away-trip-and-permanent-2026-11-14.md` (148): StackChan away from home: the trip stopgap and the permanent design (2026-11-14)
@@ -499,7 +500,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/user/bench-listening.md` (5): Listen longer on the bench (developers)
 - `docs/user/camera.md` (84): Use the camera
 - `docs/user/character-packs.md` (19): Character packs
-- `docs/user/choose-a-brain.md` (39): Choose a brain
+- `docs/user/choose-a-brain.md` (36): Choose a brain
 - `docs/user/coding-companion.md` (37): Use the robot as a coding companion (optional package)
 - `docs/user/compare.md` (71): Compare MaiPai for StackChan
 - `docs/user/face-and-look.md` (128): Change how the robot looks
@@ -716,7 +717,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/O01-overlay-engine-bigger-shapes-and-combinations.patch` (1751): Overlay readability pass, part 1, the engine (owner brief 2026-11-17: at arm's length the overlays were too sm
 - `firmware/patches/O02-overlays-leave-text-zones-and-eyes.patch` (273): Overlay readability pass, part 2, the unit side. The overlay engine now has three layers (weather, event, fron
 - `firmware/patches/O03-governor-hysteresis-grace-floor-staged-unhide.patch` (382): Fix the adaptive governor at the root (integration 2: the overlays were invisible on the unit because the gove
-- `firmware/patches/ORDER` (352): no header
+- `firmware/patches/ORDER` (354): no header
+- `firmware/patches/ORDER` (354): no header
+- `firmware/patches/ORDER` (354): no header
 - `firmware/patches/P01-portal-page.patch` (466): The Wi-Fi setup page and its logic, as new files only (nothing is built differently yet). maipai_portal_page.h
 - `firmware/patches/P02-portal-routes.patch` (575): Replace the setup component's access point source file (24 handlers, a 78 KB page, saved-network and advanced 
 - `firmware/patches/P03-portal-protect.patch` (197): A protected setup window. A new six-digit setup code is made each time setup opens and shown on the unit's scr
@@ -826,6 +829,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `firmware/patches/SF83-core-guards-from-static-analysis.patch` (83): Defensive guards in three pure cores after a static analysis run: the head history lookup returns the current 
 - `firmware/patches/SF84-snake-start-grace-and-bench-events-for-grid-games.patch` (57): Two fixes from the b59 bench run. Snake reached the right wall in about two seconds with no input: it now wait
 - `firmware/patches/SF85-option-to-leave-the-stock-pictures-out-of-the-assets.patch` (38): A build option, MAIPAI_PARTITION_EXTRA_ASSETS (default on: the image is unchanged), that leaves the stock apps
+- `firmware/patches/SF86-data-pack-games-on-the-shared-game-over-screen.patch` (136): The data-pack games that have an end (Color Memory, Whack-a-Mole, Tic-Tac-Toe, Do It) finish on the shared gam
+- `firmware/patches/SF87-offline-mumble-on-the-unit.patch` (478): The offline mumble, device side (owner decision 24; core UX16, spec docs/design/offline-mumble.md). A caption 
 - `firmware/patches/T01-low-battery-ladder.patch` (423): Train 2 item 6, the low-battery ladder (features.md Always-on). 20 percent on the battery: one chirp. 10 perce
 - `firmware/patches/T02-hourly-chime-quiet-hours.patch` (269): Train 2 item 7, the hourly chime and its quiet-hours rule (features.md Always-on). One soft tone (the shipped 
 - `firmware/patches/T03-wake-cue-and-selftest.patch` (245): Train 2 item 8, the wake feedback cue and the wake self-test (features.md Always-on; owner report 2026-11-13 t
@@ -1500,7 +1505,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_body/unit_extras.py` (930): ruff: noqa: E501
 - `host/maipai_body/unit_lock.py` (266): ruff: noqa: E501
 - `host/maipai_body/unit_polish.py` (187): ruff: noqa: E501
-- `host/maipai_body/unit_prefs.py` (246): ruff: noqa: E501
+- `host/maipai_body/unit_prefs.py` (248): ruff: noqa: E501
 - `host/maipai_body/unit_remote.py` (420): ruff: noqa: E501
 - `host/maipai_body/unit_settings.py` (265): ruff: noqa: E501
 - `host/maipai_body/unit_tools.py` (93): ruff: noqa: E501
@@ -2021,6 +2026,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/firmware/motion_limit_core_test.c` (292): Host test for the movement limiter (patch ML01): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header> mot
 - `host/tests/firmware/mouthcue_core_test.c` (152): Host test for the mouth cue player (patch SF10). cc -std=gnu99 -Wall -Wextra -Werror -I<dir with the header>. 
 - `host/tests/firmware/mumble_core_dump.c` (14): Prints the blips of the text in argv[1] over argv[2] ms, one line each: t dur f0 f1 level mouth (patch UX16). 
+- `host/tests/firmware/mumble_render_core_test.c` (47): Host test of the mumble note renderer (patch SF87). */
 - `host/tests/firmware/music_core_test.c` (168): Host test for the on-unit music features (patch 100): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header
 - `host/tests/firmware/music_mood_test.c` (54): Host test for the music mood faces (patch V03): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
 - `host/tests/firmware/nettest_core_test.c` (151): Host test for the network test core (patch U04): cc -std=c99 -Wall -Wextra -Werror -I<dir with the header>. */
@@ -2211,7 +2217,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_cross_review_open_bugs_3.py` (63): ruff: noqa: E501
 - `host/tests/test_dance_session.py` (135): A ladder session with no music (the dance buttons and tools): the climb follows the ladder rule at the dance's
 - `host/tests/test_dashboard.py` (282): EXPR-05: the dashboard's HTTP and event-stream behavior against the fake, no browser."""
-- `host/tests/test_dice_poker.py` (45): Patch UX18, Dice Poker: the pure core's host test runs here against the patch text (all 7776 hands ranked, rol
+- `host/tests/test_dice_poker.py` (47): Patch UX18, Dice Poker: the pure core's host test runs here against the patch text (all 7776 hands ranked, rol
+- `host/tests/test_dice_poker.py` (47): Patch UX18, Dice Poker: the pure core's host test runs here against the patch text (all 7776 hands ranked, rol
 - `host/tests/test_display_router.py` (192): BOT-SC-SCREEN-01: the body-neutral router that decides which surface shows what."""
 - `host/tests/test_doa.py` (108): S-EXPR-04: DoA front/back disambiguation against a mirrored array fixture."""
 - `host/tests/test_e2e_extra.py` (110): ruff: noqa: E501
@@ -2236,7 +2243,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fakes_stand_in_hub.py` (237): One test per route the stand-in hub now serves, against the real clients where one exists.
 - `host/tests/test_feature_ledger.py` (160): ruff: noqa: E501
 - `host/tests/test_firmware_apps_patches.py` (284): ruff: noqa: E501
-- `host/tests/test_firmware_c_cores_final.py` (67): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
+- `host/tests/test_firmware_c_cores_final.py` (68): The unit's C core tests, compiled against the headers exactly as the whole of ``firmware/patches/ORDER`` leave
 - `host/tests/test_firmware_fable_patches.py` (138): ruff: noqa: E501
 - `host/tests/test_firmware_face_detect.py` (369): ruff: noqa: E501
 - `host/tests/test_firmware_face_render.py` (155): The eyes are drawn as designed (patches X01 and V10), checked on real pixels: the unit's own face classes draw
@@ -2267,7 +2274,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_fuzz_cores.py` (22): A short run of the sanitizer fuzz of the unit's parsers (scripts/fuzz-cores.sh, docs/dev/fuzzing-and-hostile-p
 - `host/tests/test_fw_power_run.py` (107): scripts/fw-power-run.py: the chain of power_log calls, the safety stops and the numbers it prints (a fake unit
 - `host/tests/test_fw_stress_gate.py` (43): The memory gate fails when the host calls it drives fail (a run that exercised nothing cannot pass)."""
-- `host/tests/test_game_over_screen.py` (61): Patch UX15, the shared game-over screen: its pure core is plain C and its host test runs here against the patc
+- `host/tests/test_game_over_screen.py` (64): Patch UX15, the shared game-over screen: its pure core is plain C and its host test runs here against the patc
+- `host/tests/test_game_over_screen.py` (64): Patch UX15, the shared game-over screen: its pure core is plain C and its host test runs here against the patc
 - `host/tests/test_game_scores.py` (48): Best scores per person: a finished game is filed under the named player or Someone; an early stop saves nothin
 - `host/tests/test_game_sounds.py` (33): The synthesized game sounds (scripts/make-game-sounds.py): deterministic, none clipping, all at the same chime
 - `host/tests/test_game_voice.py` (151): no header
@@ -2358,7 +2366,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_moves_react.py` (222): MOVES-01: the plan's ``react`` slot entry point, behind a flag (off by default).
 - `host/tests/test_moves_teach.py` (339): MOVES-02: teach it a move by hand, record it, name it, replay it.
 - `host/tests/test_moves_teach_unit.py` (48): MOVES-02 on a physical unit. Skipped unless ``MAIPAI_BODY_UNIT=1``.
-- `host/tests/test_mumble.py` (119): Patch UX16, the offline mumble: the pure C core and the Python reference give the same notes for the same text
+- `host/tests/test_mumble.py` (121): Patch UX16, the offline mumble: the pure C core and the Python reference give the same notes for the same text
+- `host/tests/test_mumble.py` (121): Patch UX16, the offline mumble: the pure C core and the Python reference give the same notes for the same text
 - `host/tests/test_mumble_host.py` (69): Host half of the mumble voice (decision 24): a text-only line with "mumble": true, sent only to a unit whose h
 - `host/tests/test_music_dance.py` (237): BOT-SC-DANCE-01 (host half): music detection and the dance policy.
 - `host/tests/test_mute_local.py` (112): MUTE-LOCAL-01: an on-robot unmute, so a hub mute can never strand the robot."""
@@ -2403,7 +2412,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_privacy_sentence.py` (11): The privacy sentence is one text on the settings page and the robot's first-run screen."""
 - `host/tests/test_profile.py` (131): Tests named for the promises RM-01 makes about the Reachy Mini profile."""
 - `host/tests/test_psram_stack_lint.py` (218): ruff: noqa: E501
-- `host/tests/test_qa_screens.py` (46): Patch UX17, the question and answer game screens: the pure core is plain C and its host test runs here against
+- `host/tests/test_qa_screens.py` (48): Patch UX17, the question and answer game screens: the pure core is plain C and its host test runs here against
+- `host/tests/test_qa_screens.py` (48): Patch UX17, the question and answer game screens: the pure core is plain C and its host test runs here against
 - `host/tests/test_release_and_update_vectors.py` (179): The release script dry run, the signed update vectors, and the Home-driven update path (host side)."""
 - `host/tests/test_release_gate.py` (52): The release gate (decision 23): a failed check, scan, exposure step or test stops the release before anything 
 - `host/tests/test_release_package.py` (33): The StackChan release package carries no Reachy body, and no recorded-moves package."""
@@ -2627,7 +2637,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_vision_yunet.py` (184): JPEG decoding and the YuNet runner, without OpenCV or the Reachy SDK."""
 - `host/tests/test_voice_server.py` (226): VOICE-01: the speech process served over the shared voice contract."""
 - `host/tests/test_voiceprint.py` (191): SPEAK-01: voice evidence in the body. Fake embedders only; no real model."""
-- `host/tests/test_vu_model.py` (514): Virtual unit 3D model: the rigged glb's node names and hierarchy, joint limits, byte-identical rebuild, source
+- `host/tests/test_vu_model.py` (529): Virtual unit 3D model: the rigged glb's node names and hierarchy, joint limits, byte-identical rebuild, source
 - `host/tests/test_vu_tools_apps.py` (113): Shape and state checks for the virtual unit apps tools."""
 - `host/tests/test_vu_tools_audio.py` (116): Coverage for the virtual unit audio and adjacent tool group."""
 - `host/tests/test_vu_tools_banner_screen.py` (47): Behavior checks for virtual banner and screen tools."""
@@ -2654,10 +2664,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/voice_fakes.py` (123): Scripted engines and a scripted capture for the speech-process tests."""
 - `schema/.gitkeep` (0): no header
 - `schema/asset-kinds.json` (68): no header
-- `schema/base-tools.json` (10): no header
-- `schema/memory-budget.json` (804): no header
+- `schema/base-tools.json` (11): no header
+- `schema/memory-budget.json` (834): no header
 - `schema/power-model.json` (34): no header
-- `schema/tools.json` (652): no header
+- `schema/tools.json` (656): no header
 - `scripts/asset-dedupe-report.py` (116): Asset duplicate report: how many bytes the unit holds twice, and what sharing them through a content-addressed
 - `scripts/bench-train.py` (421): One bench train, start to finish, with no model in the loop: flash, soak and proof checklist in parallel, pixe
 - `scripts/bench-trains/plain-proof.json` (17): no header
@@ -2667,7 +2677,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/camera-sweep-table.py` (64): turn the answers of self.bench.camera_probe (one JSON object per line, as the bench collected them) into the o
 - `scripts/captions-check.py` (25): every image in README.md, docs/user, docs/playground and docs/dev has a visible caption: a standalone image is
 - `scripts/check-no-keys.py` (68): refuse any firmware image, release folder or source tree that contains a key (safety fix).
-- `scripts/check.sh` (40): repo gate. Hygiene check over every tracked file; add tests here as they exist.
+- `scripts/check.sh` (42): repo gate. Hygiene check over every tracked file; add tests here as they exist.
 - `scripts/choices-check.py` (44): Every key of robot.toml needs a row in docs/dev/settings-justification.md (owner decision 20, docs/dev/choices
 - `scripts/dev-dashboard.sh` (37): run the host settings dashboard against seeded demo data (two stand-in units, no hardware, no real data) so it
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
@@ -2694,7 +2704,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/fw-face-render/build.sh` (37): draw the real face (LVGL and the unit's own face classes) into memory on this Mac, so a look can be judged and
 - `scripts/fw-face-render/games_render.cc` (252): Host renderer for the games (patch UI13): the real LVGL and the unit's own drawing code (maipai_games_draw.h) 
 - `scripts/fw-face-render/games_render.sh` (18): draw every game screen with the real LVGL and the unit's own drawing code (maipai_games_draw.h), so a look can
-- `scripts/fw-face-render/grid_render.cc` (317): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
+- `scripts/fw-face-render/grid_render.cc` (321): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
+- `scripts/fw-face-render/grid_render.cc` (321): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
+- `scripts/fw-face-render/grid_render.cc` (321): Host renderer for the grid games (Four in a Row, Memory Match, Hangman, Mine Finder): the real LVGL and the un
 - `scripts/fw-face-render/hooks_banner.cc` (324): The look as the unit draws it, plus the banner row (patch N01): the style table, the emotions, and these comma
 - `scripts/fw-face-render/hooks_new.cc` (57): The look as the unit draws it: the style table and the emotions of hal/maipai_look_core.h.
 - `scripts/fw-face-render/lock_render.cc` (113): Host renderer for the passcode lock (patch LK02): the real LVGL and the unit's own drawing code (maipai_lock_d
@@ -2816,10 +2828,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/make_briefs.py` (57): Write lane briefs for the tools the virtual unit does not simulate yet, in chunks of at most 7 tools of one or
 - `scripts/virtual-unit/memory_model.py` (223): The memory model of the virtual unit (owner decision 15, 2026-11-18): every screen, overlay, picture face, lan
 - `scripts/virtual-unit/memory_walk.py` (92): Opens every screen in turn on the virtual unit, uses overlays, notes, the music dance and the first run, retur
-- `scripts/virtual-unit/model/MATCH.md` (213): Does the model match the owner's unit?
+- `scripts/virtual-unit/model/MATCH.md` (223): Does the model match the owner's unit?
 - `scripts/virtual-unit/model/README.md` (78): Robot 3D model
 - `scripts/virtual-unit/model/SOURCE.md` (34): Source of the model geometry
-- `scripts/virtual-unit/model/make_body.py` (1215): Build the rigged body model of the unit from the official structure files in source/.
+- `scripts/virtual-unit/model/make_body.py` (1337): Build the rigged body model of the unit from the official structure files in source/.
 - `scripts/virtual-unit/model/render_previews.py` (224): Render the preview pictures of stackchan.glb: six views of the outside and both joints through their ranges.
 - `scripts/virtual-unit/model/softrender.py` (170): A small software renderer for the body model previews: standard library only.
 - `scripts/virtual-unit/model/source/LICENSE` (20): no header
@@ -2833,9 +2845,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/model/source/StackChan-ServoBody.stl` (557): Binary file scripts/virtual-unit/model/source/StackChan-ServoBody.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoCover.stl` (111): Binary file scripts/virtual-unit/model/source/StackChan-ServoCover.stl matches
 - `scripts/virtual-unit/model/source/StackChan-ServoSideCover.stl` (61): no header
-- `scripts/virtual-unit/model/stackchan.glb` (8153): no header
-- `scripts/virtual-unit/model/stackchan.params.json` (779): no header
-- `scripts/virtual-unit/model/stackchan.web.glb` (6784): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
+- `scripts/virtual-unit/model/stackchan.glb` (10204): no header
+- `scripts/virtual-unit/model/stackchan.params.json` (791): no header
+- `scripts/virtual-unit/model/stackchan.web.glb` (8001): Binary file scripts/virtual-unit/model/stackchan.web.glb matches
 - `scripts/virtual-unit/model/validate.sh` (18): check stackchan.glb with the Khronos glTF validator, on this Mac only (the file is read locally; nothing is up
 - `scripts/virtual-unit/mumble.py` (205): The offline mumble, reference implementation (patch UX16, spec docs/design/offline-mumble.md): one short note 
 - `scripts/virtual-unit/overlay-skip.txt` (1): no header
@@ -2853,7 +2865,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/recordings/demo-sheet.json` (26): no header
 - `scripts/virtual-unit/recordings/head-w7-before-servo-fix.csv` (351): no header
 - `scripts/virtual-unit/remote_shim.c` (31): The unit's own remote session rules (maipai_remote_core.h, patches TC01, FM03, SF01) on the command line, so a
-- `scripts/virtual-unit/scenarios.py` (418): Scripted scenarios on the virtual unit: golden frames and layout checks.
+- `scripts/virtual-unit/scenarios.py` (441): Scripted scenarios on the virtual unit: golden frames and layout checks.
 - `scripts/virtual-unit/screen_audit.py` (177): Audits every touch screen against the physical standard (screen_standard.py) with the unit's own geometry: the
 - `scripts/virtual-unit/screen_standard.py` (26): The physical screen standard, in one place (docs/design/screen-style.md, "Physical standard"). The panel is a 
 - `scripts/virtual-unit/talk.js` (44): The Talk panel of the virtual unit view: microphone and speaker switches, level meters, the transcript, the la
@@ -2879,7 +2891,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/virtual-unit/ui_style_check.py` (30): Count the font sizes and color literals the app screen sources use, on the overlay tree built by build-face.sh
 - `scripts/virtual-unit/update_trial.c` (21): Harness for the first-boot trial rule (patch FM01): plays boots through the real muc_boot and muc_step and pri
 - `scripts/virtual-unit/version_page_fit.cc` (69): Measures the version page of the More screen (patches U05, NX02, SF69) with the real LVGL layout: the same roo
-- `scripts/virtual-unit/view.html` (329): app{display:flex;height:100%}
+- `scripts/virtual-unit/view.html` (331): app{display:flex;height:100%}
 - `scripts/virtual-unit/view.py` (498): Browser view of the virtual unit: the unit's real LVGL screen on a 3D head, with touch, a tool panel and scrip
 - `scripts/virtual-unit/view3d.js` (497): The 3D StackChan of the virtual unit view: the rigged body model (model/stackchan.glb, built from the official
 - `scripts/virtual-unit/vunit.py` (361): Headless virtual StackChan unit: the real LVGL face (scripts/fw-face-render) behind the unit's MCP tool protoc

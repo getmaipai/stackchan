@@ -245,7 +245,11 @@ int main()
             std::vector<std::string> f; std::stringstream ss(rest.substr(rest.find_first_not_of(' ')));
             for (std::string part; std::getline(ss, part, '|');) f.push_back(part);
             while (f.size() < 5) f.push_back("");
+#ifdef HAVE_MGO_NEUTRAL   /* patch UX15c: the neutral ends exist; without it the tree's screen has only won, lost and draw */
             const int res = f[0] == "won" ? MGO_WON : f[0] == "lost" ? MGO_LOST : f[0] == "over" ? MGO_OVER : f[0] == "timeup" ? MGO_TIMEUP : MGO_DRAW;
+#else
+            const int res = f[0] == "won" ? MGO_WON : f[0] == "lost" ? MGO_LOST : MGO_DRAW;
+#endif
             mgo::build(lv_layer_top(), res, f[1].c_str(), f[2].c_str(), f[3] == "1", f[4] == "es");
 #else
             printf("this firmware tree has no game-over screen (patch UX15)\n");

@@ -187,6 +187,16 @@ All are the owner's own photos, kept out of this repository in the session's not
 
 Three flat cables show in the owner's photos and are drawn: the white one with blue print from the upright board up to the ring board (`flex_cable_ring`), a second white one with blue print low on the board (`flex_cable_low`), and the thick black one that leaves the board as a folded stack (`coil`, riding on the head) and goes down into the holder in front of the tilt servo (`ribbon_to_holder`). Their paths between the ends are assumed. The pitch sweep was run again with them in place.
 
+## The head's board, part by part (owner's close photo, 2026-11-18)
+
+The owner said twice that the inside of the head was not good enough, and chose a finer hand drawing over storing a crop of his photo. The upright board is drawn from `board-7p-flex-ribbon-lit-2026-11-18.jpg`, measured at about 24 pixels per millimeter (the four-pin connector is 10 mm wide), so places are good to about 0.3 mm. `compare-own-board.png` sets the model, with the holder hidden, beside the photo.
+
+Seen from behind, left to right: two rows of paired ringed holes at the edge with two lone holes above; a cream standoff; the blue connector under the ring board with its four soldered tails; the print `7P`; a square chip with legs in a white frame; two tan capacitors with solder ends; a row of four tiny parts; a three-legged part; the black cable; one capacitor above three, each framed; a pale part; the white flat cable, 4.1 mm wide, with `AWM`, `2062` and `80C` in blue reading upward and bare contacts at its socket; the print `V1.0` and `4825`. Traces fan out from the cable socket and the chip, a shade lighter than the board, with a few vias.
+
+The thing in the middle is a ribbon cable of black wires (the owner's words): eight round wires side by side, 8.5 mm across, out of the socket, an arch 3.3 mm off the board, a narrow band where they are bonded, then on down as the same eight wires toward the holder. The cable over the holder is black and in the middle.
+
+Assumed: the height of each part off the board, the exact route of every trace (they are drawn to look like the photo, not traced one by one), and the arch's profile seen from the side. Not drawn: the smallest print, and the solder joints.
+
 ## Names and marks on the model (owner's policy, 2026-11-18)
 
 For a few hours the model left out the maker's two-character mark, the robot's name on the side labels and the artwork of the two rating labels. That was a precaution, not a requirement of any license or published policy, and the owner reversed it the same day: the model shows the real robot. They are drawn again, in simple strokes made for this model (no artwork file of the maker's is copied):

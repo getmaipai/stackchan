@@ -22,17 +22,14 @@ See [Use your own stack](use-your-own-stack.md). Each address has a **Test** but
 
 See [Install the small stack](local-stack.md).
 
-## Use a hosted brain (optional)
+## Two routes: hosted or custom
 
-<span class="planned-tag">Planned</span> Not built. It waits for a test build of the cloud brain to prove it, and it will be off until you turn it on.
+<span class="planned-tag">Planned</span> The Brain page will offer two equal routes, the same choice the stock firmware gives. It waits for a test build to prove that M5Stack's server accepts this firmware; if it does not, route A is hidden and this page says why.
 
-A hosted brain runs on a computer that is not in your home. Using one means your words **leave your home**. The page will say so in plain words before you can save it, and nothing is sent until you do. Three routes are planned:
+- **A: Hosted by M5Stack/Xiaozhi.** Their servers answer. **Your voice leaves your home** for those servers, under their terms.
+- **B: Custom.** Your own key, a community server address, your own host or MaiPai Home, or a model on your computer. Your voice stays where you point it. The three ways above are all part of this route.
 
-- **Your own key.** You sign in to a model service you already pay for and paste your own key. The host sends each turn there, and that service's rules apply.
-- **A community server address.** Someone you trust runs a server and gives you its address. You type it in. Ask them what they keep.
-- **The official cloud.** A cloud brain run for MaiPai for StackChan, with a stated policy.
-
-All three leave your home, so none is a default and none is chosen for you. The three ways above stay the way to keep everything at home.
+Either way, if the brain cannot be reached the robot falls back to what it can do alone.
 
 ## Everything stays yours
 

@@ -2,6 +2,8 @@
 # Intent: repo gate. Hygiene check over every tracked file; add tests here as they exist.
 set -eu
 cd "$(dirname "$0")/.."
+# The last line always says the outcome, so a caller that filters the output for words still sees a failure (a filtered run once missed the choices check and left main red).
+trap 'rc=$?; if [ "$rc" -eq 0 ]; then echo "check: ALL PASSED"; else echo "check: FAILED (exit $rc), read the lines above"; fi' EXIT
 bash scripts/hygiene-check.sh $(git ls-files -co --exclude-standard)
 
 bash scripts/boundary-check.sh

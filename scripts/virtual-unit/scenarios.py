@@ -377,6 +377,29 @@ def layout_problems(u, name: str) -> list[str]:
     return bad
 
 
+# Scenarios that show a screen only a patch that is not in firmware/patches/ORDER yet can draw (the patch waits on the branch for its bench proof, plain boot first). They are dropped from every
+# list below while the patch is out of ORDER, and their goldens live on the branch with the patch; when the patch joins ORDER, the scenarios and goldens come back with it.
+import re as _re
+_ORDER = set((ROOT / "firmware" / "patches" / "ORDER").read_text().split()) if (ROOT / "firmware" / "patches" / "ORDER").exists() else set()
+REQUIRES = [
+    (r"^(screen-page-timers-one|screen-page-timers-more|screen-alarms-app)$", "UX13f-timers-and-alarms-at-finger-size.patch"),
+    (r"dicepoker", "UX18-dice-poker.patch"),
+    (r"^game-over-(colormemory|whack|doit|snake|2048)-", "UX15c-game-over-neutral-end-after-sf82.patch"),
+    (r"^mumble-", "UX16-offline-mumble-core.patch"),
+    (r"^game-(riddle|joke|trivia|twenty)-|^game-over-(trivia|twenty)-", "UX17-question-and-answer-game-screens.patch"),
+]
+
+
+def _gate() -> None:
+    for d in (SCENARIOS, SCREENS, LOCK_SCENARIOS, COVER_SCENARIOS, GRID_SCENARIOS, FILMSTRIPS):
+        for name in list(d):
+            if any(_re.search(rx, name) and patch not in _ORDER for rx, patch in REQUIRES):
+                del d[name]
+
+
+_gate()
+
+
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     update = "--update" in sys.argv

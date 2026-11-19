@@ -10,8 +10,8 @@ Working paper for the owner. Not legal advice. Retrieved 2026-11-18 from public 
 4. I could not read M5Stack's docs, Xiaozhi's terms or its privacy policy (network policy blocked them). Terms on third-party clients and modified firmware are UNKNOWN.
 5. Self-hostable servers exist: two MIT, one modified Apache with multi-tenant and logo limits.
 6. Free OpenAI-style LLM tiers exist (Groq, OpenRouter, Gemini). Limits change often.
-7. Recommendation: do nothing by default. Ship bring-your-own-key first. Offer a community-server field as a plain URL setting. Do not ship the official Cloud brain until M5Stack answers the email in section 5.
-8. Never default on, always labeled, always falls back to offline.
+7. Superseded by decision 34 (owner, 2026-11-18): the Brain choice offers two equal routes, A hosted by M5Stack/Xiaozhi and B custom, as the stock firmware does. The old recommendation (nothing by default, own key first, official cloud last) is withdrawn. Route A stays planned until a test build proves their server accepts our firmware; if it does not, route A is hidden and the docs say why.
+8. Each route shows one plain line about where voice goes (A leaves your home to their servers; B stays where you point it). The offline fallback stays. The research below is unchanged.
 9. `docs/plan/trademark-and-affiliation.md` is not on main. Sections 4 and 5 use the README and NOTICE wording instead. Please point me at the file.
 10. Seven open questions for the owner or M5Stack are in section 5.
 
