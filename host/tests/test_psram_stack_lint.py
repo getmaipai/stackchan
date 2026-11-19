@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import re
 import struct
+import subprocess
 import sys
 from pathlib import Path
 
@@ -137,20 +140,154 @@ def test_a_lambda_static_task_with_a_psram_stack_is_checked(tmp_path) -> None:
     assert found and found[0][0].startswith("<lambda")
 
 
-PATCHED = Path.home() / "esp/stackchan-rebase/fable/firmware"
+# ---- the real firmware: replay firmware/patches/ORDER into a temp tree and lint that ---------------------------------
 
 
-@pytest.mark.skipif(
-    not (PATCHED / "main").is_dir(), reason="the patched firmware tree is not on this machine"
-)
-def test_the_patched_tree_has_no_psram_stack_path_to_flash() -> None:
-    tree = lint.Tree(PATCHED)
-    names = {t for t, _p, _b in tree.tasks()}
-    assert {
-        "ring_task",
-        "worker_task",
-        "_imu_task",
-    } <= names  # the scan really found the old trouble spots
+def _releasing() -> bool:
+    """Release mode (MAIPAI_RELEASE=1, or CI set): a missing base tree is a failure, not a skip."""
+    return os.environ.get("MAIPAI_RELEASE") == "1" or bool(os.environ.get("CI"))
+
+
+def _base_value(key: str) -> str:
+    for line in (ROOT / "firmware" / "BASE").read_text().splitlines():
+        if line.startswith(key + "="):
+            return line.split("=", 1)[1].strip()
+    raise AssertionError(f"firmware/BASE has no {key}= line; restore it.")
+
+
+def _has_commit(repo: Path, commit: str) -> bool:
+    return (
+        subprocess.run(
+            ["git", "-C", str(repo), "cat-file", "-e", f"{commit}^{{commit}}"], capture_output=True
+        ).returncode
+        == 0
+    )
+
+
+def _base_sources() -> tuple[Path, Path] | None:
+    """(outer repo, nested repo) of a local copy that holds the pinned base commits, or None."""
+    outer, nested = _base_value("outer_commit"), _base_value("nested_commit")
+    roots = []
+    if os.environ.get("MAIPAI_FW_BASE_LOCAL"):
+        roots.append(Path(os.environ["MAIPAI_FW_BASE_LOCAL"]).expanduser())
+    for key in ("MAIPAI_FW_TREE_ROOT", "MAIPAI_FW_REF_TREE"):
+        if os.environ.get(key):
+            roots.append(Path(os.environ[key]).expanduser())
+    build = Path.home() / "esp" / "stackchan-rebuild"
+    roots.append(build / "main-ref")
+    if build.is_dir():
+        roots.extend(sorted(build.iterdir(), reverse=True))
+    for root in roots:
+        inner = root / "firmware" / "xiaozhi-esp32"
+        if (root / ".git").exists() and (inner / ".git").exists():
+            if _has_commit(root, outer) and _has_commit(inner, nested):
+                return root, inner
+    return None
+
+
+def _no_tree(reason: str) -> None:
+    text = (
+        f"{reason} Point MAIPAI_FW_BASE_LOCAL at a local copy of the StackChan firmware repository "
+        "(with firmware/xiaozhi-esp32 inside, holding the commits named in firmware/BASE), for example "
+        "a tree made by bash scripts/fw-ref-tree.sh, then run this test again."
+    )
+    if _releasing():
+        pytest.fail("The PSRAM-stack gate cannot run in release mode: " + text)
+    pytest.skip(text)
+
+
+def _extract(repo: Path, commit: str, subdir: str, dest: Path) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    git = subprocess.Popen(
+        ["git", "-C", str(repo), "archive", commit, subdir], stdout=subprocess.PIPE
+    )
+    subprocess.run(["tar", "-x", "-C", str(dest)], stdin=git.stdout, check=True)
+    git.stdout.close()
+    assert git.wait() == 0, f"git archive of {subdir} at {commit[:10]} failed in {repo}."
+
+
+@pytest.fixture(scope="module")
+def replayed(tmp_path_factory) -> Path:
+    """The sources of the firmware that firmware/patches/ORDER builds today (main/ of both trees), as the firmware folder the lint reads."""
+    sources = _base_sources()
+    if sources is None:
+        _no_tree("No local copy of the pinned firmware base was found.")
+    outer, inner = sources
+    work = tmp_path_factory.mktemp("psram-replay")
+    _extract(outer, _base_value("outer_commit"), "firmware/main", work)
+    _extract(inner, _base_value("nested_commit"), "main", work / "firmware" / "xiaozhi-esp32")
+    order = [
+        line.strip()
+        for line in (ROOT / "firmware/patches/ORDER").read_text().splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+    only = ["--include=firmware/main/*", "--include=firmware/xiaozhi-esp32/main/*"]
+    for name in order:
+        text = (ROOT / "firmware/patches" / name).read_text()
+        body = text[re.search(r"^(diff --git|--- )", text, re.M).start() :]
+        diff = work / ".patch.diff"
+        diff.write_text(body)
+        done = subprocess.run(
+            ["git", "apply", "--whitespace=nowarn", *only, str(diff)],
+            cwd=work,
+            capture_output=True,
+            text=True,
+        )
+        assert done.returncode == 0, (
+            f"Patch {name} no longer applies after the patches before it: {done.stderr[:300]} "
+            "Rebase it onto the tree before this check can run."
+        )
+    return work / "firmware"
+
+
+def _created_in_patches() -> tuple[set[str], int]:
+    """Task function names that patches create with a PSRAM stack (WithCaps), and how many lambda static tasks they add."""
+    names: set[str] = set()
+    lambdas = 0
+    caps = re.compile(r"xTaskCreate(?:PinnedToCore)?WithCaps\s*\(\s*([A-Za-z_]\w*)")
+    for patch in sorted((ROOT / "firmware" / "patches").glob("*.patch")):
+        added = [
+            line[1:]
+            for line in patch.read_text(errors="replace").splitlines()
+            if line.startswith("+") and not line.startswith("+++")
+        ]
+        code = "\n".join(line for line in added if not line.lstrip().startswith("//"))
+        names.update(caps.findall(code))
+        for match in re.finditer(r"xTaskCreateStatic(?:PinnedToCore)?\s*\(\s*(\[|[A-Za-z_]\w*)", code):
+            if match.group(1) == "[":
+                lambdas += 1
+            else:
+                names.add(match.group(1))
+    return names, lambdas
+
+
+def test_the_patch_scan_finds_every_psram_task_the_patches_add() -> None:
+    names, lambdas = _created_in_patches()
+    assert {"fd_task", "seek_task", "frame_task", "reader_task", "ring_task", "worker_task"} <= names
+    assert lambdas >= 1
+
+
+def test_a_missing_base_tree_fails_in_release_mode_and_says_what_to_run(monkeypatch) -> None:
+    monkeypatch.setenv("MAIPAI_RELEASE", "1")
+    with pytest.raises(pytest.fail.Exception, match="MAIPAI_FW_BASE_LOCAL"):
+        _no_tree("No tree.")
+    monkeypatch.delenv("MAIPAI_RELEASE")
+    monkeypatch.delenv("CI", raising=False)
+    with pytest.raises(pytest.skip.Exception, match="MAIPAI_FW_BASE_LOCAL"):
+        _no_tree("No tree.")
+
+
+def test_the_replayed_tree_has_no_psram_stack_path_to_flash(replayed: Path) -> None:
+    tree = lint.Tree(replayed)
+    tasks = tree.tasks()
+    names = {t for t, _p, _b in tasks}
+    assert {"ring_task", "worker_task", "_imu_task"} <= names
+    wanted, lambdas = _created_in_patches()
+    # A name a later patch removed from the tree again is not expected; every other creation a patch adds must be in the scan.
+    in_tree = "\n".join(text for text in tree.files.values())
+    missing = sorted(n for n in wanted if re.search(rf"\b{re.escape(n)}\b", in_tree) and n not in names)
+    assert not missing, f"The lint scan does not see the PSRAM-stack tasks {missing}; fix the scan in scripts/psram-stack-lint.py."
+    assert sum(1 for n in names if n.startswith("<lambda")) >= lambdas
     assert tree.findings() == []
 
 
