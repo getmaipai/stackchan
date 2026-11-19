@@ -10,9 +10,14 @@ import re
 import unicodedata
 from dataclasses import asdict, dataclass
 
-KINDS = ("joke", "riddle", "trivia", "story", "object")  # object: a twenty questions object (docs/design/twenty-questions-library.md); kind byte 4 on a shelf
+KINDS = ("joke", "riddle", "trivia", "story", "object", "line")  # object: a twenty questions object (docs/design/twenty-questions-library.md); kind byte 4 on a shelf
 RATINGS = ("kid", "adult")
-TEXT_CAPS = {"joke": 160, "riddle": 140, "trivia": 140, "story": 1600, "object": 24}  # bytes of UTF-8
+# The situations a canned offline line answers (docs/design/content-pantry.md, "Lines by situation"). A `line` record's extra is one of these tags.
+SITUATIONS = (
+    "greeting_morning", "greeting_day", "greeting_evening", "goodnight", "touch_head", "touch_face", "pick_up", "put_down", "shaken", "loud_noise",
+    "wake_heard_offline", "cannot_reach_home", "back_online", "timer_done", "battery_low", "thanks", "bored", "sleepy", "happy", "curious",
+)
+TEXT_CAPS = {"joke": 160, "riddle": 140, "trivia": 140, "story": 1600, "object": 24, "line": 100}  # bytes of UTF-8
 ANSWER_CAP = 40
 EXTRA_CAP = 80  # two wrong answers split by "|"
 _PUNCT = re.compile(r"[^\w\s|]", re.UNICODE)
@@ -86,6 +91,13 @@ def check(record: Record) -> Record:
             raise RecordError("An object's answer is its group, animal or thing.")
         if not re.fullmatch(r"[01]{12}", record.extra.strip()):
             raise RecordError("An object's extra is the 12 answers to the 12 questions, each 0 or 1.")
+    if record.kind == "line":
+        if record.extra.strip() not in SITUATIONS:
+            raise RecordError(f"A line's extra is its situation, one of {', '.join(SITUATIONS)}.")
+        if record.answer:
+            raise RecordError("A line has no answer.")
+        if record.rating != "kid":
+            raise RecordError("Every line is rated kid.")
     if record.kind in ("joke", "story") and (record.answer or record.extra):
         raise RecordError(f"A {record.kind} has no answer.")
     return Record(record.kind, record.language, record.rating, text, record.answer.strip(), record.extra.strip())
