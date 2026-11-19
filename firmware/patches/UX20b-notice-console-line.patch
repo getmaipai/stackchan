@@ -1,4 +1,4 @@
-# Intent: The "Hosted link removed" notice (UX20) gets the owner's plain line (decision 34): "To stop your account keeping this robot, remove it in the vendor's console." in the six languages, in amber under the other two sentences. To make room the small blue mark above the title is dropped and the text starts at y 40. Same mbn::build call as before.
+# Intent: The "Hosted link removed" notice (UX20) gets the owner's plain line (decision 34): "To stop your account keeping this robot, remove it in the vendor's console." in the six languages, in amber under the sentence about the voice. To make room the small blue mark above the title and the sentence "The saved link to M5Stack/Xiaozhi is deleted." are dropped (the title already says it) and the text starts at y 40. Same mbn::build call as before.
 # Placement: unit
 # Upstream: firmware/main/hal/maipai_brain_notice_core.h, maipai_brain_notice.h (ours, patch UX20)
 # Check after a flash: after leaving hosted the notice shows the title, three sentences (the last in amber) and OK, with nothing touching the button in any of the six languages.
@@ -7,7 +7,22 @@
 diff --git a/firmware/main/hal/maipai_brain_notice_core.h b/firmware/main/hal/maipai_brain_notice_core.h
 --- a/firmware/main/hal/maipai_brain_notice_core.h
 +++ b/firmware/main/hal/maipai_brain_notice_core.h
-@@ -36,17 +36,24 @@
+@@ -20,14 +20,6 @@
+     return t[mbn_lang(lang)];
+ }
+ 
+-/* What was removed. */
+-static inline const char* mbn_removed(int lang)
+-{
+-    static const char* const t[MBN_LANGS] = {"The saved link to M5Stack/Xiaozhi is deleted.", "Se borró el enlace guardado con M5Stack/Xiaozhi.", "Le lien enregistré avec M5Stack/Xiaozhi est effacé.",
+-                                              "Die gespeicherte Verbindung zu M5Stack/Xiaozhi ist gelöscht.", "O link salvo com M5Stack/Xiaozhi foi apagado.", "Il collegamento salvato con M5Stack/Xiaozhi è stato cancellato."};
+-    return t[mbn_lang(lang)];
+-}
+-
+ /* Where the voice goes now. */
+ static inline const char* mbn_now(int lang)
+ {
+@@ -36,17 +28,24 @@
      return t[mbn_lang(lang)];
  }
  
@@ -31,7 +46,7 @@ diff --git a/firmware/main/hal/maipai_brain_notice_core.h b/firmware/main/hal/ma
 -#define MBN_MARK_D 28
 -#define MBN_TITLE_Y 36
 -#define MBN_TEXT_Y 70
-+/* Where everything sits: the title (y 8), the three sentences (y 40 to 166 at most, six lines of 16 px), and OK (160 by 56 at the bottom, 8 px from the glass edge). */
++/* Where everything sits: the title (y 8), the two sentences (y 40 to 166 at most, five lines of 16 px), and OK (160 by 56 at the bottom, 8 px from the glass edge). */
 +#define MBN_TITLE_Y 8
 +#define MBN_TEXT_Y 40
  #define MBN_TEXT_W 296
@@ -40,7 +55,7 @@ diff --git a/firmware/main/hal/maipai_brain_notice_core.h b/firmware/main/hal/ma
 diff --git a/firmware/main/hal/maipai_brain_notice.h b/firmware/main/hal/maipai_brain_notice.h
 --- a/firmware/main/hal/maipai_brain_notice.h
 +++ b/firmware/main/hal/maipai_brain_notice.h
-@@ -26,29 +26,15 @@
+@@ -26,29 +26,13 @@
      lv_obj_set_pos(root, 0, 0);
      lv_obj_set_style_bg_color(root, lv_color_black(), 0);
      lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
@@ -64,10 +79,10 @@ diff --git a/firmware/main/hal/maipai_brain_notice.h b/firmware/main/hal/maipai_
      lv_point_t p;
      lv_text_get_size(&p, title, maipai_ui_style::big_font(), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
      label(root, title, p.x <= MBN_TEXT_W ? maipai_ui_style::big_font() : maipai_ui_style::small_font(), 0xFFFFFF, MBN_TITLE_Y);
-     lv_obj_t* a = label(root, mbn_removed(lang), maipai_ui_style::small_font(), 0xC8CED8, MBN_TEXT_Y);
-     lv_obj_update_layout(a);
+-    lv_obj_t* a = label(root, mbn_removed(lang), maipai_ui_style::small_font(), 0xC8CED8, MBN_TEXT_Y);
+-    lv_obj_update_layout(a);
 -    label(root, mbn_now(lang), maipai_ui_style::small_font(), 0xC8CED8, MBN_TEXT_Y + lv_obj_get_height(a) + 4);
-+    lv_obj_t* n = label(root, mbn_now(lang), maipai_ui_style::small_font(), 0xC8CED8, MBN_TEXT_Y + lv_obj_get_height(a) + 3);
++    lv_obj_t* n = label(root, mbn_now(lang), maipai_ui_style::small_font(), 0xC8CED8, MBN_TEXT_Y);
 +    lv_obj_update_layout(n);
 +    label(root, mbn_console(lang), maipai_ui_style::small_font(), 0xF2B24A, lv_obj_get_y(n) + lv_obj_get_height(n) + 3);   // amber: the one thing the person still has to do
      int x, y, w, h;

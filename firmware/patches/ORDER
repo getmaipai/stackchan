@@ -366,7 +366,8 @@ UX15c-game-over-neutral-end-after-sf82.patch
 UX18-dice-poker.patch
 UX19-brain-two-equal-routes.patch
 UX20-hosted-link-removed-notice.patch
-UX20b-notice-console-line.patch
 SF100-leave-hosted-shows-the-notice-screen.patch
 UX21-higher-or-lower.patch
 UX22-reversi.patch
+UX20b-notice-console-line.patch
+UX19b-first-run-lines-that-fit.patch

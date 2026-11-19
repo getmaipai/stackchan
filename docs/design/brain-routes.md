@@ -15,7 +15,7 @@ Each tile is 304 by 78 px, 8 px apart, 8 px under the header (y 60 to 138 and 14
 
 ## The notice after leaving hosted
 
-`UX20-hosted-link-removed-notice.patch` adds `maipai_brain_notice_core.h` (words, six languages, the button box) and `maipai_brain_notice.h` (the LVGL screen, `mbn::build`). It says "Hosted link removed", "The saved link to M5Stack/Xiaozhi is deleted." and "Your voice now goes where you pointed it.", with one OK button (160 by 56). The leaving-hosted flow of the firmware track shows it after it wiped the `cl_websocket` and `cl_mqtt` settings, and closes it on OK.
+`UX20-hosted-link-removed-notice.patch` adds `maipai_brain_notice_core.h` (words, six languages, the button box) and `maipai_brain_notice.h` (the LVGL screen, `mbn::build`), and `UX20b-notice-console-line.patch` adds the owner's line. The screen says the title "Hosted link removed", then "Your voice now goes where you pointed it.", then in amber "To stop your account keeping this robot, remove it in the vendor's console." (the one thing the person still has to do, because only the vendor's console ends the account's claim on the robot), with one OK button (160 by 56). The leaving-hosted flow of the firmware track (SF100, `self.brain.set_route custom`) shows it after it wiped the `cl_websocket` and `cl_mqtt` settings, and OK restarts the unit.
 
 ## The route switch in the playground
 

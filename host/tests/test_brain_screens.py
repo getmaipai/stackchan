@@ -11,7 +11,8 @@ HERE = Path(__file__).resolve().parent
 PATCHES = HERE.parents[1] / "firmware" / "patches"
 P19 = "UX19-brain-two-equal-routes.patch"
 P20 = "UX20-hosted-link-removed-notice.patch"
-if not (PATCHES / P19).exists() or not (PATCHES / P20).exists():
+P20B = "UX20b-notice-console-line.patch"
+if not (PATCHES / P19).exists() or not (PATCHES / P20).exists() or not (PATCHES / P20B).exists():
     pytest.skip("UX19 and UX20 are not in firmware/patches yet", allow_module_level=True)
 
 
@@ -29,7 +30,14 @@ def _added(name: str, path: str) -> str:
 
 @pytest.mark.skipif(shutil.which("cc") is None, reason="no C compiler on this machine")
 def test_the_notice_core_test_passes_against_the_patch_text(tmp_path):
-    (tmp_path / "maipai_brain_notice_core.h").write_text(_added(P20, "firmware/main/hal/maipai_brain_notice_core.h"))
+    tree = tmp_path / "tree"
+    hal = tree / "firmware" / "main" / "hal"
+    hal.mkdir(parents=True)
+    for f in ("maipai_brain_notice_core.h", "maipai_brain_notice.h"):
+        (hal / f).write_text(_added(P20, f"firmware/main/hal/{f}"))
+    done = subprocess.run(["patch", "-p1", "-s", "-f"], input="diff --git" + (PATCHES / P20B).read_text().split("diff --git", 1)[1], cwd=tree, capture_output=True, text=True)   # UX20b adds the console line to what UX20 made
+    assert done.returncode == 0, done.stdout + done.stderr
+    (tmp_path / "maipai_brain_notice_core.h").write_text((hal / "maipai_brain_notice_core.h").read_text())
     binary = tmp_path / "t"
     build = subprocess.run(["cc", "-std=c99", "-Wall", "-Wextra", "-Werror", f"-I{tmp_path}", str(HERE / "firmware" / "brain_notice_core_test.c"), "-o", str(binary)], capture_output=True, text=True)
     assert build.returncode == 0, build.stderr

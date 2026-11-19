@@ -1,0 +1,26 @@
+# Intent: Two first-run lines no longer wrap into the text below or get cut off (owner request: text never overlaps another text or a button; shorten the words instead). English privacy line "Voice and photos stay in your home." (one line, the old one wrapped onto the next paragraph); French last-screen line "Téléphone : Afficher le code." (the old one needed a third line and was cut by the text box).
+# Placement: unit
+# Upstream: firmware/main/hal/maipai_firstrun.cc (ours, patches UX12, UX13d and UX19)
+# Check after a flash: first run, privacy step in English: two short paragraphs with a gap between them; last screen in French: the phone line is whole.
+# Kconfig: none
+
+diff --git a/firmware/main/hal/maipai_firstrun.cc b/firmware/main/hal/maipai_firstrun.cc
+--- a/firmware/main/hal/maipai_firstrun.cc
++++ b/firmware/main/hal/maipai_firstrun.cc
+@@ -32,14 +32,14 @@
+     };
+     const Words words[MFR_LANG_COUNT] = {
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "What should I be called?", "Let's join your Wi-Fi", "Where should my brain live?", "Private by design", "All set!"},
+-         "Let's join your Wi-Fi", "Where should my brain live?", "MaiPai Home", "My own servers", "Your voice stays in your home either way.", "Private by design", "Your voice and pictures stay in your home.", "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "Type your own name later, on the settings page.",
++         "Let's join your Wi-Fi", "Where should my brain live?", "MaiPai Home", "My own servers", "Your voice stays in your home either way.", "Private by design", "Voice and photos stay in your home.", "Nothing goes to the internet unless you turn it on.", "Got it", "All set!", "Type your own name later, on the settings page.",
+          "Skip", "Set one up for me", "What now?", "Say \"Hi, Stack Chan\" and ask me something.", "Change anything on the settings page:", "on the computer that runs the host", "Phone: tap Show the phone code there.", "Hosted by M5Stack/Xiaozhi", "Your voice goes to their servers, outside your home.", "Custom", "Your voice stays where you point it."},
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "¿Cómo me llamo?", "Conectemos tu Wi-Fi", "¿Dónde debe vivir mi cerebro?", "Privado por diseño", "¡Todo listo!"},
+          "Conectemos tu Wi-Fi", "¿Dónde debe vivir mi cerebro?", "MaiPai Home", "Mis propios servidores", "Tu voz queda en casa en cualquier caso.", "Privado por diseño", "Tu voz y fotos quedan en casa.", "Nada va a internet si no lo activas.", "Entendido", "¡Todo listo!", "Escribe tu propio nombre luego, en la página de ajustes.",
+          "Omitir", "Prepara uno por mí", "¿Y ahora?", "Di \"Hi, Stack Chan\" y pregúntame algo.", "Cambia todo en la página de ajustes:", "en el equipo que ejecuta el host", "Móvil: pulsa Mostrar el código del teléfono.", "Alojado por M5Stack/Xiaozhi", "Tu voz va a sus servidores, fuera de casa.", "Personalizado", "Tu voz queda donde tú indiques."},
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Comment m'appeler ?", "Rejoignons votre Wi-Fi", "Où doit vivre mon cerveau ?", "Privé par design", "Tout est prêt !"},
+          "Rejoignons votre Wi-Fi", "Où doit vivre mon cerveau ?", "MaiPai Home", "Mes propres serveurs", "Votre voix reste chez vous dans tous les cas.", "Privé par design", "Voix et photos restent chez vous.", "Rien ne va sur internet sans accord.", "Compris", "Tout est prêt !", "Tapez votre propre nom plus tard, dans les réglages.",
+-         "Passer", "En installer un pour moi", "Et maintenant ?", "Dites \"Hi, Stack Chan\" et posez une question.", "Tout se règle dans les réglages :", "sur l'ordinateur qui exécute l'hôte", "Téléphone : touchez Afficher le code téléphone.", "Hébergé par M5Stack/Xiaozhi", "Votre voix part vers leurs serveurs, hors de chez vous.", "Personnalisé", "Votre voix reste là où vous l'indiquez."},
++         "Passer", "En installer un pour moi", "Et maintenant ?", "Dites \"Hi, Stack Chan\" et posez une question.", "Tout se règle dans les réglages :", "sur l'ordinateur qui exécute l'hôte", "Téléphone : Afficher le code.", "Hébergé par M5Stack/Xiaozhi", "Votre voix part vers leurs serveurs, hors de chez vous.", "Personnalisé", "Votre voix reste là où vous l'indiquez."},
+         {{"Hello · Hola · Bonjour · Hallo · Olá · Ciao", "Wie soll ich heißen?", "WLAN verbinden", "Wo soll mein Gehirn wohnen?", "Privat von Anfang an", "Alles bereit!"},
+          "WLAN verbinden", "Wo soll mein Gehirn wohnen?", "MaiPai Home", "Meine eigenen Server", "Ihre Stimme bleibt in jedem Fall zu Hause.", "Privat von Anfang an", "Stimme und Bilder bleiben zu Hause.", "Nichts geht ohne Freigabe ins Netz.", "Verstanden", "Alles bereit!", "Eigenen Namen später in den Einstellungen eingeben.",
+          "Später", "Richtet eins für mich ein", "Und jetzt?", "Sagen Sie \"Hi, Stack Chan\" und fragen Sie etwas.", "Alles ändern Sie in den Einstellungen:", "auf dem Computer mit dem Host", "Handy: Handy-Code anzeigen wählen.", "Gehostet von M5Stack/Xiaozhi", "Ihre Stimme geht an deren Server, außer Haus.", "Eigene Wahl", "Ihre Stimme bleibt, wo Sie es festlegen."},
