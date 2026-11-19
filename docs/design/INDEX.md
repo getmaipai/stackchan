@@ -30,8 +30,8 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs-site/.gitignore` (1): no header
 - `docs-site/EXCLUDED.md` (12): What the docs site does not publish
 - `docs-site/assets/search.js` (21): Filters the page list as you type: every word must appear in the title or summary, or anywhere in the page tex
-- `docs-site/assets/site.css` (95): the 3D viewer */
-- `docs-site/assets/theme-button.js` (12): The Light/dark button: switches the page and remembers the choice on this device only.
+- `docs-site/assets/site.css` (154): the 3D viewer */
+- `docs-site/assets/theme-button.js` (22): The Light/dark button: switches the page and remembers the choice on this device only.
 - `docs-site/assets/theme.js` (7): Sets the saved light or dark choice before the page paints. Storage can be blocked: the page then follows the 
 - `docs-site/home-intro.html` (13): no header
 - `docs-site/playground/.gitignore` (4): Everything in this folder is build output (bash scripts/virtual-unit/wasm/site-build.sh): the WebAssembly modu
@@ -420,9 +420,10 @@ One line per file: path, lines, purpose (first comment or heading).
 - `docs/plan/home-work-brief.md` (48): Brief for a session in the Home repository: the StackChan robot side (2026-11-18)
 - `docs/plan/host-layer.md` (30): The host layer (for `docs/design/architecture-layers.md`)
 - `docs/plan/installed-set.md` (401): The installed set: slots, signed assets, language and font packs (design, 2026-11-18)
+- `docs/plan/ir-and-nfc-hardware.md` (59): Does the base StackChan have infrared and NFC hardware?
 - `docs/plan/ir-and-nfc.md` (127): Infrared and NFC for the StackChan: what is verified, what we could build, how to probe safely
 - `docs/plan/link-key-exchange.md` (68): Link key exchange for the encrypted link (design, 2026-11-18)
-- `docs/plan/m5stack-cloud-research.md` (139): M5Stack cloud and Xiaozhi service: research paper
+- `docs/plan/m5stack-cloud-research.md` (202): M5Stack cloud and Xiaozhi service: research paper
 - `docs/plan/memory-budget-model.md` (36): The memory budget as data (decision 15): the agreement between the firmware track and the playground track
 - `docs/plan/minimal-stack.md` (65): The minimal local stack and the three ways to get a brain
 - `docs/plan/monetization-options.md` (46): Monetization options
@@ -1563,21 +1564,27 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/maipai_packages/pantry/model.py` (27): The owner's own model as a plain function ``ask(prompt) -> text`` for the pantry (an OpenAI-style chat address
 - `host/maipai_packages/pantry/record.py` (103): The pantry record (docs/design/content-pantry.md, section 2): one thing the robot can say, with the rules that
 - `host/maipai_packages/pantry/seed/de-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/de-line.json` (122): no header
 - `host/maipai_packages/pantry/seed/de-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/de-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed/en-joke.json` (102): no header
+- `host/maipai_packages/pantry/seed/en-line.json` (122): no header
 - `host/maipai_packages/pantry/seed/en-riddle.json` (102): no header
 - `host/maipai_packages/pantry/seed/en-trivia.json` (102): no header
 - `host/maipai_packages/pantry/seed/es-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/es-line.json` (122): no header
 - `host/maipai_packages/pantry/seed/es-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/es-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed/fr-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/fr-line.json` (122): no header
 - `host/maipai_packages/pantry/seed/fr-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/fr-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed/it-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/it-line.json` (122): no header
 - `host/maipai_packages/pantry/seed/it-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/it-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed/pt-joke.json` (42): no header
+- `host/maipai_packages/pantry/seed/pt-line.json` (122): no header
 - `host/maipai_packages/pantry/seed/pt-riddle.json` (42): no header
 - `host/maipai_packages/pantry/seed/pt-trivia.json` (42): no header
 - `host/maipai_packages/pantry/seed_loader.py` (68): ruff: noqa: E501
@@ -2442,7 +2449,7 @@ One line per file: path, lines, purpose (first comment or heading).
 - `host/tests/test_packs_languages_phrases.py` (689): ruff: noqa: E501, F811
 - `host/tests/test_pair_code_persistence.py` (69): A pair code made by `stackchan pair` survives the CLI process."""
 - `host/tests/test_pantry.py` (340): The content pantry (docs/design/content-pantry.md): record, shelf round trip, filter, dedupe, generator, libra
-- `host/tests/test_pantry_seed.py` (71): The built-in pantry seed library (docs/dev/pantry-seed.md): every file parses, every record passes the shape r
+- `host/tests/test_pantry_seed.py` (81): The built-in pantry seed library (docs/dev/pantry-seed.md): every file parses, every record passes the shape r
 - `host/tests/test_pantry_talk.py` (89): Riddles and trivia from the pantry library with no model (talk_fallback.py)."""
 - `host/tests/test_pantry_twenty.py` (85): Twenty questions from the library with no model (docs/design/twenty-questions-library.md)."""
 - `host/tests/test_phase4_config.py` (50): no header
@@ -2741,8 +2748,9 @@ One line per file: path, lines, purpose (first comment or heading).
 - `scripts/docs-claims-check.py` (69): check the claims in README.md, docs/user and docs/design/features.md that a script can test against the code: 
 - `scripts/docs-grade.py` (75): Reading level of the user docs (Flesch-Kincaid grade), worst pages first, with their longest sentences.
 - `scripts/docs-site/browser_check.js` (30): Headless check of the 3D viewer page over a plain static server. Usage: node browser_check.js URL [screenshot.
-- `scripts/docs-site/build.py` (601): Build the static documentation site into docs-site/out/ (git-ignored).
-- `scripts/docs-site/test_docs_site.py` (237): Offline test of the documentation site build. Usage: python3 scripts/docs-site/test_docs_site.py
+- `scripts/docs-site/build.py` (697): Build the static documentation site into docs-site/out/ (git-ignored).
+- `scripts/docs-site/check-site.py` (227): Check the built documentation site: links, pictures, captions and the phone, dark and print styles.
+- `scripts/docs-site/test_docs_site.py` (248): Offline test of the documentation site build. Usage: python3 scripts/docs-site/test_docs_site.py
 - `scripts/e2e-flake-hunt.sh` (21): find a flaky e2e scenario by running the whole e2e in a loop while the CPU is oversubscribed. Each run's full 
 - `scripts/efuse-check.py` (104): owner decision 14 (2026-11-18): nothing in this project ever burns an eFuse (irreversible): no secure boot key
 - `scripts/exposure-allowed.json` (10): no header
