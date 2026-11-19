@@ -106,3 +106,38 @@ def test_the_license_id_sent_is_the_owner_content_id_of_the_shared_table():
     table = json.loads((Path(__file__).resolve().parents[2] / "schema" / "licenses.json").read_text())
     assert OWN_CONTENT_LICENSE in table["owner_content_ids"]
     assert OWN_CONTENT_LICENSE in {row["id"] for row in table["licenses"]} and OWN_CONTENT_LICENSE != 0
+
+
+@pytest.mark.parametrize("piece", [0, -1, -5, "abc", "-3"])
+def test_review_fix_a_bad_piece_size_from_the_unit_ends_the_install_plainly(piece):
+    unit = FakeUnit()
+    inner = unit.__call__
+
+    def call(u, tool, args):
+        reply = inner(u, tool, args)
+        if tool == "self.assets.install":
+            reply = {**reply, "piece_bytes": piece}
+        if tool == "self.assets.data" and len(unit.calls) > 500:
+            raise RuntimeError("runaway loop")
+        return reply
+
+    body = bytes(range(50))
+    result = AssetTransport(call).install("u", build_header(kind="pantry", body=body, name="ok", version=1), body)
+    assert not result.ok and "piece" in result.message and "RuntimeError" not in result.message
+    assert ("self.assets.abort", {}) in unit.calls and not any(t == "self.assets.data" for t, _ in unit.calls)
+
+
+def test_review_fix_the_install_stops_at_an_overall_deadline():
+    unit = FakeUnit()
+    ticks = iter(range(0, 10000, 100))
+    transport = AssetTransport(unit, clock=lambda: next(ticks), deadline_s=250)
+    body = b"x" * (PIECE * 10)
+    result = transport.install("u", build_header(kind="pantry", body=body, name="ok", version=1), body)
+    assert not result.ok and "too long" in result.message
+    assert ("self.assets.abort", {}) in unit.calls and len(unit.received) < len(body)
+
+
+@pytest.mark.parametrize("bad", [dict(name="é"), dict(code="é"), dict(fmt=256), dict(fmt=-1), dict(flags=0x10000), dict(min_build=-1), dict(min_build=2**32), dict(author=70000), dict(ram_bytes=-1), dict(ram_bytes=2**32)])
+def test_review_fix_build_header_raises_plain_value_error(bad):
+    with pytest.raises(ValueError):
+        build_header(**(dict(kind="pantry", body=b"x", name="ok", version=1) | bad))

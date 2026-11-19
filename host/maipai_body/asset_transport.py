@@ -42,7 +42,7 @@ def build_header(
     """The 128 byte header for a body. Raises ValueError, in plain words, for a value the unit would refuse."""
     if kind not in KINDS:
         raise ValueError(f"The kind {kind!r} is not one the unit installs.")
-    if not 1 <= len(name) <= 40 or not name[0].isalnum() or not all(c.isalnum() or c in " .-_" for c in name):
+    if not name.isascii() or not 1 <= len(name) <= 40 or not name[0].isalnum() or not all(c.isalnum() or c in " .-_" for c in name):
         raise ValueError("The item name is 1 to 40 letters, digits, spaces, dots, dashes or underscores, starting with a letter or digit.")
     if not 1 <= version <= 0xFFFFFFFF:
         raise ValueError("The item version must be 1 or more.")
@@ -50,6 +50,11 @@ def build_header(
         raise ValueError("The board id must be 1 to 8 ASCII characters.")
     if license_id == 0:
         raise ValueError("The license id must not be zero.")
+    if not code.isascii():
+        raise ValueError("The language code must be ASCII letters or digits.")
+    for label, value, top in (("format", fmt, 0xFF), ("flags", flags, 0xFFFF), ("minimum build", min_build, 0xFFFFFFFF), ("RAM size", ram_bytes, 0xFFFFFFFF), ("license id", license_id, 0xFFFF), ("author", author, 0xFFFF)):
+        if not isinstance(value, int) or not 0 <= value <= top:
+            raise ValueError(f"The {label} must be a whole number from 0 to {top}.")
     flash = -(-(len(body)) // SECTOR) * SECTOR
     return (
         MAGIC
@@ -85,8 +90,8 @@ def _reply(raw: Any) -> dict:
 
 
 class AssetTransport:
-    def __init__(self, call: Callable[[str, str, dict], Any], *, clock: Callable[[], float] = time.time) -> None:
-        self._call, self._clock = call, clock
+    def __init__(self, call: Callable[[str, str, dict], Any], *, clock: Callable[[], float] = time.time, deadline_s: float = 600.0) -> None:
+        self._call, self._clock, self._deadline_s = call, clock, deadline_s
 
     def _tool(self, unit: str, name: str, args: dict) -> dict:
         return _reply(self._call(unit, name, args))
@@ -99,13 +104,26 @@ class AssetTransport:
             start = self._tool(unit, "self.assets.install", {"slot": slot, "header_b64": base64.b64encode(header).decode(), "sig_b64": base64.b64encode(sig).decode() if sig else ""})
             if start.get("ok") is not True:
                 return InstallResult(False, self._why(start), code=str(start.get("code", "")))
-            piece = int(start.get("piece_bytes") or PIECE)
+            try:
+                piece = PIECE if start.get("piece_bytes") is None else int(start["piece_bytes"])
+            except (TypeError, ValueError):
+                piece = 0
+            if piece < 1:
+                self._abort(unit)
+                return InstallResult(False, "The unit sent a piece size that is not usable. Restart the unit, then try again.", code="piece_size")
+            started = self._clock()
             if int(start.get("accept_bytes") or 0) and int(start["accept_bytes"]) < len(body):
                 self._abort(unit)
                 return InstallResult(False, "The unit has no room for this item. Remove a pack on the Packs page, then try again.", code="no_room")
             sent = 0
             while sent < len(body):
+                if self._clock() - started > self._deadline_s:
+                    self._abort(unit)
+                    return InstallResult(False, "The install took too long and was canceled. Check the link to the unit, then try again.", code="deadline")
                 chunk = body[sent : sent + min(piece, PIECE)]
+                if not chunk:
+                    self._abort(unit)
+                    return InstallResult(False, "The install could not send the next piece and was canceled. Try again.", code="empty_piece")
                 got = self._tool(unit, "self.assets.data", {"at": sent, "b64": base64.b64encode(chunk).decode()})
                 if got.get("ok") is not True:
                     self._abort(unit)
