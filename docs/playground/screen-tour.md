@@ -10,6 +10,9 @@ These are pictures of the robot's real screens, drawn by the playground.
 | ![Timers](../images/vu-timers.png) Timers and alarms | Start a timer, see it count down. |
 | ![Games](../images/vu-games.png) Games | The games wall. |
 | ![The lock](../images/vu-lock-screen.png) The lock | A passcode keeps visitors out. |
+| ![The end of a game](../images/vu-game-over.png) Game over | The same screen ends every game. |
+| ![A question game](../images/vu-question-game.png) Question games | Riddles, trivia and 20 Questions. |
+| ![An offline line](../images/vu-offline-line.png) Offline lines | With no host the robot answers with a short line and a mumble. |
 | ![First run](../images/vu-first-run-language.png) First run | Language, then where the robot's brain lives. |
 
 Every screen follows one standard: targets are about one finger wide (see [standards and the audit](dev-standards-and-audit.md)). The screens that do not yet meet it are listed in `docs/dev/screen-audit.md`.

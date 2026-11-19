@@ -10,6 +10,22 @@ A scenario is a short script of things the robot does: touches, tool calls and w
 
 You'll know it worked when the screen, the head and the lights move as the name says.
 
+## What the list holds
+
+The names say what they show. Groups you will find:
+
+- **Faces and dances:** `face-happy`, `dance-3-sway` and the other emotions and dances.
+- **Screens:** the pages, the control sheet, settings, the lock keypad, the first run in six languages (`first-run-1-en` and so on).
+- **Games:** `game-c4-playing`, `game-slide-2048`, `game-trivia-ask` and the others, one frame per moment worth seeing, and `game-over-...` for the end screen of each game.
+- **The robot that talks with no host:** `offline-line-<situation>-<language>`. With no host and no model the robot picks a short line for what just happened (a head pat, a pick up, good night, the host is gone, the host is back), shows it as a subtitle and moves its mouth to the code-made mumble. There are six situations in six languages. The picture of one is below.
+- **The brain route:** the notice the robot shows after it leaves the hosted brain is the frame `brain-removed-<language>`, and `scripts/virtual-unit/brain_route.py` models what is saved: leaving the hosted brain wipes its saved link (the `cl_` settings) and keeps the pairing with your host.
+
+![The robot says "I can't reach Home. Still trying." as a subtitle, with its mouth open](../images/vu-offline-line.png)
+
+*The offline line for "the host is not there", in English: one line in the subtitle strip, the mouth open as the mumble plays.*
+
+**A scenario for a screen that is not in the robot's firmware yet does not appear.** The scenarios of a patch that is still waiting for its bench proof are listed in `scripts/virtual-unit/scenarios.py` under `REQUIRES`, and they join the list when the patch is on the firmware list (`firmware/patches/ORDER`). Their pictures wait with the patch.
+
 ## Record what you do
 
 1. Press **Record** in the **Record what you do** section.
